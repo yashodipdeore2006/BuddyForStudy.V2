@@ -3,7 +3,7 @@
 **Status:** Approved architecture for the V2.2 implementation sequence  
 **Scope:** Background processing, offline learner progress synchronization, worker ownership, and low-cost deployment  
 **Implementation branch:** buddy-for-study-v2.2  
-**Current state:** Tasks 1–8 have implementation commits on `buddy-for-study-v2.2`; full regression and deployment verification remain pending.
+**Current state:** Tasks 1–9 have implementation commits on `buddy-for-study-v2.2`; full regression and deployment verification remain pending.
 
 ## 1. Decision summary
 
@@ -361,6 +361,27 @@ The authenticated browser synchronizer is implemented in `client/src/lib/progres
 
 **Validation boundary:** Unit tests and MongoDB index integration coverage were added. Full frontend build/typecheck, complete backend suite, a live MongoDB integration run, and real-browser offline/reconnect testing have not yet been confirmed in this environment. Those checks remain part of Task 10.
 
+
+### 10.6 V2.2 health, recovery, and shutdown implementation checkpoint
+
+Task 9 adds mode-aware execution health and lease recovery visibility:
+
+- Worker heartbeat rows record the execution mode (`inline` or `standalone`), process instance identifier, last start time, last shutdown-start time, worker status (`running`, `stopping`, `stopped`, `unknown`), and the existing maintenance timestamps, last error, and consecutive failure count.
+- The API monitor checks heartbeat and known scheduler leases once per minute. A heartbeat from a different execution mode than the API configuration is treated as a critical configuration mismatch.
+- `disabled` mode is intentional: the health result is `disabled`, stale worker and maintenance-failure alerts are resolved, and no worker heartbeat is required. Lease alerts are suppressed and jobs are reported as `not_expected`.
+- A fresh `stopping` heartbeat is reported as `stopping`, not as a missed-heartbeat failure. A fresh `stopped` pulse is visible as a degraded state but is not escalated to a critical missed-heartbeat alert until the five-minute staleness threshold elapses. This avoids a false critical alert when one inline API replica exits while another replica continues its heartbeat.
+- Consecutive maintenance failures create a warning; five or more consecutive failures raise a critical alert. A successful maintenance completion resets the count and the next monitor pass resolves the alert.
+- The `job_leases` model now records `releasedAt`. Acquisition and renewal clear the marker; release sets it. An expired lease without a release marker raises a recoverable warning. A later acquisition/release resolves the warning. Legacy records released by the old implementation are recognized by the old `leaseUntil === renewedAt` timestamp pattern.
+- Operational health is exposed at `GET /api/health/operations`, protected by JWT authentication and administrator authorization. It returns scheduler mode, aggregate status, worker lifecycle/heartbeat, and per-job lease status, without exposing lease tokens or owner identifiers. Public liveness and database readiness endpoints remain separate.
+- Both inline and standalone shutdown paths record `stopping` before they stop scheduling and drain active work; they record `stopped` after the drain and before MongoDB disconnect. The API's existing graceful-shutdown deadline remains the outer bound for inline draining.
+
+Operational statuses:
+- Worker: `healthy`, `degraded`, `stopping`, `stopped`, `stale`, or `disabled`.
+- Lease: `idle`, `active`, `released`, or `expired`; disabled mode reports `not_expected` while retaining the observed lease state for administrators.
+- Aggregate: `healthy`, `degraded`, `stopping`, or `disabled`.
+
+**Validation boundary:** Unit and static coverage has been added for mode mismatch, disabled mode, stopping/stopped behavior, consecutive-failure alerts, lease release/crash classification, admin route authorization, and shutdown order. Full CI, MongoDB integration, and multi-replica runtime verification remain in Task 10.
+
 ## 11. Proposed configuration surface
 
 These names are design proposals; add them to the environment schema and sample file only during the implementation task that introduces and tests them.
@@ -388,7 +409,7 @@ This architecture is implemented in the following order:
 6. **Standalone compatibility** — complete; standalone mode is enforced and existing worker cadence is preserved.
 7. **Browser offline queue** — complete; IndexedDB storage, account scoping, local restoration, and Service Worker wake-up signals are implemented.
 8. **Sync/retry/idempotency** — implementation complete; authenticated batch API, unique server receipts, conflict handling, cross-tab locks, backoff, and manual recovery are implemented.
-9. **Health/recovery** — next; make heartbeat checks mode-aware and expose lease/job health without false alarms.
+9. **Health/recovery** — implementation complete; mode-aware heartbeat alerts, lease-expiry recovery checks, admin-only diagnostics, and shutdown lifecycle state are implemented.
 10. **Regression and deployment verification** — pending; test API, standalone, inline, disabled, multi-instance contention, shutdown, browser reconnect, and retry recovery.
 
 Do not move to the next implementation task until the current task's tests and branch verification pass. Do not deploy, merge, change Render services, or modify another branch as part of this sequence.
@@ -439,4 +460,4 @@ Therefore:
 - Do not move privileged backend jobs onto user devices to avoid hosting cost.
 
 ---
-**Implementation note:** V2.2 now contains the MongoDB lease foundation, shared orchestration, bounded inline scheduler, standalone lease integration, browser IndexedDB queue, authenticated batch-sync endpoint, server idempotency receipts, and client retry pipeline. Full regression and deployment verification remain pending in Task 10.
+**Implementation note:** V2.2 now contains the MongoDB lease foundation, shared orchestration, bounded inline scheduler, standalone lease integration, browser IndexedDB queue, authenticated batch-sync endpoint, server idempotency receipts, client retry pipeline, and mode-aware health/recovery monitoring. Full regression and deployment verification remain pending in Task 10.

@@ -15,6 +15,7 @@ export interface ProgressQueueOperation {
   nextAttemptAt: number;
   status: ProgressQueueStatus;
   lastError?: string;
+  lastErrorCode?: string;
 }
 
 export interface EnqueueProgressOperationInput {
@@ -382,6 +383,7 @@ export async function scheduleProgressOperationRetry(
         operation.nextAttemptAt = Math.max(Date.now(), Number(details.nextAttemptAt) || Date.now());
         operation.updatedAt = Date.now();
         operation.lastError = String(details.lastError || "").slice(0, 240);
+        operation.lastErrorCode = "";
         operation.status = "pending";
         store.put(operation);
         updated = true;
@@ -524,6 +526,7 @@ export async function markProgressOperationsBlocked(
           if (!operation || !isProgressOperationForAccount(operation, accountId)) return;
           operation.status = "blocked";
           operation.lastError = String(details.message || details.errorCode || "This progress action needs attention.").slice(0, 240);
+          operation.lastErrorCode = String(details.errorCode || "PROGRESS_ACTION_NEEDS_ATTENTION").slice(0, 80);
           operation.updatedAt = Date.now();
           store.put(operation);
           updated += 1;
@@ -560,9 +563,85 @@ export async function retryBlockedProgressOperations(
       request.onsuccess = () => {
         for (const operation of request.result as ProgressQueueOperation[]) {
           if (!isProgressOperationForAccount(operation, accountId) || operation.status !== "blocked") continue;
+          if (!["LEARNING_PROGRESS_NOT_INCLUDED", "COURSE_ACCESS_DENIED", "PROGRESS_SYNC_REQUEST_REJECTED"].includes(operation.lastErrorCode || "")) continue;
           operation.status = "pending";
           operation.nextAttemptAt = Date.now();
           operation.lastError = "";
+          operation.lastErrorCode = "";
+          operation.updatedAt = Date.now();
+          store.put(operation);
+          updated += 1;
+        }
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  if (updated) notifyProgressQueueUpdated(accountId, courseId || undefined);
+  return updated;
+}
+
+export async function discardBlockedProgressOperations(
+  accountIdValue: string,
+  courseIdValue?: string
+): Promise<number> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const courseId = courseIdValue ? requireIdentifier(courseIdValue, "courseId") : null;
+  const database = await openProgressDatabase();
+  let removed = 0;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const index = courseId ? store.index("accountCourseSequence") : store.index("accountSequence");
+      const range = courseId
+        ? accountCourseSequenceRange(accountId, courseId)
+        : accountSequenceRange(accountId);
+      const request = index.getAll(range);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to dismiss blocked progress actions."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress action dismissal was cancelled."));
+      request.onsuccess = () => {
+        for (const operation of request.result as ProgressQueueOperation[]) {
+          if (!isProgressOperationForAccount(operation, accountId) || operation.status !== "blocked") continue;
+          store.delete(operation.operationId);
+          removed += 1;
+        }
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  if (removed) notifyProgressQueueUpdated(accountId, courseId || undefined);
+  return removed;
+}
+
+export async function retryPendingProgressOperationsNow(
+  accountIdValue: string,
+  courseIdValue?: string
+): Promise<number> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const courseId = courseIdValue ? requireIdentifier(courseIdValue, "courseId") : null;
+  const database = await openProgressDatabase();
+  let updated = 0;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const index = courseId ? store.index("accountCourseSequence") : store.index("accountSequence");
+      const range = courseId
+        ? accountCourseSequenceRange(accountId, courseId)
+        : accountSequenceRange(accountId);
+      const request = index.getAll(range);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to retry pending progress actions."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress retry was cancelled."));
+      request.onsuccess = () => {
+        for (const operation of request.result as ProgressQueueOperation[]) {
+          if (!isProgressOperationForAccount(operation, accountId) || operation.status !== "pending") continue;
+          operation.nextAttemptAt = Date.now();
           operation.updatedAt = Date.now();
           store.put(operation);
           updated += 1;

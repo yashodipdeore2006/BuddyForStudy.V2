@@ -127,6 +127,56 @@ export function isEnrollmentCourseAccessAllowed({
   return Boolean(planEntitled);
 }
 
+/**
+ * Resolve the learner-facing access state for a course card.
+ * This summary never replaces canAccessCourse checks on protected APIs.
+ */
+export function resolveCourseCardAccess({
+  enrollment,
+  course,
+  userId,
+  planEntitled = false,
+  planName = null,
+  planOverride = false,
+  hasIndividualPayment = false
+}) {
+  const pricingMode = course?.pricing?.mode;
+  const isPaidCourse = pricingMode === "paid";
+  const isFreeCourse = pricingMode === "free";
+  const hasValidEnrollment = Boolean(
+    enrollment &&
+    !enrollment.revokedBy &&
+    ["active", "completed"].includes(String(enrollment.status || "").toLowerCase())
+  );
+  const enrollmentAllowed = hasValidEnrollment && isEnrollmentCourseAccessAllowed({
+    enrollment, course, userId, planEntitled, hasIndividualPayment
+  });
+  const isCompleted = Boolean(enrollmentAllowed && String(enrollment.status).toLowerCase() === "completed");
+
+  let source = "none";
+  if (isPaidCourse && hasIndividualPayment) source = "individual";
+  else if (isPaidCourse && planEntitled) source = "subscription";
+  else if (enrollmentAllowed && ["subscription", "admin", "self"].includes(enrollment.accessSource)) source = enrollment.accessSource;
+
+  let status = "PRICE_UNAVAILABLE";
+  if (enrollment?.revokedBy) status = "ACCESS_REVOKED";
+  else if (!isPaidCourse && !isFreeCourse) status = "PRICE_UNAVAILABLE";
+  else if (isCompleted) status = "COMPLETED";
+  else if (isPaidCourse && hasIndividualPayment) status = "PURCHASED";
+  else if (isPaidCourse && planEntitled) status = "PLAN_INCLUDED";
+  else if (enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment) status = "ACCESS_EXPIRED";
+  else if (enrollmentAllowed) status = "ENROLLED";
+  else status = isFreeCourse ? "FREE" : "PAID";
+
+  return {
+    status,
+    source,
+    isEnrolled: Boolean(enrollmentAllowed),
+    isCompleted,
+    planName: planEntitled && !planOverride ? (String(planName || "").trim() || null) : null
+  };
+}
+
 export async function canAccessCourse(userId, courseId) {
   const enrollment = await Enrollment.findOne({
     user: userId,

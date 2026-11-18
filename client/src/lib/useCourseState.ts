@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
-import type { Course } from "@/types";
+import type { Course, CourseAccessSummary } from "@/types";
 
 export type CourseState = {
   loading: boolean;
@@ -14,13 +14,14 @@ export type CourseState = {
   hasRoadmap: boolean;
   hasPreview: boolean;
   isPublished: boolean;
+  access: CourseAccessSummary | null;
   error: string | null;
 };
 
 const initialState: CourseState = {
   loading: true, isEnrolled: false, isCompleted: false, progressPct: 0,
   completedLessons: 0, totalLessons: 0, nextLessonId: null, hasRoadmap: false,
-  hasPreview: false, isPublished: true, error: null,
+  hasPreview: false, isPublished: true, access: null, error: null,
 };
 
 function normalizeLessonId(value: unknown): string | null {
@@ -54,11 +55,15 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
 
     void (async () => {
       let enrollment: Record<string, unknown> | null = null;
+      let access: CourseAccessSummary | null = null;
       let progress: Record<string, unknown> | null = null;
       let errorMessage: string | null = null;
       try {
         const result = await apiFetch(`/api/enrollments/course/${encodeURIComponent(courseId)}`);
         enrollment = result.enrollment ?? null;
+        access = result.access && typeof result.access === "object"
+          ? result.access as CourseAccessSummary
+          : null;
       } catch (error) {
         const errorRecord = error !== null && typeof error === "object" ? error as Record<string, unknown> : {};
         const status = Number(errorRecord.status ?? errorRecord.statusCode ?? 0);
@@ -97,7 +102,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
           loading: false, isEnrolled, isCompleted, progressPct, completedLessons, totalLessons,
           nextLessonId: isCompleted || !nextLesson ? null : normalizeLessonId(nextLesson.id),
           hasRoadmap, hasPreview,
-          isPublished: course?.is_published !== false, error: errorMessage,
+          isPublished: course?.is_published !== false, access, error: errorMessage,
         });
         setRemoteRequestKey(requestKey);
       }

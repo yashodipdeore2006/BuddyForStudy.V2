@@ -9,7 +9,7 @@ import {
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
   Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users, Star, Share2,
 } from "lucide-react";
-import type { Course, Enrollment } from "@/types";
+import type { Course, CourseAccessSummary, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -21,7 +21,7 @@ import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/courseP
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
 type LearningProgress = { completedCount: number; totalLessons: number; percentage: number; nextLessonId: string | null; lastLessonId: string | null; lastAccessedAt: string | null };
-type LearningEnrollment = Enrollment & { course: Course; learningStatus: LearningTab; learningProgress: LearningProgress };
+type LearningEnrollment = Enrollment & { course: Course; courseAccess?: CourseAccessSummary; learningStatus: LearningTab; learningProgress: LearningProgress };
 
 function mapCourse(raw: LearningApiRecord): Course {
   const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: LearningApiRecord) => ({
@@ -92,6 +92,8 @@ function mapEnrollment(raw: LearningApiRecord): LearningEnrollment {
     created_at: raw?.createdAt ?? raw?.created_at ?? "",
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? "",
     course,
+    accessSource: raw?.accessSource,
+    courseAccess: raw?.courseAccess && typeof raw.courseAccess === "object" ? raw.courseAccess as CourseAccessSummary : undefined,
     learningStatus,
     learningProgress: {
       completedCount,
@@ -145,6 +147,11 @@ function CourseLearningCard({
   const isFree = course.pricing?.mode === "free";
   const effectivePrice = getEffectiveCoursePrice(course.pricing);
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
+  const courseAccess = enrollment.courseAccess;
+  const includedInPlan = courseAccess?.source === "subscription" &&
+    (courseAccess.status === "PLAN_INCLUDED" || courseAccess.status === "COMPLETED");
+  const individuallyPurchased = courseAccess?.source === "individual" &&
+    (courseAccess.status === "PURCHASED" || courseAccess.status === "COMPLETED");
   const description = getCourseCardDescription(course);
   const category = (course.category || "").toLowerCase();
   const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
@@ -249,9 +256,17 @@ function CourseLearningCard({
       {shareNotice && <p className="bfs-course-card__status" role="status">{shareNotice}</p>}
 
       <div className="bfs-course-card__action-row">
-        <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
-          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
+        <span className={"bfs-course-card__price" + ((isFree || includedInPlan || individuallyPurchased) ? " bfs-course-card__price--free" : "") + (includedInPlan ? " bfs-course-card__price--included" : "")}>
+          {includedInPlan
+            ? "Included in " + (courseAccess?.planName || "your plan")
+            : individuallyPurchased
+              ? "Purchased"
+              : courseAccess?.status === "ACCESS_REVOKED"
+                ? "Access revoked"
+                : effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
+          {includedInPlan && effectivePrice !== null && effectivePrice > 0 && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}</del>}
+          {!includedInPlan && !individuallyPurchased && effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
+          {courseAccess?.status === "ACCESS_EXPIRED" && <span className="bfs-course-card__access-note">Plan access expired</span>}
         </span>
         <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
           <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}

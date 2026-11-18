@@ -4,7 +4,7 @@ import { Review } from "../models/Review.js";
 import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
-import { getEntitlement, isEnrollmentCourseAccessAllowed } from "./subscriptionEntitlement.service.js";
+import { getEntitlement, isEnrollmentCourseAccessAllowed, resolveCourseCardAccess } from "./subscriptionEntitlement.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { Progress } from "../models/Progress.js";
 import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";
@@ -269,6 +269,15 @@ export async function getMine(userId) {
     const result = enrollment.toObject();
     const course = result.course;
     const courseId = course ? String(course._id || course.id) : String(result.course);
+    result.courseAccess = resolveCourseCardAccess({
+      enrollment: result,
+      course,
+      userId,
+      planEntitled,
+      planName: publishedCourseEntitlement?.override ? null : publishedCourseEntitlement?.plan?.name || null,
+      planOverride: Boolean(publishedCourseEntitlement?.override),
+      hasIndividualPayment: individuallyPurchasedCourseIds.has(courseId)
+    });
     const progress = progressByCourse.get(courseId) || null;
     const lessonIds = (course?.modules || [])
       .flatMap((module) => module?.lessons || [])
@@ -395,6 +404,54 @@ export async function getForCourse(userId, courseId) {
   })) return null;
 
   return enrollment;
+}
+
+/**
+ * Return a minimal enrollment and server-verified access summary for a course.
+ * Viewing a course never creates an enrollment or exposes curriculum content.
+ */
+export async function getCourseAccessForUser(userId, courseId) {
+  const [course, enrollment] = await Promise.all([
+    Course.findOne({
+      _id: courseId,
+      deletedAt: null,
+      status: { $ne: "archived" },
+      $or: [{ isPublished: true }, { visibility: "private", createdForUser: userId }]
+    }).select("pricing visibility createdForUser isPublished deletedAt status generation.mode aiReviewStatus aiReviewSource aiReviewedBy").lean(),
+    Enrollment.findOne({ user: userId, course: courseId })
+      .select("status accessSource revokedBy")
+      .sort({ updatedAt: -1 })
+      .lean()
+  ]);
+  if (!course) return { enrollment: null, access: null };
+
+  const needsPlanEntitlement = course.pricing?.mode === "paid" || enrollment?.accessSource === "subscription";
+  const [payment, entitlement] = await Promise.all([
+    course.pricing?.mode === "paid" && enrollment?.accessSource !== "admin"
+      ? Payment.exists({
+          user: userId,
+          course: courseId,
+          provider: "razorpay",
+          status: { $in: ["paid", "partially_refunded"] }
+        })
+      : Promise.resolve(false),
+    needsPlanEntitlement ? getEntitlement(userId, "published_courses") : Promise.resolve(null)
+  ]);
+  const access = resolveCourseCardAccess({
+    enrollment,
+    course,
+    userId,
+    planEntitled: Boolean(entitlement?.allowed),
+    planName: entitlement?.override ? null : entitlement?.plan?.name || null,
+    planOverride: Boolean(entitlement?.override),
+    hasIndividualPayment: Boolean(payment)
+  });
+  return {
+    enrollment: access.isEnrolled && enrollment
+      ? { status: enrollment.status, accessSource: enrollment.accessSource, revokedBy: null }
+      : null,
+    access
+  };
 }
 
 export async function cancel(userId, courseId) {

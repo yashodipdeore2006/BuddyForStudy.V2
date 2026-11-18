@@ -3,6 +3,24 @@ export type AuthProvider = 'local' | 'google' | 'local_google';
 export type CourseLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type LessonType = 'tutorial' | 'project' | 'quiz';
 export type EnrollmentStatus = 'active' | 'completed' | 'cancelled';
+export type CourseAccessStatus =
+  | 'FREE'
+  | 'PAID'
+  | 'PLAN_INCLUDED'
+  | 'PURCHASED'
+  | 'ENROLLED'
+  | 'COMPLETED'
+  | 'ACCESS_EXPIRED'
+  | 'ACCESS_REVOKED'
+  | 'PRICE_UNAVAILABLE';
+
+export interface CourseAccessSummary {
+  status: CourseAccessStatus;
+  source: 'none' | 'subscription' | 'individual' | 'admin' | 'self';
+  isEnrolled: boolean;
+  isCompleted: boolean;
+  planName: string | null;
+}
 
 export interface Profile {
   id: string;
@@ -151,6 +169,8 @@ export interface Enrollment {
   enrolled_at: string;
   created_at: string;
   updated_at: string;
+  accessSource?: 'subscription' | 'self' | 'admin';
+  courseAccess?: CourseAccessSummary;
   course?: Course;
 }
 

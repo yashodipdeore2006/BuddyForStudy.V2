@@ -95,7 +95,7 @@ test("standalone worker uses shared leases and drains all jobs before shutdown",
   assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), announcementIntervalMs\)/);
   assert.match(worker, /setInterval\(\(\) => \{\s*void runMaintenance\(\)\.finally\(/);
   assert.match(worker, /let heartbeatInProgress = Promise\.resolve\(\)/);
-  assert.match(worker, /heartbeatInProgress = heartbeatInProgress\.then\(\(\) => heartbeatWorker\("running"\)\)\.catch/);
+  assert.match(worker, /heartbeatInProgress = heartbeatInProgress\.then\(\(\) => heartbeatWorker\("running", new Date\(\), \{/);
 
   assert.match(shutdown, /if \(stopping\) return;/);
   assert.match(shutdown, /clearInterval\(maintenanceHandle\)/);
@@ -105,7 +105,7 @@ test("standalone worker uses shared leases and drains all jobs before shutdown",
   assert.match(shutdown, /await leaseRunner\.stop\(\)/);
   assert.match(shutdown, /await orchestrator\.waitForIdle\(\)/);
   assert.match(shutdown, /await heartbeatInProgress/);
-  assert.ok(shutdown.indexOf("await leaseRunner.stop()") < shutdown.indexOf('heartbeatWorker("stopped")'));
+  assert.ok(shutdown.indexOf("await leaseRunner.stop()") < shutdown.indexOf('heartbeatWorker("stopped", new Date()'));
   assert.ok(shutdown.indexOf("markWorkerStopping") < shutdown.indexOf("await leaseRunner.stop()"));
   assert.ok(shutdown.indexOf('heartbeatWorker("stopped", new Date()') < shutdown.indexOf("mongoose.disconnect()"));
   assert.match(shutdown, /mongoose\.disconnect\(\)/);

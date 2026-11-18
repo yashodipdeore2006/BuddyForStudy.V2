@@ -77,24 +77,37 @@ test("maintenance lifecycle records start, completion and failure counters", asy
   assert.equal(calls[2].update.$inc.consecutiveFailures, 1);
 });
 
-test("worker shutdown clears schedulers, waits for active jobs, marks stopped and disconnects", async () => {
+test("standalone worker delegates orchestration and drains it before shutdown", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = (await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  const orchestrator = (await readFile(new URL("../src/jobs/maintenanceOrchestrator.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const start = worker.indexOf("async function shutdown(signal)");
   const end = worker.indexOf("\n}\n", start);
   const shutdown = worker.slice(start, end + 3);
-  assert.match(shutdown, /clearInterval\(intervalHandle\)/);
+
+  assert.match(worker, /createMaintenanceOrchestrator\(\)/);
+  assert.match(worker, /setInterval\(\(\) => void orchestrator\.runMaintenance\(\), maintenanceIntervalMs\)/);
+  assert.match(worker, /setInterval\(\(\) => void orchestrator\.runAnnouncementBatches\(\), announcementIntervalMs\)/);
+  assert.match(shutdown, /orchestrator\.stop\(\)/);
+  assert.match(shutdown, /clearInterval\(maintenanceHandle\)/);
   assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
   assert.match(shutdown, /clearInterval\(announcementHandle\)/);
-  assert.match(shutdown, /while \(maintenanceInProgress \|\| announcementRunInProgress \|\| nightlyRunInProgress\)/);
+  assert.match(shutdown, /await orchestrator\.waitForIdle\(\)/);
   assert.match(shutdown, /await heartbeatInProgress/);
-  assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf('heartbeatWorker("stopped")'), "the final stopped heartbeat must follow any in-flight running heartbeat");
+  assert.ok(shutdown.indexOf("await orchestrator.waitForIdle()") < shutdown.indexOf("await heartbeatInProgress"));
+  assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf('heartbeatWorker("stopped")'));
   assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
   assert.match(shutdown, /mongoose\.disconnect\(\)/);
-  assert.match(worker, /let heartbeatInProgress = Promise\.resolve\(\)/);
-  assert.match(worker, /heartbeatInProgress = heartbeatWorker\("running"\)\.catch/);
-  assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await runMaintenance();"), "SIGTERM must be handled during initial maintenance");
-  assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await runAnnouncementBatches();"), "SIGINT must be handled during initial announcement processing");
+  assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await orchestrator.runMaintenance();"));
+  assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await orchestrator.runAnnouncementBatches();"));
+
+  assert.match(orchestrator, /export function createMaintenanceOrchestrator\(\)/);
+  assert.match(orchestrator, /async function runMaintenance\(\)/);
+  assert.match(orchestrator, /async function runAnnouncementBatches\(\)/);
+  assert.match(orchestrator, /async function runNightlyCurationJobs/);
+  assert.match(orchestrator, /function stop\(\)/);
+  assert.match(orchestrator, /async function waitForIdle/);
+  assert.match(orchestrator, /return Object\.freeze\(\{/);
 });
 
 

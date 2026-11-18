@@ -37,6 +37,7 @@ test("job lease schema enforces a unique job key and indexes lease expiry", () =
   assert.ok(indexes.some(([fields, options]) =>
     fields.leaseUntil === 1 && options.name === "job_lease_expiry_lookup"
   ));
+  assert.ok(JobLease.schema.path("releasedAt"), "release timestamp is persisted for crash detection");
 });
 
 test("lease acquisition atomically claims an absent or expired job and advances its fencing token", async () => {

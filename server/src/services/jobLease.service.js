@@ -135,7 +135,7 @@ export async function renewJobLease({
       $set: {
         leaseUntil: new Date(currentTime.getTime() + duration),
         renewedAt: currentTime,
-        releasedAt: currentTime
+        releasedAt: null
       }
     },
     {
@@ -158,7 +158,8 @@ export async function releaseJobLease({ jobKey, ownerId, leaseToken, now = new D
     {
       $set: {
         leaseUntil: currentTime,
-        renewedAt: currentTime
+        renewedAt: currentTime,
+        releasedAt: currentTime
       }
     },
     {

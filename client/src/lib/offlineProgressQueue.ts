@@ -3,6 +3,7 @@ export type ProgressQueueStatus = "pending" | "blocked";
 
 export interface ProgressQueueOperation {
   operationId: string;
+  schemaVersion: 1;
   accountId: string;
   courseId: string;
   itemId: string;
@@ -30,6 +31,7 @@ const METADATA_STORE = "metadata";
 const BACKGROUND_SYNC_TAG = "bfs-progress-sync";
 const DEFAULT_PENDING_LIMIT = 50;
 const MAX_PENDING_LIMIT = 200;
+const SYNC_LOCK_LEASE_MS = 2 * 60 * 1000;
 
 function requireIdentifier(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) {
@@ -131,6 +133,10 @@ export function selectDueProgressOperations(
   const dueOperations: ProgressQueueOperation[] = [];
 
   for (const operation of sortProgressQueueOperations(operations)) {
+    if (operation.status === "blocked") {
+      retryBlockedCourses.add(operation.courseId);
+      continue;
+    }
     if (operation.status !== "pending" || retryBlockedCourses.has(operation.courseId)) continue;
     if (operation.nextAttemptAt > now) {
       retryBlockedCourses.add(operation.courseId);
@@ -177,6 +183,7 @@ export async function enqueueProgressOperation(
         const sequence = Math.max(0, Number(currentSequenceRequest.result?.value) || 0) + 1;
         createdOperation = {
           operationId: createOperationId(),
+          schemaVersion: 1,
           accountId,
           courseId,
           itemId,
@@ -230,7 +237,7 @@ export async function listPendingProgressOperations(
 
     const accountOperations = sortProgressQueueOperations(operations).filter((operation) =>
       isProgressOperationForAccount(operation, accountId) &&
-      operation.status === "pending"
+      (operation.status === "pending" || (options.includeDeferred === true && operation.status === "blocked"))
     );
     if (options.includeDeferred === true) return accountOperations.slice(0, limit);
     return selectDueProgressOperations(accountOperations, limit, now);
@@ -259,7 +266,7 @@ export async function getPendingProgressOperationCount(
     });
     return operations.filter((operation) =>
       isProgressOperationForAccount(operation, accountId) &&
-      operation.status === "pending"
+      (operation.status === "pending" || operation.status === "blocked")
     ).length;
   } finally {
     database.close();
@@ -339,6 +346,187 @@ export async function scheduleProgressOperationRetry(
   }
 
   if (updated) notifyProgressQueueUpdated(accountId);
+  return updated;
+}
+
+/**
+ * Cross-tab account-specific lease so only one open tab drains a given queue.
+ * IndexedDB serializes the read/write transaction, making acquisition atomic.
+ */
+export async function acquireProgressSyncLock(
+  accountIdValue: string,
+  ownerId: string,
+  leaseMs = SYNC_LOCK_LEASE_MS
+): Promise<boolean> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const owner = requireIdentifier(ownerId, "ownerId");
+  const database = await openProgressDatabase();
+  let acquired = false;
+  const now = Date.now();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(METADATA_STORE, "readwrite");
+      const store = transaction.objectStore(METADATA_STORE);
+      const key = "sync-lock:" + accountId;
+      const request = store.get(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to acquire progress sync lock."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress sync lock acquisition was cancelled."));
+      request.onsuccess = () => {
+        const current = request.result;
+        if (current && current.ownerId !== owner && Number(current.leaseUntil) > now) return;
+        store.put({
+          key,
+          ownerId: owner,
+          leaseUntil: now + Math.max(30_000, Math.min(5 * 60_000, Number(leaseMs) || SYNC_LOCK_LEASE_MS))
+        });
+        acquired = true;
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  return acquired;
+}
+
+export async function renewProgressSyncLock(
+  accountIdValue: string,
+  ownerId: string,
+  leaseMs = SYNC_LOCK_LEASE_MS
+): Promise<boolean> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const owner = requireIdentifier(ownerId, "ownerId");
+  const database = await openProgressDatabase();
+  let renewed = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(METADATA_STORE, "readwrite");
+      const store = transaction.objectStore(METADATA_STORE);
+      const key = "sync-lock:" + accountId;
+      const request = store.get(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to renew progress sync lock."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress sync lock renewal was cancelled."));
+      request.onsuccess = () => {
+        if (request.result?.ownerId !== owner) return;
+        store.put({
+          key,
+          ownerId: owner,
+          leaseUntil: Date.now() + Math.max(30_000, Math.min(5 * 60_000, Number(leaseMs) || SYNC_LOCK_LEASE_MS))
+        });
+        renewed = true;
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  return renewed;
+}
+
+export async function releaseProgressSyncLock(accountIdValue: string, ownerId: string): Promise<boolean> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const owner = requireIdentifier(ownerId, "ownerId");
+  const database = await openProgressDatabase();
+  let released = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(METADATA_STORE, "readwrite");
+      const store = transaction.objectStore(METADATA_STORE);
+      const key = "sync-lock:" + accountId;
+      const request = store.get(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to release progress sync lock."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress sync lock release was cancelled."));
+      request.onsuccess = () => {
+        if (request.result?.ownerId !== owner) return;
+        store.delete(key);
+        released = true;
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  return released;
+}
+
+export async function markProgressOperationsBlocked(
+  accountIdValue: string,
+  operationIds: string[],
+  details: { errorCode?: string; message?: string }
+): Promise<number> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const ids = new Set(operationIds.map((id) => requireIdentifier(id, "operationId")));
+  if (!ids.size) return 0;
+  const database = await openProgressDatabase();
+  let updated = 0;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to mark progress actions for review."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress action update was cancelled."));
+      for (const operationId of ids) {
+        const request = store.get(operationId);
+        request.onsuccess = () => {
+          const operation = request.result as ProgressQueueOperation | undefined;
+          if (!operation || !isProgressOperationForAccount(operation, accountId)) return;
+          operation.status = "blocked";
+          operation.lastError = String(details.message || details.errorCode || "This progress action needs attention.").slice(0, 240);
+          operation.updatedAt = Date.now();
+          store.put(operation);
+          updated += 1;
+        };
+      }
+    });
+  } finally {
+    database.close();
+  }
+  if (updated) notifyProgressQueueUpdated(accountId);
+  return updated;
+}
+
+export async function retryBlockedProgressOperations(
+  accountIdValue: string,
+  courseIdValue?: string
+): Promise<number> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const courseId = courseIdValue ? requireIdentifier(courseIdValue, "courseId") : null;
+  const database = await openProgressDatabase();
+  let updated = 0;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const index = courseId ? store.index("accountCourseSequence") : store.index("accountSequence");
+      const range = courseId
+        ? accountCourseSequenceRange(accountId, courseId)
+        : accountSequenceRange(accountId);
+      const request = index.getAll(range);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("Unable to retry blocked progress actions."));
+      transaction.onabort = () => reject(transaction.error || new Error("Progress retry was cancelled."));
+      request.onsuccess = () => {
+        for (const operation of request.result as ProgressQueueOperation[]) {
+          if (!isProgressOperationForAccount(operation, accountId) || operation.status !== "blocked") continue;
+          operation.status = "pending";
+          operation.nextAttemptAt = Date.now();
+          operation.lastError = "";
+          operation.updatedAt = Date.now();
+          store.put(operation);
+          updated += 1;
+        }
+      };
+      request.onerror = () => transaction.abort();
+    });
+  } finally {
+    database.close();
+  }
+  if (updated) notifyProgressQueueUpdated(accountId, courseId || undefined);
   return updated;
 }
 

@@ -161,7 +161,7 @@ Do not use a MongoDB TTL index as the lock-release mechanism. Lease expiry is ev
 - The owner renews before expiry, using a filter that matches job key, owner ID, lease token, and a lease that has not already expired.
 - If renewal matches no document, the process has lost ownership. It must not start another batch and must stop between safe checkpoints.
 - Release matches the exact job key, owner ID, and lease token. A process must never clear a lease acquired by a newer owner.
-- Use database UTC timestamps. Do not rely on an unverified browser clock.
+- Use UTC timestamps from synchronized server clocks across all API and worker instances. Do not rely on an unverified browser clock.
 - The initial lease duration and renewal cadence should be configurable, with a conservative default such as a two-minute lease renewed every 30 seconds. Confirm real job duration and database latency with tests before finalizing production values.
 
 ### 6.4 Long-running work and duplicate protection

@@ -29,18 +29,43 @@ export async function recordAuditEvent(event) {
   }
 }
 
-export async function processPendingAuditOutbox(limit = 100, now = new Date()) {
+export async function processPendingAuditOutbox(limit = 100, now = new Date(), options = {}) {
   const requestedBatchSize = Number(limit);
   const batchSize = Math.max(1, Math.min(Number.isFinite(requestedBatchSize) && requestedBatchSize !== 0 ? Math.trunc(requestedBatchSize) : 100, 500));
+  const requestedMaxRecoveries = Number(options.maxRecoveries);
+  const maxRecoveries = Number.isFinite(requestedMaxRecoveries)
+    ? Math.max(0, Math.min(500, Math.trunc(requestedMaxRecoveries)))
+    : Number.POSITIVE_INFINITY;
   let processed = 0;
   let failures = 0;
 
   // Recover work abandoned by a worker crash. Idempotent event IDs make
   // replay safe even if the audit write succeeded before the crash.
-  await AuditOutbox.updateMany(
-    { status: "processing", lockedAt: { $lt: new Date(now.getTime() - 5 * 60 * 1000) } },
-    { $set: { status: "pending", lockedAt: null } }
-  );
+  const staleProcessingFilter = {
+    status: "processing",
+    lockedAt: { $lt: new Date(now.getTime() - 5 * 60 * 1000) }
+  };
+  if (Number.isFinite(maxRecoveries)) {
+    if (maxRecoveries > 0) {
+      const staleItems = await AuditOutbox.find(staleProcessingFilter)
+        .sort({ lockedAt: 1, _id: 1 })
+        .limit(maxRecoveries)
+        .select("_id")
+        .lean();
+      const staleIds = staleItems.map((item) => item._id);
+      if (staleIds.length) {
+        await AuditOutbox.updateMany(
+          { ...staleProcessingFilter, _id: { $in: staleIds } },
+          { $set: { status: "pending", lockedAt: null } }
+        );
+      }
+    }
+  } else {
+    await AuditOutbox.updateMany(
+      staleProcessingFilter,
+      { $set: { status: "pending", lockedAt: null } }
+    );
+  }
 
   for (let index = 0; index < batchSize; index += 1) {
     const item = await AuditOutbox.findOneAndUpdate(

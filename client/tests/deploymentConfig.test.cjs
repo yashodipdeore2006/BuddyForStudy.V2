@@ -39,7 +39,8 @@ test("Render Blueprint includes a static frontend and one bounded inline API ser
     "the constrained API plan must be explicit rather than silently selecting a paid default");
   assert.match(render, /source: \/\*\s+destination: \/index\.html/,
     "the Render static site must support SPA deep links");
-  assert.match(render, /name: buddyforstudy-web[\s\S]*runtime: static/);
+  assert.ok(render.includes("runtime: static") && render.includes("name: buddyforstudy-web"),
+    "the frontend must be configured as a Render static site");
   assert.match(render, /rootDir: client/);
   assert.match(render, /staticPublishPath: dist/);
   assert.match(render, /key: VITE_API_URL[\s\S]{0,40}sync: false/);

@@ -112,6 +112,7 @@ test("standalone worker uses shared leases and drains all jobs before shutdown",
   assert.match(shutdown, /await orchestrator\.waitForIdle\(\)/);
   assert.match(shutdown, /await heartbeatInProgress/);
   assert.ok(shutdown.indexOf("await leaseRunner.stop()") < shutdown.indexOf('heartbeatWorker("stopped", new Date()'));
+  assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf("markWorkerStopping"));
   assert.ok(shutdown.indexOf("markWorkerStopping") < shutdown.indexOf("await leaseRunner.stop()"));
   assert.ok(shutdown.indexOf('heartbeatWorker("stopped", new Date()') < shutdown.indexOf("mongoose.disconnect()"));
   assert.match(shutdown, /mongoose\.disconnect\(\)/);

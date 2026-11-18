@@ -359,12 +359,16 @@ export default function CoursePlayer() {
                 limit: 200,
                 includeDeferred: true
               });
-              setPendingOfflineProgressCount(await getPendingProgressOperationCount(accountId, courseId));
+              const pendingCount = await getPendingProgressOperationCount(accountId, courseId);
+              setPendingOfflineProgressCount(pendingCount);
+              if (pendingCount > 0) requestProgressSync(accountId, courseId);
             } catch {
               // IndexedDB availability must not turn a valid server progress response into a plan denial.
             }
-            const lessonsById = new Map(
-              mappedCourse.modules.flatMap((module) => module.lessons).map((lesson) => [lesson.id, lesson])
+            const lessonsById = new Map<string, Course["modules"][number]["lessons"][number]>(
+              mappedCourse.modules
+                .flatMap((module) => module.lessons)
+                .map((lesson) => [lesson.id, lesson] as const)
             );
             for (const operation of pendingOperations) {
               const targetLesson = lessonsById.get(operation.itemId);

@@ -57,6 +57,7 @@ export function createInlineBackgroundScheduler({
   let announcementTimer;
   let heartbeatTimer;
   let heartbeatInProgress = Promise.resolve();
+  let stopPromise = null;
   const activeJobs = new Map();
 
   function logLeaseLost(jobKey, reason) {
@@ -147,6 +148,14 @@ export function createInlineBackgroundScheduler({
         if (!(await shouldContinue())) return { skipped: "lease_not_owned" };
         const result = await handler({ shouldContinue, lease });
         return leaseLost ? { ...(result || {}), leaseLost: true } : result;
+      } catch (error) {
+        logger.error?.("[inline-worker] scheduled job handler failed", {
+          jobKey,
+          name: error?.name || "Error",
+          code: error?.code,
+          message: String(error?.message || "Scheduled job failed").slice(0, 300)
+        });
+        return { failed: true };
       } finally {
         clearIntervalFn(renewalTimer);
         if (renewalPromise) await renewalPromise;
@@ -233,23 +242,23 @@ export function createInlineBackgroundScheduler({
     return { started: true, ownerId: normalizedOwnerId };
   }
 
-  async function stop() {
-    if (stopping) {
-      await Promise.allSettled([...activeJobs.values()]);
-      return { stopped: true, alreadyStopping: true };
-    }
+  function stop() {
+    if (stopPromise) return stopPromise;
     stopping = true;
     if (maintenanceTimer) clearIntervalFn(maintenanceTimer);
     if (announcementTimer) clearIntervalFn(announcementTimer);
     if (heartbeatTimer) clearIntervalFn(heartbeatTimer);
 
     orchestrator.stop();
-    await Promise.allSettled([...activeJobs.values()]);
-    await orchestrator.waitForIdle();
-    await heartbeatInProgress;
-    await writeHeartbeat("stopped");
-    logger.info?.("[inline-worker] scheduler stopped and active jobs drained", { ownerId: normalizedOwnerId });
-    return { stopped: true, ownerId: normalizedOwnerId };
+    stopPromise = (async () => {
+      await Promise.allSettled([...activeJobs.values()]);
+      await orchestrator.waitForIdle();
+      await heartbeatInProgress;
+      await writeHeartbeat("stopped");
+      logger.info?.("[inline-worker] scheduler stopped and active jobs drained", { ownerId: normalizedOwnerId });
+      return { stopped: true, ownerId: normalizedOwnerId };
+    })();
+    return stopPromise;
   }
 
   return Object.freeze({

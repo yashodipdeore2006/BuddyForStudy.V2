@@ -81,7 +81,8 @@ export async function checkBackgroundJobLeases(
     jobs.push({
       jobKey: definition.jobKey,
       label: definition.label,
-      status: mode === "disabled" && leaseStatus === "expired" ? "not_expected" : leaseStatus,
+      status: mode === "disabled" ? "not_expected" : leaseStatus,
+      observedStatus: leaseStatus,
       leaseUntil: leaseUntil?.toISOString() || null,
       remainingSeconds: remainingMs === null ? null : Math.ceil(remainingMs / 1000),
       acquiredAt: acquiredAt?.toISOString() || null,

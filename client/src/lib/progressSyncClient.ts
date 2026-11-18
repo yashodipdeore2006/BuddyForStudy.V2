@@ -1,6 +1,7 @@
-import { ApiError, apiFetch, getToken } from "@/lib/api";
+import { ApiError, apiFetch, getStoredUserId, getToken } from "@/lib/api";
 import {
   acquireProgressSyncLock,
+  getNextProgressRetryAt,
   getPendingProgressOperationCount,
   listPendingProgressOperations,
   markProgressOperationsBlocked,
@@ -50,6 +51,52 @@ function retryDelay(retryCount: number, serverDelay?: number): number {
 function emitProgressSyncStatus(detail: ProgressSyncRunResult): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("bfs:progress-sync-status", { detail }));
+}
+
+
+const progressRetryTimers = new Map<string, number>();
+
+async function scheduleNextProgressRetry(
+  accountId: string,
+  status: ProgressSyncRunResult["status"]
+): Promise<void> {
+  if (typeof window === "undefined" || status === "offline" || status === "unauthenticated") {
+    const current = progressRetryTimers.get(accountId);
+    if (current !== undefined && typeof window !== "undefined") window.clearTimeout(current);
+    progressRetryTimers.delete(accountId);
+    return;
+  }
+
+  let nextAttemptAt: number | null = null;
+  try {
+    nextAttemptAt = await getNextProgressRetryAt(accountId);
+  } catch {
+    return;
+  }
+
+  const current = progressRetryTimers.get(accountId);
+  if (current !== undefined) window.clearTimeout(current);
+  progressRetryTimers.delete(accountId);
+  if (nextAttemptAt === null) return;
+
+  let delay = Math.max(250, nextAttemptAt - Date.now());
+  if (status === "busy") delay = Math.max(delay, 5000);
+  const timer = window.setTimeout(() => {
+    progressRetryTimers.delete(accountId);
+    let activeAccountId: string | null = null;
+    let tokenAvailable = false;
+    try {
+      activeAccountId = getStoredUserId();
+      tokenAvailable = Boolean(getToken());
+    } catch {
+      // Wait for the next app startup or explicit retry if browser storage is unavailable.
+    }
+    if (activeAccountId !== accountId || !tokenAvailable || navigator.onLine === false) return;
+    window.dispatchEvent(new CustomEvent("bfs:progress-sync-requested", {
+      detail: { accountId, reason: "retry-backoff-expired" }
+    }));
+  }, Math.min(delay, 2_147_000_000));
+  progressRetryTimers.set(accountId, timer);
 }
 
 async function retryBatch(
@@ -280,5 +327,6 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
     if (hasLock) {
       await releaseProgressSyncLock(accountId, ownerId).catch(() => false);
     }
+    await scheduleNextProgressRetry(accountId, result.status);
   }
 }

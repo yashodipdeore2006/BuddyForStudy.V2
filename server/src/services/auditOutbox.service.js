@@ -46,7 +46,7 @@ export async function processPendingAuditOutbox(limit = 100, now = new Date(), o
     lockedAt: { $lt: new Date(now.getTime() - 5 * 60 * 1000) }
   };
   if (await options.shouldContinue?.() === false) return { processed, failures, skipped: "lease_lost" };
-  if (Number.isFinite(maxRecoveries))
+  if (Number.isFinite(maxRecoveries)) {
     if (maxRecoveries > 0) {
       const staleItems = await AuditOutbox.find(staleProcessingFilter)
         .sort({ lockedAt: 1, _id: 1 })
@@ -61,7 +61,7 @@ export async function processPendingAuditOutbox(limit = 100, now = new Date(), o
         );
       }
     }
-  } else {
+  } else if (await options.shouldContinue?.() !== false) {
     await AuditOutbox.updateMany(
       staleProcessingFilter,
       { $set: { status: "pending", lockedAt: null } }

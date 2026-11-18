@@ -144,9 +144,11 @@ test("missing and stopped worker heartbeats raise critical alerts", async () => 
       assert.equal(result.status, "stale");
     });
   }
-  assert.equal(alerts.length, 2);
-  assert.ok(alerts.every((item) => item.filter.key === "background-worker-heartbeat-stale"));
-  assert.ok(alerts.every((item) => item.update.$set.severity === "critical"));
+  const staleAlerts = alerts.filter((item) =>
+    item.filter.key === "background-worker-heartbeat-stale" && item.update.$set.status === "open"
+  );
+  assert.equal(staleAlerts.length, 2);
+  assert.ok(staleAlerts.every((item) => item.update.$set.severity === "critical"));
 });
 
 

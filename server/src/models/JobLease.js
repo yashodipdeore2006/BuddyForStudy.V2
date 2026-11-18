@@ -31,6 +31,11 @@ const jobLeaseSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  releasedAt: {
+    type: Date,
+    default: null,
+    index: true
+  },
   // Incremented atomically on every successful acquisition. Downstream jobs
   // can use it as a fencing generation when their writes support fencing.
   fencingToken: {

@@ -82,7 +82,13 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
     remaining: 0
   };
 
-  if (!accountId || !getToken()) {
+  let tokenAvailable = false;
+  try {
+    tokenAvailable = Boolean(getToken());
+  } catch {
+    tokenAvailable = false;
+  }
+  if (!accountId || !tokenAvailable) {
     result.status = "unauthenticated";
     return result;
   }

@@ -2186,6 +2186,12 @@ test.describe("public platform pages and footer", () => {
 test.describe("push notification prompt", () => {
   test("offers an in-app opt-in after app entry without opening the browser prompt automatically", async ({ page }) => {
     await page.addInitScript(() => {
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+      }));
+    });
+    await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", {
         configurable: true,
         value: {
@@ -2220,6 +2226,12 @@ test.describe("push notification prompt", () => {
 
 
   test("shows recovery instructions when browser push permission has been blocked", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+      }));
+    });
     await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", {
         configurable: true,

@@ -93,3 +93,36 @@ services:
         sync: false
       - key: WEB_PUSH_SUBJECT
         sync: false
+  - type: web
+    runtime: static
+    name: buddyforstudy-web
+    rootDir: client
+    branch: buddy-for-study-v2.2
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_PUBLIC_SITE_URL
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_INTENT_V2
+        value: "false"
+      - key: VITE_ASYNC_ROADMAP
+        value: "false"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

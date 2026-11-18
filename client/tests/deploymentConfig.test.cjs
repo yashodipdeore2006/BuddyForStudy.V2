@@ -31,6 +31,7 @@ test("Vercel config builds the Vite app and serves client-side routes directly",
 
 test("Render defaults to one API service with bounded inline background execution", () => {
   assert.match(render, /name: buddyforstudy-api/);
+  assert.match(render, /branch: buddy-for-study-v2\\.2/, "Render must deploy the approved V2.2 release branch");
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
   assert.equal((render.match(/- type:/g) || []).length, 1,
     "the cost-conscious default blueprint must not create a separately billed worker");

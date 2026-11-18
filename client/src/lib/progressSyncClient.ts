@@ -174,7 +174,7 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
       const responseResults = Array.isArray(response?.results) ? response.results : [];
       const resultsById = new Map(responseResults.map((entry) => [entry.operationId, entry]));
       const removeIds: string[] = [];
-      const blocked: Array<{ operationId: string; message: string }> = [];
+      const blocked: Array<{ operationId: string; errorCode: string; message: string }> = [];
       const retrying: Array<{ operation: ProgressQueueOperation; message: string; delay?: number }> = [];
 
       for (const operation of operations) {
@@ -186,7 +186,16 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
         if (operationResult?.status === "rejected" || operationResult?.status === "conflict") {
           blocked.push({
             operationId: operation.operationId,
+            errorCode: operationResult.errorCode || "PROGRESS_ACTION_NEEDS_ATTENTION",
             message: operationResult.message || operationResult.errorCode || "This progress action needs attention."
+          });
+          continue;
+        }
+        if (operationResult?.status === "retryable" && operationResult.errorCode === "COURSE_ACCESS_DENIED") {
+          blocked.push({
+            operationId: operation.operationId,
+            errorCode: operationResult.errorCode,
+            message: operationResult.message || "Restore course access before retrying."
           });
           continue;
         }
@@ -202,10 +211,12 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
         result.applied += removeIds.length;
       }
       if (blocked.length) {
-        await markProgressOperationsBlocked(accountId, blocked.map((entry) => entry.operationId), {
-          errorCode: "PROGRESS_ACTION_NEEDS_ATTENTION",
-          message: blocked[0].message
-        });
+        for (const entry of blocked) {
+          await markProgressOperationsBlocked(accountId, [entry.operationId], {
+            errorCode: entry.errorCode,
+            message: entry.message
+          });
+        }
         result.blocked += blocked.length;
       }
       if (retrying.length) {

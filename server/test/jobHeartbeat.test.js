@@ -283,3 +283,33 @@ test("a recent stopped heartbeat does not immediately raise a critical alert", a
     entry.filter.key === "background-worker-heartbeat-stale" && entry.update.$set.status === "open"
   ), false);
 });
+
+
+test("heartbeat from a different execution mode is treated as a configuration mismatch", async () => {
+  const alerts = [];
+  await withMocks([
+    [JobHeartbeat, { findOne: () => ({ lean: async () => ({
+      jobName: WORKER_JOB_NAME,
+      workerStatus: "running",
+      executionMode: "standalone",
+      lastHeartbeatAt: new Date("2026-11-18T12:00:00Z")
+    }) }) }],
+    [OperationalAlert, { findOneAndUpdate: async (filter, update) => {
+      alerts.push({ filter, update });
+      return {};
+    } }]
+  ], async () => {
+    const result = await checkWorkerHeartbeat(
+      new Date("2026-11-18T12:01:00Z"),
+      WORKER_HEARTBEAT_STALE_AFTER_MS,
+      "inline"
+    );
+    assert.equal(result.status, "stale");
+    assert.equal(result.modeMismatch, true);
+    assert.equal(result.executionMode, "standalone");
+  });
+
+  const mismatch = alerts.find((entry) => entry.filter.key === "background-worker-heartbeat-stale");
+  assert.equal(mismatch.update.$set.severity, "critical");
+  assert.match(mismatch.update.$set.message, /expects inline/i);
+});

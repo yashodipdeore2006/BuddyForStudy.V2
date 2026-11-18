@@ -5,6 +5,7 @@ import AppErrorBoundary from './components/AppErrorBoundary.tsx';
 import './index.css';
 import './styles/learner-components.css';
 import './styles/admin-design-system.css';
+import { registerApplicationServiceWorker } from '@/lib/serviceWorker';
 
 function applyStoredTheme() {
   let preference: string | null = null;
@@ -16,6 +17,12 @@ function applyStoredTheme() {
 }
 
 applyStoredTheme();
+
+void registerApplicationServiceWorker().catch((error) => {
+  console.warn("[service-worker] registration unavailable", {
+    name: error?.name || "Error"
+  });
+});
 const systemThemeMedia = window.matchMedia?.('(prefers-color-scheme: dark)');
 systemThemeMedia?.addEventListener?.('change', () => {
   try { if (window.localStorage.getItem('bfs-theme') === 'system') applyStoredTheme(); } catch { /* Keep the active theme if storage is unavailable. */ }

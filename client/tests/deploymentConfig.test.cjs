@@ -34,16 +34,21 @@ test("Render defaults to one API service with bounded inline background executio
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
   assert.equal((render.match(/- type:/g) || []).length, 1,
     "the cost-conscious default blueprint must not create a separately billed worker");
-  assert.match(render, /key: BACKGROUND_WORKER_MODE[\s\S]{0,60}value: inline/);
-  assert.match(render, /key: PAYMENTS_ENABLED[\s\S]{0,60}value: "false"/);
+
+  const modeStart = render.indexOf("key: BACKGROUND_WORKER_MODE");
+  const paymentStart = render.indexOf("key: PAYMENTS_ENABLED");
+  const nextEnvironmentKey = render.indexOf("key: JWT_EXPIRES_IN", paymentStart);
+  assert.ok(modeStart >= 0 && render.slice(modeStart, paymentStart).includes("value: inline"));
+  assert.ok(paymentStart >= 0 && render.slice(paymentStart, nextEnvironmentKey).includes('value: "false"'));
+
   assert.match(render, /rootDir: server/);
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /startCommand: npm run start/);
   assert.doesNotMatch(render, /startCommand: npm run worker/);
   assert.ok(render.includes("/api/health/ready"));
-  assert.equal((render.match(/- type:/g) || []).length, 1,
   assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 1,
-  assert.match(render, /maxShutdownDelaySeconds: 120/,
+    "the API service must deploy only after linked CI checks pass");
+  assert.ok(render.includes("maxShutdownDelaySeconds: 120"),
     "the API should have a bounded shutdown window for inline maintenance");
 });
 

@@ -1,9 +1,9 @@
 # Production deployment — Vercel + Render
 
-This repository includes deployment configuration for a Vite SPA on Vercel and a Node.js API plus continuously running worker on Render.
+This repository includes deployment configuration for a Vite SPA on Vercel and a Node.js API on Render. The default V2.2 Blueprint uses bounded inline background execution; a dedicated standalone worker is an optional upgrade.
 
 - Vercel configuration: `vercel.json`
-- Render Blueprint: `render.yaml`
+- Render Blueprint: `render.yaml` (one API service; `BACKGROUND_WORKER_MODE=inline`)
 - Backend production preflight: `cd server && npm run validate:production-config`
 - Deployed smoke test: `cd server && npm run verify:deployment`
 
@@ -37,32 +37,54 @@ The checked-in `vercel.json` configures the Vite SPA fallback so direct requests
 
 Attach the production domain to the Vercel project. A domain being verified at the registrar is not sufficient: it must be assigned to this project and show a valid deployment. Verify both the root domain and `www` behavior in Vercel.
 
-## 2. Render API and worker
+## 2. Render API and background execution
 
-Use Render **New → Blueprint** and connect this repository. Render reads the root `render.yaml` and defines two separate long-running services:
+Use Render **New → Blueprint** and connect this repository. The default root `render.yaml` defines one long-running API service:
 
 | Service | Root directory | Build command | Start command | Purpose |
 |---|---|---|---|---|
-| `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API |
-| `buddyforstudy-worker` | `server` | `npm ci` | `npm run worker` | Background retries, reminders, reconciliation, expiry and curation maintenance |
+| `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
 
-Both use Node.js 24 (the server package engine), the Singapore region, and `main`. The Singapore region is an initial default, not a verified optimal choice: before the first Blueprint sync, compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Render service region changes after creation require a new service and migration plan. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected. The worker is configured with a 300-second shutdown window so it can drain in-flight maintenance before exiting.
+The Blueprint uses Node.js 24, the Singapore region, and `main`. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
 
-The worker is mandatory for scheduled reminders, delivery retries, billing reconciliation, subscription/trial expiry maintenance and the worker heartbeat used by operations monitoring. Do not deploy only the HTTP API.
+### Background execution modes
+
+The Blueprint explicitly sets `BACKGROUND_WORKER_MODE=inline`. This is the recommended initial configuration when a separate worker service is not affordable.
+
+| Mode | Deployment | Behavior and limitations |
+|---|---|---|
+| `inline` | API service only | Runs bounded maintenance and announcement batches inside the API process. Uses MongoDB leases to avoid duplicate execution across API replicas. Jobs pause while the host sleeps, restarts, or is unavailable. |
+| `standalone` | API plus a separate worker service | API does not schedule jobs; the worker runs the full maintenance workload, including learning-reminder scans, subscription-expiry reminders, and nightly YouTube curation refreshes. |
+| `disabled` | API service only | Intentionally pauses scheduled background processing. Use only for maintenance or controlled testing. |
+
+Inline mode covers the bounded work documented in [the hybrid background-work architecture](BACKGROUND_WORK_HYBRID_ARCHITECTURE.md): expiry updates, audit outbox recovery, bounded email/push delivery, purchase/subscription notification reconciliation, and scheduled-announcement batches. It deliberately does **not** run learning-reminder scans, subscription-expiry reminder scans, or nightly YouTube stale-video/resource-prior refreshes. It is best-effort, not a guarantee of exact scheduled delivery. Payment verification, entitlement checks, authentication, enrollment, and progress writes remain authoritative in API request/webhook paths and must not depend on the scheduler.
+
+### When a standalone worker is justified
+
+Add a separate Render worker only when the omitted scheduled work or its delivery guarantees justify the additional service cost:
+
+1. Set `BACKGROUND_WORKER_MODE=standalone` on the API service.
+2. Create a Render Worker service with root directory `server`, build command `npm ci`, and start command `npm run worker`.
+3. Set the same `BACKGROUND_WORKER_MODE=standalone` on the worker and share the API's MongoDB URI, JWT secret, provider credentials, and other required runtime variables.
+4. Confirm the API and worker report the same configured mode and a current heartbeat in Admin → Operations.
+
+Do not run API-inline and standalone scheduling against the same environment. Change modes through a controlled maintenance window: stop the previous scheduler, let it drain and release/expire its leases, confirm health, then start the new mode. The standalone worker is not part of the default Blueprint and is not required for the initial inline deployment.
 
 ### Required production variables
 
-Render's Blueprint deliberately does not commit credentials. Complete every `sync: false` field on the API service in the Render Dashboard. The worker references the corresponding API environment variables, including the generated JWT secret, so both processes use the same database and runtime credentials.
+Render's Blueprint deliberately does not commit credentials. Complete every `sync: false` field on the API service in the Render Dashboard. Never copy production credentials into this repository, Vercel, browser-exposed variables, CI fixtures, or chat messages.
 
 | Variable | Requirement |
 |---|---|
+| `BACKGROUND_WORKER_MODE` | Required explicitly in production. The Blueprint sets `inline`; use `standalone` only when adding the dedicated worker service, or `disabled` only for a controlled pause. |
 | `MONGO_URI` | MongoDB Atlas URI with a database name, authenticated database user and TLS. Use `mongodb+srv://` or explicit TLS. URL-encode special characters in credentials. |
-| `JWT_SECRET` | Render generates a random value for the API service. Keep it stable across API restarts and shared with the worker. Never rotate it casually: existing sessions may be invalidated. |
+| `JWT_SECRET` | Render generates a random value for the API service. Keep it stable across API restarts. If you later add a worker, share the same value with it. Never rotate it casually: existing sessions may be invalidated. |
 | `CLIENT_URL` | Exact public frontend origin, including HTTPS and no path. |
 | `API_URL` | Exact public API origin, including HTTPS and no path. |
 | `TRUST_PROXY_HOPS` | Blueprint sets `1` for the Render proxy topology. Confirm the actual trusted proxy chain before changing it; do not use blanket trust. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. Verify the sender/domain and TLS mode with the chosen mail provider. |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Required live-mode credentials. `RAZORPAY_KEY_ID` must be a live key. Never use test credentials in the production environment. |
+| `PAYMENTS_ENABLED` | Keep `false` until payment-provider onboarding and payment flows are ready. |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Required only when `PAYMENTS_ENABLED=true`. Use live-mode credentials in production; never use test credentials in the production environment. |
 | `GOOGLE_CLIENT_ID` | Google OAuth Web Client ID. Add the exact frontend origin to Authorized JavaScript origins in Google Cloud Console. |
 | `GEMINI_API_KEY` | Required for live Gemini-backed generation; keep it server-side. |
 | `YOUTUBE_API_KEY` | Required for live YouTube search/curation; restrict it to the YouTube Data API and monitor quota. |
@@ -70,7 +92,7 @@ Render's Blueprint deliberately does not commit credentials. Complete every `syn
 | `SENTRY_DSN` | Optional error monitoring DSN. |
 | `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` | Optional, but configure all three together. The private key is server-side only. Generate with `cd server && npm run generate:web-push-keys`. |
 
-After the first Render Blueprint sync, add or review all environment values in the Render Dashboard. The Blueprint's `sync: false` values are initial prompts; adding new secrets to an existing Blueprint requires adding them to the deployed service's environment manually. Never copy production credentials into this repository, Vercel, browser-exposed variables, CI fixtures, or chat messages.
+After the first Render Blueprint sync, add or review all environment values in the Render Dashboard. The Blueprint's `sync: false` values are initial prompts; adding new secrets to an existing Blueprint requires adding them to the deployed service's environment manually. Never expose server secrets through `VITE_*` variables or frontend build output.
 
 The following flags are explicitly off in the Blueprint: `USE_CURATION_ENGINE_FOR_AI`, `INTENT_V2`, `ASYNC_ROADMAP`, `YT_COMBINED_SEARCH`, `ENABLE_TRUSTED_CHANNELS`, `ENABLE_CURATION_COMPLIANCE_WORKERS`, and `AI_PRIVATE_COURSES_SKIP_REVIEW`. Keep them off for the first production deployment. Follow [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md) to stage each capability separately. Do not enable `AI_PRIVATE_COURSES_SKIP_REVIEW` as a routine rollout switch.
 

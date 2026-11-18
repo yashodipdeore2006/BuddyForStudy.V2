@@ -26,9 +26,10 @@ export function createMaintenanceOrchestrator() {
   let nightlyRunInProgress = false;
   let lastNightlyRunDate = "";
 
-  async function runNightlyCurationJobs(now = new Date()) {
+  async function runNightlyCurationJobs(now = new Date(), { shouldContinue = async () => true } = {}) {
     const day = now.toISOString().slice(0, 10);
-    if (!env.enableCurationComplianceWorkers || now.getUTCHours() < 2 || lastNightlyRunDate === day || nightlyRunInProgress || stopping) return;
+    if (!env.enableCurationComplianceWorkers || now.getUTCHours() < 2 || lastNightlyRunDate === day || nightlyRunInProgress || stopping) return { skipped: "not_due_or_disabled" };
+    if (!(await shouldContinue())) return { skipped: "lease_lost" };
     nightlyRunInProgress = true;
     try {
       const results = await Promise.allSettled([
@@ -237,10 +238,6 @@ export function createMaintenanceOrchestrator() {
         });
       }
       if (!(await shouldContinue())) return { skipped: "lease_lost" };
-      // Nightly curation is part of this maintenance lease scope, so only one
-      // standalone or inline maintenance owner can run it at a time.
-      await runNightlyCurationJobs(now);
-      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const [subscriptions, payments, trialGrants] = await Promise.all([
         UserSubscription.updateMany(
           { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lt: now } },
@@ -380,6 +377,7 @@ export function createMaintenanceOrchestrator() {
 
   return Object.freeze({
     runMaintenance,
+    runNightlyCurationJobs,
     runInlineMaintenance,
     runAnnouncementBatches,
     stop,

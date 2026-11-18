@@ -3,9 +3,13 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import {
   enqueueProgressOperation,
+  getBlockedProgressOperationCount,
   getPendingProgressOperationCount,
   listPendingProgressOperations,
   requestProgressSync,
+  retryBlockedProgressOperations,
+  retryPendingProgressOperationsNow,
+  discardBlockedProgressOperations,
   type ProgressQueueAction,
   type ProgressQueueOperation
 } from "@/lib/offlineProgressQueue";
@@ -213,6 +217,7 @@ export default function CoursePlayer() {
   const [resourceRecoveryStatus, setResourceRecoveryStatus] = useState<"idle" | "loading" | "unavailable">("idle");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [pendingOfflineProgressCount, setPendingOfflineProgressCount] = useState(0);
+  const [blockedOfflineProgressCount, setBlockedOfflineProgressCount] = useState(0);
   const [progressSyncNotice, setProgressSyncNotice] = useState("");
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState("");
@@ -362,9 +367,13 @@ export default function CoursePlayer() {
                 limit: 200,
                 includeDeferred: true
               });
-              const pendingCount = await getPendingProgressOperationCount(accountId, courseId);
+              const [pendingCount, blockedCount] = await Promise.all([
+                getPendingProgressOperationCount(accountId, courseId),
+                getBlockedProgressOperationCount(accountId, courseId)
+              ]);
               if (cancelled) return;
               setPendingOfflineProgressCount(pendingCount);
+              setBlockedOfflineProgressCount(blockedCount);
               if (pendingCount > 0) requestProgressSync(accountId, courseId);
             } catch {
               // IndexedDB availability must not turn a valid server progress response into a plan denial.
@@ -651,7 +660,12 @@ export default function CoursePlayer() {
     if (targetLessonId === lessonId) {
       activeLessonCompletedRef.current = action === "complete";
     }
-    setPendingOfflineProgressCount(await getPendingProgressOperationCount(accountId, courseId));
+    const [pendingCount, blockedCount] = await Promise.all([
+      getPendingProgressOperationCount(accountId, courseId),
+      getBlockedProgressOperationCount(accountId, courseId)
+    ]);
+    setPendingOfflineProgressCount(pendingCount);
+    setBlockedOfflineProgressCount(blockedCount);
     setProgressSyncNotice("Your progress is saved on this device and will sync when your connection returns.");
     setError("");
     requestProgressSync(accountId, courseId);
@@ -661,15 +675,20 @@ export default function CoursePlayer() {
     const accountId = session?.user.id;
     if (!accountId || !courseId) {
       setPendingOfflineProgressCount(0);
+      setBlockedOfflineProgressCount(0);
       setProgressSyncNotice("");
       return;
     }
     let cancelled = false;
     const refreshPendingCount = () => {
-      void getPendingProgressOperationCount(accountId, courseId)
-        .then((count) => {
+      void Promise.all([
+        getPendingProgressOperationCount(accountId, courseId),
+        getBlockedProgressOperationCount(accountId, courseId)
+      ])
+        .then(([count, blockedCount]) => {
           if (cancelled) return;
           setPendingOfflineProgressCount(count);
+          setBlockedOfflineProgressCount(blockedCount);
           if (count === 0) setProgressSyncNotice("");
         })
         .catch(() => {
@@ -683,6 +702,28 @@ export default function CoursePlayer() {
       window.removeEventListener("bfs:progress-queue-updated", refreshPendingCount);
     };
   }, [courseId, session?.user.id]);
+
+  const handleRetryProgressSync = async () => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) return;
+    try {
+      await retryBlockedProgressOperations(accountId, courseId);
+      await retryPendingProgressOperationsNow(accountId, courseId);
+      requestProgressSync(accountId, courseId);
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Unable to retry progress synchronization.");
+    }
+  };
+
+  const handleDismissBlockedProgress = async () => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) return;
+    try {
+      await discardBlockedProgressOperations(accountId, courseId);
+    } catch (dismissError) {
+      setError(dismissError instanceof Error ? dismissError.message : "Unable to dismiss blocked progress actions.");
+    }
+  };
 
   const handleComplete = async () => {
     if (!courseId || !lessonId || !currentLesson || isLessonCompleted(progress?.completed_lessons || [], lessonId)) return;
@@ -1969,7 +2010,30 @@ export default function CoursePlayer() {
           className="fixed bottom-5 right-4 z-40 max-w-[min(92vw,420px)] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 shadow-lg"
         >
           <div>{pendingOfflineProgressCount} progress {pendingOfflineProgressCount === 1 ? "action is" : "actions are"} waiting to sync.</div>
-          <div className="mt-1 font-medium">{progressSyncNotice || "Saved on this device. Sync will resume when you are online."}</div>
+          <div className="mt-1 font-medium">
+            {blockedOfflineProgressCount > 0
+              ? blockedOfflineProgressCount + " action(s) need attention. Restore course access or remove actions that are no longer valid."
+              : progressSyncNotice || "Saved on this device. Sync will resume when you are online."}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRetryProgressSync()}
+              disabled={typeof navigator !== "undefined" && navigator.onLine === false}
+              className="rounded-lg bg-amber-900 px-3 py-1.5 font-bold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Retry sync
+            </button>
+            {blockedOfflineProgressCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleDismissBlockedProgress()}
+                className="rounded-lg border border-amber-300 px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100"
+              >
+                Remove blocked actions
+              </button>
+            )}
+          </div>
         </div>
       )}
       {pageError && (

@@ -85,7 +85,11 @@ export async function checkWorkerHeartbeat(
   const lastHeartbeatAt = heartbeat?.lastHeartbeatAt ? new Date(heartbeat.lastHeartbeatAt) : null;
   const ageMs = lastHeartbeatAt ? Math.max(0, now.getTime() - lastHeartbeatAt.getTime()) : null;
   const stopping = heartbeat?.workerStatus === "stopping" && lastHeartbeatAt && ageMs <= staleAfterMs;
-  const stale = !stopping && (!heartbeat || heartbeat.workerStatus !== "running" || !lastHeartbeatAt || ageMs > staleAfterMs);
+  // A recent "stopped" pulse can be one replica of an inline scheduler leaving
+  // while another replica is still live. Wait for the normal stale threshold
+  // before escalating it to a critical missed-heartbeat alert.
+  const stale = !heartbeat || !lastHeartbeatAt || ageMs > staleAfterMs;
+  const stopped = heartbeat?.workerStatus === "stopped" && !stale;
 
   if (stale) {
     const reason = !heartbeat || !lastHeartbeatAt
@@ -118,7 +122,7 @@ export async function checkWorkerHeartbeat(
   return {
     jobName: WORKER_JOB_NAME,
     mode,
-    status: stale ? "stale" : stopping ? "stopping" : consecutiveFailures > 0 ? "degraded" : "healthy",
+    status: stale ? "stale" : stopping ? "stopping" : stopped ? "stopped" : consecutiveFailures > 0 ? "degraded" : "healthy",
     workerStatus: heartbeat?.workerStatus || "unknown",
     instanceId: heartbeat?.instanceId || "",
     lastHeartbeatAt: lastHeartbeatAt?.toISOString() || null,

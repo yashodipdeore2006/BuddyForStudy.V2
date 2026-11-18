@@ -873,6 +873,7 @@ export async function reconcilePendingSubscriptionActivationNotifications(now = 
   let failures = 0;
 
   while (pagesProcessed < maxPages) {
+    if (await options.shouldContinue?.() === false) break;
     const filter = { ...eligible };
     filter._id = cursor ? { $gt: cursor, $lte: upperBound._id } : { $lte: upperBound._id };
     const payments = await Payment.find(filter)
@@ -887,6 +888,7 @@ export async function reconcilePendingSubscriptionActivationNotifications(now = 
     checked += payments.length;
 
     for (const payment of payments) {
+      if (await options.shouldContinue?.() === false) break;
       try {
         const subscriptionId = String(payment.providerOrderId || "");
         if (!subscriptionId || !payment.plan) {

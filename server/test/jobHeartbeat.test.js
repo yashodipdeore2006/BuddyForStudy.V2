@@ -51,7 +51,10 @@ test("fresh worker heartbeat resolves the stale-worker alert", async () => {
   let resolved = false;
   await withMocks([
     [JobHeartbeat, { findOne: () => ({ lean: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T10:00:00Z") }) }) }],
-    [OperationalAlert, { findOneAndUpdate: async (filter, update) => { resolved = filter.key === "background-worker-heartbeat-stale" && update.$set.status === "resolved"; return {}; } }]
+    [OperationalAlert, { findOneAndUpdate: async (filter, update) => {
+      if (filter.key === "background-worker-heartbeat-stale" && update.$set.status === "resolved") resolved = true;
+      return {};
+    } }]
   ], async () => {
     const result = await checkWorkerHeartbeat(new Date("2026-10-19T10:01:00Z"));
     assert.equal(result.status, "healthy");
@@ -154,7 +157,7 @@ test("disabled mode is intentionally healthy and resolves stale worker alerts wi
     [JobHeartbeat, { findOne: () => { queryCalls += 1; throw new Error("disabled mode must not read heartbeat"); } }],
     [OperationalAlert, {
       findOneAndUpdate: async (filter, update) => {
-        resolved = filter.key === "background-worker-heartbeat-stale" && update.$set.status === "resolved";
+        if (filter.key === "background-worker-heartbeat-stale" && update.$set.status === "resolved") resolved = true;
         return {};
       }
     }]

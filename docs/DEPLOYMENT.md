@@ -66,11 +66,12 @@ Attach the production domain to the Vercel project. A domain being verified at t
 
 ## 3. Render API and background execution
 
-Use Render **New → Blueprint** and connect this repository. The default root `render.yaml` defines one long-running API service:
+Use Render **New → Blueprint** and connect this repository. The root `render.yaml` defines one API service and one static frontend:
 
-| Service | Root directory | Build command | Start command | Purpose |
+| Service | Plan | Root directory | Build command | Start command / publish path | Purpose |
 |---|---|---|---|---|
-| `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
+| `buddyforstudy-api` | Free (staging/preview only) | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
+| `buddyforstudy-web` | Free static site | `client` | `npm ci && npm run build` | `dist` | Vite frontend served through Render CDN |
 
 The API Blueprint uses Node.js 24, the Singapore region, and `buddy-for-study-v2.2`; the static frontend is served globally. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
 

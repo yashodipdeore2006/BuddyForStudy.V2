@@ -80,7 +80,7 @@ async function scheduleNextProgressRetry(
   if (nextAttemptAt === null) return;
 
   let delay = Math.max(250, nextAttemptAt - Date.now());
-  if (status === "busy") delay = Math.max(delay, 5000);
+  if (status === "busy" || status === "unavailable") delay = Math.max(delay, 5000);
   const timer = window.setTimeout(() => {
     progressRetryTimers.delete(accountId);
     let activeAccountId: string | null = null;

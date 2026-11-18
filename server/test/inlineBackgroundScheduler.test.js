@@ -81,7 +81,8 @@ test("inline scheduler starts bounded timers and executes startup passes under s
       async isJobLeaseOwned() { return true; },
       async renewJobLease() { return { renewed: true }; },
       async releaseJobLease(args) { leaseReleases.push(args.jobKey); return true; },
-      async heartbeatWorker(status) { heartbeatStatuses.push(status); }
+      async heartbeatWorker(status) { heartbeatStatuses.push(status); },
+      async markWorkerStopping() { heartbeatStatuses.push("stopping"); }
     },
     logger: { info() {}, warn() {}, error() {} }
   });
@@ -121,7 +122,8 @@ test("inline scheduler does not execute a handler when another process owns the 
       async isJobLeaseOwned() { return false; },
       async renewJobLease() { return null; },
       async releaseJobLease() { return false; },
-      async heartbeatWorker() {}
+      async heartbeatWorker() {},
+      async markWorkerStopping() {}
     },
     logger: { info() {}, warn() {}, error() {} }
   });

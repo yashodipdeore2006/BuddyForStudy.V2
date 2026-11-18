@@ -126,6 +126,7 @@ export function createInlineBackgroundScheduler({
     if (heartbeatTimer) clearIntervalFn(heartbeatTimer);
 
     stopPromise = (async () => {
+      await heartbeatInProgress;
       await writeStoppingHeartbeat(new Date(), {
         executionMode: "inline",
         instanceId: leaseRunner.ownerId

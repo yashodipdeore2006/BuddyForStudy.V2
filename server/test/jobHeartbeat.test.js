@@ -89,6 +89,8 @@ test("standalone worker delegates orchestration and drains it before shutdown", 
   assert.match(worker, /setInterval\(\(\) => void orchestrator\.runMaintenance\(\), maintenanceIntervalMs\)/);
   assert.match(worker, /setInterval\(\(\) => void orchestrator\.runAnnouncementBatches\(\), announcementIntervalMs\)/);
   assert.match(shutdown, /orchestrator\.stop\(\)/);
+  assert.match(shutdown, /if \(stopping\) return;/);
+  assert.match(worker, /let stopping = false;/);
   assert.match(shutdown, /clearInterval\(maintenanceHandle\)/);
   assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
   assert.match(shutdown, /clearInterval\(announcementHandle\)/);

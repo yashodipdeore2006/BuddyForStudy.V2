@@ -202,13 +202,26 @@ export async function listPendingProgressOperations(
       transaction.onerror = () => reject(transaction.error || new Error("Unable to read pending offline progress."));
     });
 
-    return sortProgressQueueOperations(operations)
-      .filter((operation) =>
-        isProgressOperationForAccount(operation, accountId) &&
-        operation.status === "pending" &&
-        (options.includeDeferred === true || operation.nextAttemptAt <= now)
-      )
-      .slice(0, limit);
+    const sorted = sortProgressQueueOperations(operations).filter((operation) =>
+      isProgressOperationForAccount(operation, accountId) &&
+      operation.status === "pending"
+    );
+    if (options.includeDeferred === true) return sorted.slice(0, limit);
+
+    // A delayed retry for one course blocks later actions for that same course,
+    // but it must not stop independent course queues from making progress.
+    const retryBlockedCourses = new Set<string>();
+    const dueOperations: ProgressQueueOperation[] = [];
+    for (const operation of sorted) {
+      if (retryBlockedCourses.has(operation.courseId)) continue;
+      if (operation.nextAttemptAt > now) {
+        retryBlockedCourses.add(operation.courseId);
+        continue;
+      }
+      dueOperations.push(operation);
+      if (dueOperations.length >= limit) break;
+    }
+    return dueOperations;
   } finally {
     database.close();
   }

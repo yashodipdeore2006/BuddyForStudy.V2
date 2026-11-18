@@ -44,6 +44,14 @@ function createMemoryStore() {
       const record = records.get(operationId);
       return record && String(record.user) === String(userId) ? record : null;
     },
+    async findEarlierProcessing(userId, courseId, clientSequence) {
+      return [...records.values()].find((record) =>
+        String(record.user) === String(userId) &&
+        String(record.course) === String(courseId) &&
+        Number(record.clientSequence) < Number(clientSequence) &&
+        record.status === "processing"
+      ) || null;
+    },
     async claimRetryable({ recordId, requestHash, claimToken, now, leaseUntil }) {
       const record = [...records.values()].find((entry) => entry._id === recordId);
       if (!record || record.requestHash !== requestHash) return null;
@@ -348,4 +356,43 @@ test("an unresolved earlier operation blocks later actions for the same course i
   assert.deepEqual(attempts, [1, 3], "later same-course action must not overtake the retryable first action");
   assert.deepEqual(results.map((result) => result.status), ["retryable", "retryable", "applied"]);
   assert.equal(results[1].errorCode, "EARLIER_PROGRESS_ACTION_PENDING");
+});
+
+
+test("an operation waits while an earlier same-course receipt is still processing", async () => {
+  const store = createMemoryStore();
+  store.records.set(OPERATION_ID, {
+    _id: "earlier-receipt",
+    user: USER_ID,
+    operationId: OPERATION_ID,
+    requestHash: "a".repeat(64),
+    course: COURSE_ID,
+    item: LESSON_ID,
+    action: "complete",
+    clientSequence: 1,
+    status: "processing",
+    leaseToken: "earlier-owner",
+    leaseUntil: new Date("2026-11-18T14:31:00.000Z"),
+    attempts: 1
+  });
+  let applications = 0;
+  const laterOperation = validOperation({
+    operationId: "2a2b3c4d-1234-4234-8234-123456789abc",
+    clientSequence: 2,
+    action: "uncomplete"
+  });
+
+  const result = await processProgressSyncOperation({
+    userId: USER_ID,
+    value: laterOperation,
+    store,
+    now: deterministicClock(),
+    createClaimToken: deterministicTokens(),
+    applyAction: async () => { applications += 1; }
+  });
+
+  assert.equal(result.status, "retryable");
+  assert.equal(result.errorCode, "EARLIER_PROGRESS_ACTION_PENDING");
+  assert.equal(applications, 0);
+  assert.equal(store.records.get(laterOperation.operationId).status, "retryable");
 });

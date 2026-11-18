@@ -263,7 +263,7 @@ The first API-side scheduler pass deliberately runs a bounded subset of the stan
 
 - expired roadmap-admission recovery: at most 10 records per maintenance pass, with a lease-ownership checkpoint between records;
 - subscription, payment, and trial expiry updates: at most 25 selected records per model per pass;
-- audit outbox processing: at most 25 records per pass;
+- audit outbox processing: at most 25 stale locks recovered and at most 25 pending records replayed per pass;
 - email and push delivery: at most 10 pending notifications per channel per maintenance pass;
 - purchase and subscription-activation notification reconciliation: one page of 10 items per pass, ordered by oldest check time;
 - scheduled announcements: at most one 100-recipient batch per 30-second pass, followed by at most 10 email and 10 push delivery attempts.

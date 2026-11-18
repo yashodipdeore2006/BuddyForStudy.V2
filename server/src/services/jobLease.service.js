@@ -89,7 +89,8 @@ export async function acquireJobLease({
           leaseToken,
           leaseUntil: new Date(currentTime.getTime() + duration),
           acquiredAt: currentTime,
-          renewedAt: currentTime
+          renewedAt: currentTime,
+          releasedAt: null
         },
         // $inc initializes a new document at 1 and advances the generation
         // on every later acquisition of this same job key.
@@ -133,7 +134,8 @@ export async function renewJobLease({
     {
       $set: {
         leaseUntil: new Date(currentTime.getTime() + duration),
-        renewedAt: currentTime
+        renewedAt: currentTime,
+        releasedAt: currentTime
       }
     },
     {

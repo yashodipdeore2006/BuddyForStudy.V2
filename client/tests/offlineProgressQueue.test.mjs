@@ -162,3 +162,16 @@ test("manual recovery distinguishes retryable blocked records from permanent blo
   assert.match(player, /retryBlockedProgressOperations\(accountId, courseId\)/);
   assert.match(player, /discardBlockedProgressOperations\(accountId, courseId\)/);
 });
+
+
+test("foreground progress retries are scheduled for the next backoff deadline", async () => {
+  const queue = await readFile(new URL("../src/lib/offlineProgressQueue.ts", import.meta.url), "utf8");
+  const syncClient = await readFile(new URL("../src/lib/progressSyncClient.ts", import.meta.url), "utf8");
+  assert.match(queue, /export async function getNextProgressRetryAt/);
+  assert.match(queue, /visitedCourses\.add\(operation\.courseId\)/);
+  assert.match(syncClient, /progressRetryTimers/);
+  assert.match(syncClient, /window\.setTimeout/);
+  assert.match(syncClient, /getNextProgressRetryAt\(accountId\)/);
+  assert.match(syncClient, /retry-backoff-expired/);
+  assert.match(syncClient, /activeAccountId !== accountId/);
+});

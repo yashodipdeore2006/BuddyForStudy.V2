@@ -134,7 +134,7 @@ test("missing and stopped worker heartbeats raise critical alerts", async () => 
   const now = new Date("2026-10-19T10:00:00Z");
   for (const heartbeat of [
     null,
-    { jobName: WORKER_JOB_NAME, workerStatus: "stopped", lastHeartbeatAt: new Date("2026-10-19T09:59:30Z") }
+    { jobName: WORKER_JOB_NAME, workerStatus: "stopped", lastHeartbeatAt: new Date("2026-10-19T09:50:00Z") }
   ]) {
     await withMocks([
       [JobHeartbeat, { findOne: () => ({ lean: async () => heartbeat }) }],
@@ -252,4 +252,32 @@ test("consecutive maintenance failures raise a warning that resolves after recov
   assert.equal(failureAlerts[0].update.$set.severity, "warning");
   assert.equal(failureAlerts[0].update.$set.status, "open");
   assert.equal(failureAlerts[1].update.$set.status, "resolved");
+});
+
+
+test("a recent stopped heartbeat does not immediately raise a critical alert", async () => {
+  const alertCalls = [];
+  await withMocks([
+    [JobHeartbeat, { findOne: () => ({ lean: async () => ({
+      jobName: WORKER_JOB_NAME,
+      workerStatus: "stopped",
+      lastHeartbeatAt: new Date("2026-11-18T12:00:00Z")
+    }) }) }],
+    [OperationalAlert, { findOneAndUpdate: async (filter, update) => {
+      alertCalls.push({ filter, update });
+      return {};
+    } }]
+  ], async () => {
+    const result = await checkWorkerHeartbeat(
+      new Date("2026-11-18T12:01:00Z"),
+      WORKER_HEARTBEAT_STALE_AFTER_MS,
+      "inline"
+    );
+    assert.equal(result.status, "stopped");
+    assert.equal(result.workerStatus, "stopped");
+  });
+
+  assert.equal(alertCalls.some((entry) =>
+    entry.filter.key === "background-worker-heartbeat-stale" && entry.update.$set.status === "open"
+  ), false);
 });

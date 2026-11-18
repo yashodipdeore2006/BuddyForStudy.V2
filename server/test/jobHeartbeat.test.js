@@ -77,39 +77,48 @@ test("maintenance lifecycle records start, completion and failure counters", asy
   assert.equal(calls[2].update.$inc.consecutiveFailures, 1);
 });
 
-test("standalone worker delegates orchestration and drains it before shutdown", async () => {
+test("standalone worker uses shared leases and drains all jobs before shutdown", async () => {
   const { readFile } = await import("node:fs/promises");
   const worker = (await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const orchestrator = (await readFile(new URL("../src/jobs/maintenanceOrchestrator.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  const runner = (await readFile(new URL("../src/jobs/leasedJobRunner.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const start = worker.indexOf("async function shutdown(signal)");
   const end = worker.indexOf("\n}\n", start);
   const shutdown = worker.slice(start, end + 3);
 
-  assert.match(worker, /createMaintenanceOrchestrator\(\)/);
-  assert.match(worker, /setInterval\(\(\) => void orchestrator\.runMaintenance\(\), maintenanceIntervalMs\)/);
-  assert.match(worker, /setInterval\(\(\) => void orchestrator\.runAnnouncementBatches\(\), announcementIntervalMs\)/);
-  assert.match(shutdown, /orchestrator\.stop\(\)/);
+  assert.match(worker, /env\.backgroundWorkerMode !== "standalone"/);
+  assert.match(worker, /createLeasedJobRunner\(\)/);
+  assert.match(worker, /JOB_LEASE_KEYS\.BACKGROUND_MAINTENANCE/);
+  assert.match(worker, /JOB_LEASE_KEYS\.ANNOUNCEMENT_DISPATCH/);
+  assert.match(worker, /JOB_LEASE_KEYS\.YOUTUBE_CURATION/);
+  assert.match(worker, /leaseRunner\.run\(/);
+  assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), announcementIntervalMs\)/);
+  assert.match(worker, /setInterval\(\(\) => \{\s*void runMaintenance\(\)\.finally\(/);
+  assert.match(worker, /let heartbeatInProgress = Promise\.resolve\(\)/);
+  assert.match(worker, /heartbeatInProgress = heartbeatInProgress\.then\(\(\) => heartbeatWorker\("running"\)\)\.catch/);
+
   assert.match(shutdown, /if \(stopping\) return;/);
-  assert.match(worker, /let stopping = false;/);
   assert.match(shutdown, /clearInterval\(maintenanceHandle\)/);
   assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
   assert.match(shutdown, /clearInterval\(announcementHandle\)/);
+  assert.match(shutdown, /orchestrator\.stop\(\)/);
+  assert.match(shutdown, /await leaseRunner\.stop\(\)/);
   assert.match(shutdown, /await orchestrator\.waitForIdle\(\)/);
   assert.match(shutdown, /await heartbeatInProgress/);
-  assert.ok(shutdown.indexOf("await orchestrator.waitForIdle()") < shutdown.indexOf("await heartbeatInProgress"));
-  assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf('heartbeatWorker("stopped")'));
-  assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
+  assert.ok(shutdown.indexOf("await leaseRunner.stop()") < shutdown.indexOf('heartbeatWorker("stopped")'));
+  assert.ok(shutdown.indexOf('heartbeatWorker("stopped")') < shutdown.indexOf("mongoose.disconnect()"));
   assert.match(shutdown, /mongoose\.disconnect\(\)/);
   assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await runMaintenance();"));
   assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await runAnnouncementBatches();"));
 
-  assert.match(orchestrator, /export function createMaintenanceOrchestrator\(\)/);
-  assert.match(orchestrator, /async function runMaintenance\(\)/);
-  assert.match(orchestrator, /async function runAnnouncementBatches\(\)/);
+  assert.match(orchestrator, /async function runMaintenance\(\{\s*shouldContinue = async \(\) => true\s*\}\s*=\s*\{\}\)/);
+  assert.match(orchestrator, /async function runAnnouncementBatches\(\{\s*maxBatches = 5,\s*deliveryLimit = 100,\s*shouldContinue = async \(\) => true/);
   assert.match(orchestrator, /async function runNightlyCurationJobs/);
-  assert.match(orchestrator, /function stop\(\)/);
-  assert.match(orchestrator, /async function waitForIdle/);
-  assert.match(orchestrator, /return Object\.freeze\(\{/);
+  assert.match(orchestrator, /runNightlyCurationJobs,\s*\n\s*runInlineMaintenance/);
+  assert.match(runner, /export function createLeasedJobRunner/);
+  assert.match(runner, /acquireLease\(\{ jobKey, ownerId: normalizedOwnerId, leaseDurationMs \}\)/);
+  assert.match(runner, /renewLease\(\{ \.\.\.identity, leaseDurationMs \}\)/);
+  assert.match(runner, /releaseLease\(identity\)/);
 });
 
 

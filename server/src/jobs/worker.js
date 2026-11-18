@@ -1,10 +1,18 @@
 import mongoose from "mongoose";
 import { connectDatabase } from "../config/db.js";
 import { heartbeatWorker } from "../services/jobHeartbeat.service.js";
+import { env } from "../config/env.js";
 import { createMaintenanceOrchestrator } from "./maintenanceOrchestrator.js";
 
 const maintenanceIntervalMs = 15 * 60 * 1000;
 const announcementIntervalMs = 30 * 1000;
+if (env.backgroundWorkerMode !== "standalone") {
+  console.error("[worker] refusing to start: BACKGROUND_WORKER_MODE must be standalone", {
+    configuredMode: env.backgroundWorkerMode
+  });
+  process.exit(1);
+}
+
 const orchestrator = createMaintenanceOrchestrator();
 
 let maintenanceHandle;

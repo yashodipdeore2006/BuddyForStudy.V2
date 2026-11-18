@@ -158,15 +158,21 @@ export function resolveCourseCardAccess({
   else if (isPaidCourse && planEntitled) source = "subscription";
   else if (enrollmentAllowed && ["subscription", "admin", "self"].includes(enrollment.accessSource)) source = enrollment.accessSource;
 
-  let status = "PRICE_UNAVAILABLE";
-  if (enrollment?.revokedBy) status = "ACCESS_REVOKED";
-  else if (!isPaidCourse && !isFreeCourse) status = "PRICE_UNAVAILABLE";
-  else if (isCompleted) status = "COMPLETED";
-  else if (isPaidCourse && hasIndividualPayment) status = "PURCHASED";
-  else if (isPaidCourse && planEntitled) status = "PLAN_INCLUDED";
-  else if (enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment) status = "ACCESS_EXPIRED";
-  else if (enrollmentAllowed) status = "ENROLLED";
-  else status = isFreeCourse ? "FREE" : "PAID";
+  const status = enrollment?.revokedBy
+    ? "ACCESS_REVOKED"
+    : (!isPaidCourse && !isFreeCourse)
+      ? "PRICE_UNAVAILABLE"
+      : isCompleted
+        ? "COMPLETED"
+        : isPaidCourse && hasIndividualPayment
+          ? "PURCHASED"
+          : isPaidCourse && planEntitled
+            ? "PLAN_INCLUDED"
+            : enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment
+              ? "ACCESS_EXPIRED"
+              : enrollmentAllowed
+                ? "ENROLLED"
+                : isFreeCourse ? "FREE" : "PAID";
 
   return {
     status,

@@ -84,22 +84,6 @@ function CourseCardContent({
   const effectivePrice = getEffectiveCoursePrice(course.pricing);
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
   const isFree = course.pricing?.mode === "free";
-  const cardAccess = session?.user?.id && !courseState.loading ? courseState.access : null;
-  const includedInPlan = cardAccess?.source === "subscription" &&
-    (cardAccess.status === "PLAN_INCLUDED" || cardAccess.status === "COMPLETED");
-  const individuallyPurchased = cardAccess?.source === "individual" &&
-    (cardAccess.status === "PURCHASED" || cardAccess.status === "COMPLETED");
-  const accessPriceLabel = includedInPlan
-    ? "Included in " + (cardAccess?.planName || "your plan")
-    : individuallyPurchased
-      ? "Purchased"
-      : cardAccess?.status === "ENROLLED"
-        ? "Enrolled"
-        : cardAccess?.status === "COMPLETED"
-          ? "Completed"
-          : cardAccess?.status === "ACCESS_REVOKED"
-            ? "Access revoked"
-            : null;
   const [saved, setSaved] = useState(initiallySaved);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -119,6 +103,22 @@ function CourseCardContent({
   }, [undoSavedTo]);
 
   const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id), courseStateRetry);
+  const cardAccess = session?.user?.id && !courseState.loading ? courseState.access : null;
+  const includedInPlan = cardAccess?.source === "subscription" &&
+    (cardAccess.status === "PLAN_INCLUDED" || cardAccess.status === "COMPLETED");
+  const individuallyPurchased = cardAccess?.source === "individual" &&
+    (cardAccess.status === "PURCHASED" || cardAccess.status === "COMPLETED");
+  const accessPriceLabel = includedInPlan
+    ? "Included in " + (cardAccess?.planName || "your plan")
+    : individuallyPurchased
+      ? "Purchased"
+      : cardAccess?.status === "ENROLLED"
+        ? "Enrolled"
+        : cardAccess?.status === "COMPLETED"
+          ? "Completed"
+          : cardAccess?.status === "ACCESS_REVOKED"
+            ? "Access revoked"
+            : null;
 
   useEffect(() => {
     let active = true;

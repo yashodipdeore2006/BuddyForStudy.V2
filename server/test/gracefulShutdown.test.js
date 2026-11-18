@@ -47,3 +47,25 @@ test("graceful shutdown rejects invalid lifecycle dependencies", () => {
   assert.throws(() => createGracefulShutdown({ server: null, disconnect() {} }), /HTTP server/);
   assert.throws(() => createGracefulShutdown({ server: { close() {} } }), /disconnect function/);
 });
+
+
+test("graceful shutdown stops background scheduling before closing the API", async () => {
+  const calls = [];
+  let closeCallback;
+  const shutdown = createGracefulShutdown({
+    server: {
+      close(callback) { calls.push("close"); closeCallback = callback; },
+      closeIdleConnections() { calls.push("close-idle"); }
+    },
+    clearTimers: () => calls.push("clear-timers"),
+    beforeClose: async () => { calls.push("before-close"); },
+    disconnect: async () => { calls.push("disconnect"); },
+    timeoutMs: 1000
+  });
+
+  const pending = shutdown("SIGTERM");
+  assert.deepEqual(calls.slice(0, 3), ["clear-timers", "before-close", "close"]);
+  closeCallback();
+  await pending;
+  assert.deepEqual(calls, ["clear-timers", "before-close", "close", "close-idle", "disconnect"]);
+});

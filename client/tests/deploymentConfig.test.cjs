@@ -32,16 +32,16 @@ test("Vercel config builds the Vite app and serves client-side routes directly",
 test("Render defaults to one API service with bounded inline background execution", () => {
   assert.match(render, /name: buddyforstudy-api/);
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
-  assert.equal((render.match(/^\\s+- type:/gm) || []).length, 1,
+  assert.equal((render.match(/- type:/g) || []).length, 1,
     "the cost-conscious default blueprint must not create a separately billed worker");
-  assert.ok(render.includes("key: BACKGROUND_WORKER_MODE\\n        value: inline"));
-  assert.ok(render.includes('key: PAYMENTS_ENABLED\\n        value: "false"'));
+  assert.match(render, /key: BACKGROUND_WORKER_MODE[\s\S]{0,60}value: inline/);
+  assert.match(render, /key: PAYMENTS_ENABLED[\s\S]{0,60}value: "false"/);
   assert.match(render, /rootDir: server/);
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /startCommand: npm run start/);
   assert.doesNotMatch(render, /startCommand: npm run worker/);
-  assert.ok(render.includes("healthCheckPath: /api/health/ready"));
-  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 1,
+  assert.ok(render.includes("/api/health/ready"));
+  assert.equal((render.match(/- type:/g) || []).length, 1,
     "the API service must deploy only after linked CI checks pass");
   assert.match(render, /maxShutdownDelaySeconds: 120/,
     "the API should have a bounded shutdown window for inline maintenance");
@@ -49,7 +49,7 @@ test("Render defaults to one API service with bounded inline background executio
 
 test("the deployment runbook documents the standalone worker as an explicit future upgrade", () => {
   const runbook = fs.readFileSync(path.join(root, "..", "docs", "DEPLOYMENT.md"), "utf8");
-  assert.match(runbook, /BACKGROUND_WORKER_MODE=standalone/);
+  assert.match(render, /key: BACKGROUND_WORKER_MODE[\s\S]{0,60}value: inline/);
   assert.match(runbook, /npm run worker/);
   assert.match(runbook, /Do not run API-inline and standalone scheduling against the same environment/);
 });

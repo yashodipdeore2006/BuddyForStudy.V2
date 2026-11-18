@@ -18,7 +18,7 @@ test("standalone worker preserves its original maintenance and announcement cade
   assert.match(worker, /const announcementIntervalMs = 30 \* 1000/);
   assert.match(worker, /setInterval\(\(\) => \{\s*void runMaintenance\(\)\.finally\(\(\) => \{\s*if \(!stopping\) void runNightlyCurationJobs\(\);\s*\}\);\s*\}, maintenanceIntervalMs\)/);
   assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), announcementIntervalMs\)/);
-  assert.match(worker, /await runMaintenance\(\);\s*await runAnnouncementBatches\(\);\s*await runNightlyCurationJobs\(\);/);
+  assert.match(worker, /await runMaintenance\(\);\s*if \(!stopping\) await runAnnouncementBatches\(\);\s*if \(!stopping\) await runNightlyCurationJobs\(\);/);
 });
 
 test("standalone shutdown stops new ticks, drains leased jobs and then disconnects MongoDB", async () => {

@@ -2203,12 +2203,6 @@ test.describe("push notification prompt", () => {
           },
         },
       });
-      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
-      Object.defineProperty(navigator, "serviceWorker", {
-        configurable: true,
-        value: { getRegistration: async () => null },
-      });
-      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     });
 
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
@@ -2244,12 +2238,6 @@ test.describe("push notification prompt", () => {
           },
         },
       });
-      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
-      Object.defineProperty(navigator, "serviceWorker", {
-        configurable: true,
-        value: { getRegistration: async () => null },
-      });
-      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     });
 
     await mockAppApi(page, { authenticated: true, pushAvailable: true });

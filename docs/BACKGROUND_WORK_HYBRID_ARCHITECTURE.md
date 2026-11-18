@@ -256,6 +256,33 @@ The initial implementation should preserve current business behavior while makin
 
 These are initial operating targets, not a promise that a sleeping or restarted service will run at the scheduled instant.
 
+
+### 9.1 Initial bounded inline implementation scope
+
+The first API-side scheduler pass deliberately runs a bounded subset of the standalone maintenance work:
+
+- expired roadmap-admission recovery: at most 10 records per maintenance pass, with a lease-ownership checkpoint between records;
+- subscription, payment, and trial expiry updates: at most 25 selected records per model per pass;
+- audit outbox processing: at most 25 records per pass;
+- email and push delivery: at most 10 pending notifications per channel per maintenance pass;
+- purchase and subscription-activation notification reconciliation: one page of 10 items per pass, ordered by oldest check time;
+- scheduled announcements: at most one 100-recipient batch per 30-second pass, followed by at most 10 email and 10 push delivery attempts.
+
+The initial inline pass does **not** execute the following existing standalone work:
+
+- learning-reminder scans, because the current scan has no durable continuation cursor and a first-page-only cap would repeatedly inspect the same records;
+- subscription-expiry reminder scans, until they have a fair, resumable cursor/checkpoint;
+- nightly YouTube stale-video refresh and skill-resource-prior rebuilding, because these are heavier provider/curation operations and are not part of the first bounded API pass.
+
+These jobs remain available through standalone mode. A deployment using only inline mode must understand that the omitted jobs will not run until a later implementation adds their own bounded, resumable execution contracts. Do not assume feature parity between the initial inline pass and the standalone worker.
+
+### 9.2 Runtime mode compatibility
+
+- Outside production, an omitted `BACKGROUND_WORKER_MODE` defaults to `standalone` to preserve the existing local worker command.
+- Production must explicitly set `BACKGROUND_WORKER_MODE` to `inline`, `standalone`, or `disabled`.
+- The standalone worker process refuses to start unless the configured mode is `standalone`.
+- The API starts the inline scheduler only when the configured mode is `inline`; it does not start scheduled jobs in `standalone` or `disabled` mode.
+
 ## 10. Offline progress synchronization contract
 
 The browser queue should be event-oriented and idempotent.

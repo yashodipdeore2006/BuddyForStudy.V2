@@ -109,6 +109,7 @@ jobs:
           CLIENT_URL: "https://buddyforstudy.example"
           API_URL: "https://api.buddyforstudy.example"
           TRUST_PROXY_HOPS: "1"
+          BACKGROUND_WORKER_MODE: "standalone"
           RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef"
           RAZORPAY_KEY_SECRET: "ci-only-provider-secret-0123456789"
           RAZORPAY_WEBHOOK_SECRET: "ci-only-webhook-secret-0123456789abcdef0123456789"

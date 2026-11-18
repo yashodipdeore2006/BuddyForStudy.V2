@@ -16,7 +16,7 @@ test("standalone worker preserves its original maintenance and announcement cade
   const worker = await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8");
   assert.match(worker, /const maintenanceIntervalMs = 15 \* 60 \* 1000/);
   assert.match(worker, /const announcementIntervalMs = 30 \* 1000/);
-  assert.match(worker, /setInterval\(\(\) => \{\s*void runMaintenance\(\);\s*void runNightlyCurationJobs\(\);\s*\}, maintenanceIntervalMs\)/);
+  assert.match(worker, /setInterval\(\(\) => \{\s*void runMaintenance\(\)\.finally\(\(\) => \{\s*if \(!stopping\) void runNightlyCurationJobs\(\);\s*\}\);\s*\}, maintenanceIntervalMs\)/);
   assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), announcementIntervalMs\)/);
   assert.match(worker, /await runMaintenance\(\);\s*await runAnnouncementBatches\(\);\s*await runNightlyCurationJobs\(\);/);
 });
@@ -63,4 +63,27 @@ test("nightly curation is separated from maintenance and has its own lease entry
     orchestrator.indexOf("async function runAnnouncementBatches")
   ), /runNightlyCurationJobs\(now\)/);
   assert.match(worker, /JOB_LEASE_KEYS\.YOUTUBE_CURATION/);
+});
+
+
+test("long-running notification scans accept lease checkpoints between pages and records", async () => {
+  const service = await readFile(new URL("../src/services/notification.service.js", import.meta.url), "utf8");
+  for (const functionName of [
+    "processSubscriptionExpiryReminders",
+    "reconcilePendingCoursePurchaseNotifications",
+    "reconcilePendingSubscriptionActivationNotifications",
+    "processLearningReminders"
+  ]) {
+    const start = service.indexOf("export async function " + functionName);
+    assert.ok(start >= 0, functionName + " should exist");
+    const nextExport = service.indexOf("export async function ", start + 1);
+    const section = service.slice(start, nextExport < 0 ? undefined : nextExport);
+    assert.match(section, /options\.shouldContinue\?\.\(\)/, functionName + " should check the lease before continuing");
+  }
+});
+
+test("audit outbox processing accepts the lease checkpoint for each retry claim", async () => {
+  const service = await readFile(new URL("../src/services/auditOutbox.service.js", import.meta.url), "utf8");
+  assert.match(service, /if \(await options\.shouldContinue\?\.\(\) === false\) break;/);
+  assert.match(service, /if \(await options\.shouldContinue\?\.\(\) !== false\)/);
 });

@@ -123,6 +123,15 @@ export function createMongoProgressSyncStore(Model = ProgressSyncOperation) {
       return Model.findOne({ user: userId, operationId });
     },
 
+    findEarlierProcessing(userId, courseId, clientSequence) {
+      return Model.findOne({
+        user: userId,
+        course: courseId,
+        clientSequence: { $lt: clientSequence },
+        status: "processing"
+      }).sort({ clientSequence: 1 });
+    },
+
     claimRetryable({ recordId, requestHash, claimToken, now, leaseUntil }) {
       return Model.findOneAndUpdate(
         {
@@ -237,6 +246,31 @@ export async function processProgressSyncOperation({
     if (!receipt) {
       const latest = await store.find(userId, operationId);
       return { operationId, ...currentStateResult(latest) };
+    }
+  }
+
+  if (store.findEarlierProcessing) {
+    const earlier = await store.findEarlierProcessing(userId, normalized.courseId, normalized.clientSequence);
+    if (earlier) {
+      const message = "An earlier progress action for this course is still processing.";
+      const saved = await store.finish({
+        recordId: receipt._id,
+        claimToken,
+        values: {
+          status: "retryable",
+          errorStatus: 409,
+          errorCode: "EARLIER_PROGRESS_ACTION_PENDING",
+          errorMessage: message
+        }
+      });
+      if (!saved) return { operationId, status: "in_progress", retryAfterMs: 3000 };
+      return {
+        operationId,
+        status: "retryable",
+        errorCode: "EARLIER_PROGRESS_ACTION_PENDING",
+        message,
+        retryAfterMs: 3000
+      };
     }
   }
 

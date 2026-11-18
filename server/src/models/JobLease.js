@@ -22,7 +22,6 @@ const jobLeaseSchema = new mongoose.Schema({
   leaseUntil: {
     type: Date,
     required: true,
-    index: true
   },
   acquiredAt: {
     type: Date,

@@ -38,6 +38,7 @@ import consentRoutes from "./routes/consent.routes.js";
 import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import adminTrialsRoutes from "./routes/adminTrials.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
+import { createInlineBackgroundScheduler } from "./jobs/inlineBackgroundScheduler.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { requestId } from "./middleware/requestId.js";
 import { createPaymentAvailabilityMiddleware } from "./middleware/paymentAvailability.js";
@@ -123,19 +124,37 @@ app.use(notFound);
 app.use(errorHandler);
 
 connectDatabase()
-  .then(() => {
-    const workerHealthTimer = setInterval(() => {
-      void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
-    }, 60 * 1000);
-    workerHealthTimer.unref?.();
-    void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
+  .then(async () => {
+    let workerHealthTimer = null;
+    let inlineBackgroundScheduler = null;
+
+    if (env.backgroundWorkerMode === "inline") {
+      inlineBackgroundScheduler = createInlineBackgroundScheduler();
+      await inlineBackgroundScheduler.start();
+    }
+
+    if (env.backgroundWorkerMode !== "disabled") {
+      workerHealthTimer = setInterval(() => {
+        void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
+      }, 60 * 1000);
+      workerHealthTimer.unref?.();
+      void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
+    } else {
+      console.info("[operations] background scheduling is explicitly disabled");
+    }
+
     const server = app.listen(env.port, "0.0.0.0", () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
     });
     const shutdown = createGracefulShutdown({
       server,
       disconnect: disconnectDatabase,
-      clearTimers: () => clearInterval(workerHealthTimer),
+      clearTimers: () => {
+        if (workerHealthTimer) clearInterval(workerHealthTimer);
+      },
+      beforeClose: async () => {
+        if (inlineBackgroundScheduler) await inlineBackgroundScheduler.stop();
+      },
       timeoutMs: Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000,
       logger: console,
     });

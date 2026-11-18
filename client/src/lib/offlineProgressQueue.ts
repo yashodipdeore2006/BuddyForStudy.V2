@@ -116,6 +116,32 @@ export function isProgressOperationForAccount(
   return Boolean(accountId) && operation.accountId === accountId;
 }
 
+
+/**
+ * Keeps each course's actions in sequence: a delayed retry blocks later
+ * operations for that course only, not independent course queues.
+ */
+export function selectDueProgressOperations(
+  operations: ProgressQueueOperation[],
+  limit: number,
+  now = Date.now()
+): ProgressQueueOperation[] {
+  const safeLimit = Math.max(1, Math.min(MAX_PENDING_LIMIT, Math.trunc(Number(limit) || DEFAULT_PENDING_LIMIT)));
+  const retryBlockedCourses = new Set<string>();
+  const dueOperations: ProgressQueueOperation[] = [];
+
+  for (const operation of sortProgressQueueOperations(operations)) {
+    if (operation.status !== "pending" || retryBlockedCourses.has(operation.courseId)) continue;
+    if (operation.nextAttemptAt > now) {
+      retryBlockedCourses.add(operation.courseId);
+      continue;
+    }
+    dueOperations.push(operation);
+    if (dueOperations.length >= safeLimit) break;
+  }
+  return dueOperations;
+}
+
 /**
  * Persists a learner action before any network attempt. The monotonic sequence
  * is allocated in the same IndexedDB transaction as the queue insert, so
@@ -202,26 +228,12 @@ export async function listPendingProgressOperations(
       transaction.onerror = () => reject(transaction.error || new Error("Unable to read pending offline progress."));
     });
 
-    const sorted = sortProgressQueueOperations(operations).filter((operation) =>
+    const accountOperations = sortProgressQueueOperations(operations).filter((operation) =>
       isProgressOperationForAccount(operation, accountId) &&
       operation.status === "pending"
     );
-    if (options.includeDeferred === true) return sorted.slice(0, limit);
-
-    // A delayed retry for one course blocks later actions for that same course,
-    // but it must not stop independent course queues from making progress.
-    const retryBlockedCourses = new Set<string>();
-    const dueOperations: ProgressQueueOperation[] = [];
-    for (const operation of sorted) {
-      if (retryBlockedCourses.has(operation.courseId)) continue;
-      if (operation.nextAttemptAt > now) {
-        retryBlockedCourses.add(operation.courseId);
-        continue;
-      }
-      dueOperations.push(operation);
-      if (dueOperations.length >= limit) break;
-    }
-    return dueOperations;
+    if (options.includeDeferred === true) return accountOperations.slice(0, limit);
+    return selectDueProgressOperations(accountOperations, limit, now);
   } finally {
     database.close();
   }

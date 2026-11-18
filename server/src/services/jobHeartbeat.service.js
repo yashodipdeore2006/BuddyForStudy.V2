@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 
 export const WORKER_JOB_NAME = "background-maintenance-worker";
 export const WORKER_HEARTBEAT_STALE_AFTER_MS = 5 * 60 * 1000;
+export const MAINTENANCE_FAILURE_ALERT_KEY = "background-worker-maintenance-failures";
 
 function heartbeatMetadata(metadata = {}) {
   const result = {};
@@ -64,6 +65,7 @@ export async function checkWorkerHeartbeat(
 ) {
   if (mode === "disabled") {
     await resolveOperationalAlert("background-worker-heartbeat-stale");
+    await resolveOperationalAlert(MAINTENANCE_FAILURE_ALERT_KEY);
     return {
       jobName: WORKER_JOB_NAME,
       mode,
@@ -101,10 +103,22 @@ export async function checkWorkerHeartbeat(
     await resolveOperationalAlert("background-worker-heartbeat-stale");
   }
 
+  const consecutiveFailures = Number(heartbeat?.consecutiveFailures || 0);
+  if (consecutiveFailures > 0) {
+    await recordOperationalAlert({
+      key: MAINTENANCE_FAILURE_ALERT_KEY,
+      severity: consecutiveFailures >= 5 ? "critical" : "warning",
+      source: "background-worker-maintenance",
+      message: `Background maintenance has ${consecutiveFailures} consecutive failure(s). Last error: ${String(heartbeat?.lastError || "No error detail reported").slice(0, 300)}`
+    });
+  } else {
+    await resolveOperationalAlert(MAINTENANCE_FAILURE_ALERT_KEY);
+  }
+
   return {
     jobName: WORKER_JOB_NAME,
     mode,
-    status: stale ? "stale" : stopping ? "stopping" : "healthy",
+    status: stale ? "stale" : stopping ? "stopping" : consecutiveFailures > 0 ? "degraded" : "healthy",
     workerStatus: heartbeat?.workerStatus || "unknown",
     instanceId: heartbeat?.instanceId || "",
     lastHeartbeatAt: lastHeartbeatAt?.toISOString() || null,

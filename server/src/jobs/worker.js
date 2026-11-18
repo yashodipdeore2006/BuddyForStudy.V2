@@ -86,10 +86,12 @@ announcementHandle = setInterval(() => void runAnnouncementBatches(), announceme
 maintenanceHandle.unref?.();
 announcementHandle.unref?.();
 await runMaintenance();
-await runAnnouncementBatches();
-await runNightlyCurationJobs();
-console.info("[worker] background maintenance worker started", {
-  ownerId: leaseRunner.ownerId,
-  maintenanceIntervalMs,
-  announcementIntervalMs
-});
+if (!stopping) await runAnnouncementBatches();
+if (!stopping) await runNightlyCurationJobs();
+if (!stopping) {
+  console.info("[worker] background maintenance worker started", {
+    ownerId: leaseRunner.ownerId,
+    maintenanceIntervalMs,
+    announcementIntervalMs
+  });
+}

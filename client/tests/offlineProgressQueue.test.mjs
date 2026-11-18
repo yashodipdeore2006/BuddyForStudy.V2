@@ -4,8 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   isProgressOperationForAccount,
   sortProgressQueueOperations,
-  selectDueProgressOperations,
-  isProgressOperationForAccount
+  selectDueProgressOperations
 } from "../src/lib/offlineProgressQueue.ts";
 
 test("offline progress operations are ordered by their account sequence", () => {

@@ -108,7 +108,7 @@ export async function getBackgroundOperationsHealth({
   const hasExpiredLease = jobs.some((job) => job.status === "expired");
   const status = mode === "disabled"
     ? "disabled"
-    : worker.status === "stale" || hasExpiredLease || Number(worker.consecutiveFailures || 0) > 0
+    : worker.status === "stale" || worker.status === "stopped" || hasExpiredLease || Number(worker.consecutiveFailures || 0) > 0
       ? "degraded"
       : worker.status === "stopping"
         ? "stopping"

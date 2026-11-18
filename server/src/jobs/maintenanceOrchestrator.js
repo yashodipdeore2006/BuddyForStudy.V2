@@ -15,9 +15,9 @@ import { recoverExpiredRoadmapAdmissions } from "../services/roadmapAdmission.se
 import { checkPaymentWebhookBacklog, checkYouTubeQuotaOperationalState, resolveRecoveredApi5xxAlert } from "../services/operationalMonitoring.service.js";
 
 /**
- * Creates process-local orchestration state around the shared maintenance
- * handlers. The API scheduler and standalone worker can both consume this
- * same interface; deployment mode and distributed leases are wired later.
+ * Creates process-local overlap guards around the shared maintenance
+ * handlers. API-inline and standalone processes use the same handlers;
+ * cross-process ownership is enforced by leasedJobRunner.js.
  */
 export function createMaintenanceOrchestrator() {
   let maintenanceInProgress = false;

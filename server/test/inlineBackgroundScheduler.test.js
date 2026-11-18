@@ -36,6 +36,8 @@ async function waitForIdle(scheduler) {
   assert.equal(scheduler.isBusy(), false, "scheduled jobs should settle");
 }
 
+let orchestratorWasStopped = false;
+
 function createOrchestrator(overrides = {}) {
   return {
     runInlineMaintenance: async () => ({ completed: true }),
@@ -106,8 +108,6 @@ test("inline scheduler starts bounded timers and executes startup passes under s
   assert.equal(heartbeatStatuses.at(-1), "stopped");
   assert.ok(fakeTimers.timers.every((timer) => timer.cleared));
 });
-
-let orchestratorWasStopped = false;
 
 test("inline scheduler does not execute a handler when another process owns the lease", async () => {
   let handlerCalls = 0;

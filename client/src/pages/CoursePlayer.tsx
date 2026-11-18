@@ -352,7 +352,17 @@ export default function CoursePlayer() {
           let loadedProgress = mapProgress(progressData.progress);
           const accountId = session?.user.id;
           if (accountId) {
-            const pendingOperations = await listPendingProgressOperations(accountId, { courseId, limit: 200 });
+            let pendingOperations: ProgressQueueOperation[] = [];
+            try {
+              pendingOperations = await listPendingProgressOperations(accountId, {
+                courseId,
+                limit: 200,
+                includeDeferred: true
+              });
+              setPendingOfflineProgressCount(await getPendingProgressOperationCount(accountId, courseId));
+            } catch {
+              // IndexedDB availability must not turn a valid server progress response into a plan denial.
+            }
             const lessonsById = new Map(
               mappedCourse.modules.flatMap((module) => module.lessons).map((lesson) => [lesson.id, lesson])
             );
@@ -368,7 +378,6 @@ export default function CoursePlayer() {
                 mappedCourse.modules.reduce((sum, module) => sum + module.lessons.length, 0)
               );
             }
-            setPendingOfflineProgressCount(await getPendingProgressOperationCount(accountId, courseId));
           }
           setProgress(loadedProgress);
           setProgressUnavailable(false);

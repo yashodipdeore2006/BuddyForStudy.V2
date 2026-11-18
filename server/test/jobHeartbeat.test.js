@@ -100,8 +100,8 @@ test("standalone worker delegates orchestration and drains it before shutdown", 
   assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf('heartbeatWorker("stopped")'));
   assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
   assert.match(shutdown, /mongoose\.disconnect\(\)/);
-  assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await orchestrator.runMaintenance();"));
-  assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await orchestrator.runAnnouncementBatches();"));
+  assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await runMaintenance();"));
+  assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await runAnnouncementBatches();"));
 
   assert.match(orchestrator, /export function createMaintenanceOrchestrator\(\)/);
   assert.match(orchestrator, /async function runMaintenance\(\)/);

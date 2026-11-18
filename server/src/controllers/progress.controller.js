@@ -1,4 +1,5 @@
 import * as service from "../services/progress.service.js";
+import { syncProgressOperations, MAX_PROGRESS_SYNC_BATCH_SIZE } from "../services/progressSync.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 
@@ -53,4 +54,37 @@ export async function uncomplete(req, res, next) {
       progress: serializeProgress(progress)
     });
   } catch (e) { next(e); }
+}
+
+
+export async function sync(req, res, next) {
+  try {
+    const operations = req.body?.operations;
+    if (!Array.isArray(operations) || operations.length < 1) {
+      return failure(res, "Provide at least one progress operation to synchronize.", 400);
+    }
+    if (operations.length > MAX_PROGRESS_SYNC_BATCH_SIZE) {
+      return failure(
+        res,
+        "A progress sync batch cannot contain more than " + MAX_PROGRESS_SYNC_BATCH_SIZE + " operations.",
+        413,
+        { maxBatchSize: MAX_PROGRESS_SYNC_BATCH_SIZE }
+      );
+    }
+
+    // Identity always comes from authMiddleware. Client-supplied account IDs
+    // are intentionally ignored.
+    const results = await syncProgressOperations(req.user.userId, operations);
+    const summary = results.reduce((counts, result) => {
+      counts[result.status] = (counts[result.status] || 0) + 1;
+      return counts;
+    }, {});
+    return success(res, {
+      results,
+      summary,
+      maxBatchSize: MAX_PROGRESS_SYNC_BATCH_SIZE
+    }, "Progress synchronization batch processed.");
+  } catch (error) {
+    next(error);
+  }
 }

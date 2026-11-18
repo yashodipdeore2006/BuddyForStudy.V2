@@ -29,7 +29,6 @@ const DATABASE_NAME = "buddyforstudy-offline-progress";
 const DATABASE_VERSION = 2;
 const OPERATIONS_STORE = "progressOperations";
 const METADATA_STORE = "metadata";
-const BACKGROUND_SYNC_TAG = "bfs-progress-sync";
 const DEFAULT_PENDING_LIMIT = 50;
 const MAX_PENDING_LIMIT = 200;
 const SYNC_LOCK_LEASE_MS = 2 * 60 * 1000;

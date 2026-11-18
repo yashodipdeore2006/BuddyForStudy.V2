@@ -65,6 +65,7 @@ test("lease acquisition atomically claims an absent or expired job and advances 
   assert.match(captured[1].$set.leaseToken, /^[0-9a-f-]{36}$/i);
   assert.equal(captured[1].$set.leaseUntil.toISOString(), "2026-11-18T12:01:30.000Z");
   assert.equal(captured[1].$set.acquiredAt.toISOString(), now.toISOString());
+  assert.equal(captured[1].$set.releasedAt, null);
   assert.equal(captured[1].$inc.fencingToken, 1);
   assert.equal(captured[2].upsert, true);
   assert.equal(captured[2].new, true);
@@ -127,6 +128,7 @@ test("lease renewal requires the active owner and token and extends expiry", asy
   });
   assert.equal(captured[1].$set.leaseUntil.toISOString(), "2026-11-18T12:02:00.000Z");
   assert.equal(captured[1].$set.renewedAt.toISOString(), now.toISOString());
+  assert.equal(captured[1].$set.releasedAt, null);
   assert.equal(captured[2].new, true);
 });
 
@@ -175,6 +177,7 @@ test("lease release expires only the matching owner-token pair", async () => {
   });
   assert.equal(captured[1].$set.leaseUntil.toISOString(), now.toISOString());
   assert.equal(captured[1].$set.renewedAt.toISOString(), now.toISOString());
+  assert.equal(captured[1].$set.releasedAt.toISOString(), now.toISOString());
 });
 
 test("a stale owner cannot release a successor lease", async () => {

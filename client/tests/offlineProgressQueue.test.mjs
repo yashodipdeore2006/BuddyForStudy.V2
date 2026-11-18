@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 import {
   isProgressOperationForAccount,
   sortProgressQueueOperations,
-  selectDueProgressOperations
+  selectDueProgressOperations,
+  isProgressOperationForAccount
 } from "../src/lib/offlineProgressQueue.ts";
 
 test("offline progress operations are ordered by their account sequence", () => {
@@ -95,4 +96,28 @@ test("a delayed retry blocks later actions for its course but not other courses"
     selectDueProgressOperations(operations, 10, 6000).map((operation) => operation.operationId),
     ["course-a-1", "course-a-2", "course-b-1"]
   );
+});
+
+
+test("a rejected operation blocks later operations for the same course until manual retry", () => {
+  const operations = [
+    { operationId: "blocked-a", accountId: "user-1", courseId: "course-a", itemId: "lesson-1", action: "complete", sequence: 1, createdAt: 1, updatedAt: 1, retryCount: 0, nextAttemptAt: 1, status: "blocked" },
+    { operationId: "pending-a", accountId: "user-1", courseId: "course-a", itemId: "lesson-2", action: "complete", sequence: 2, createdAt: 2, updatedAt: 2, retryCount: 0, nextAttemptAt: 1, status: "pending" },
+    { operationId: "pending-b", accountId: "user-1", courseId: "course-b", itemId: "lesson-3", action: "complete", sequence: 3, createdAt: 3, updatedAt: 3, retryCount: 0, nextAttemptAt: 1, status: "pending" }
+  ];
+  assert.deepEqual(
+    selectDueProgressOperations(operations, 10, 10).map((operation) => operation.operationId),
+    ["pending-b"]
+  );
+});
+
+test("the IndexedDB v1-to-v2 upgrade adds schemaVersion without discarding saved operations", async () => {
+  const queue = await readFile(new URL("../src/lib/offlineProgressQueue.ts", import.meta.url), "utf8");
+  assert.match(queue, /const DATABASE_VERSION = 2/);
+  assert.match(queue, /request.onupgradeneeded = (event)/);
+  assert.match(queue, /if (event.oldVersion < 2/);
+  assert.match(queue, /operation.schemaVersion = 1/);
+  assert.match(queue, /cursor.update(operation)/);
+  assert.match(queue, /includeDeferred === true/);
+  assert.match(queue, /operation.status === "blocked"/);
 });

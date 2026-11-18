@@ -5,7 +5,7 @@ import { processPendingAuditOutbox } from "../services/auditOutbox.service.js";
 import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
-import { heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
+import { markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
 import { checkNotificationDeliveryBacklog } from "../services/notificationBacklog.service.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
 import { processScheduledAnnouncements } from "../services/announcement.service.js";

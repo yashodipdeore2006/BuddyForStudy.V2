@@ -751,7 +751,12 @@ export async function processSubscriptionExpiryReminders(now = new Date()) {
   return { checked, queued };
 }
 
-export async function reconcilePendingCoursePurchaseNotifications(now = new Date(), pageSize = 100) {
+export async function reconcilePendingCoursePurchaseNotifications(now = new Date(), pageSize = 100, options = {}) {
+  const requestedMaxPages = Number(options.maxPages);
+  const maxPages = Number.isFinite(requestedMaxPages)
+    ? Math.max(1, Math.min(100, Math.trunc(requestedMaxPages)))
+    : Number.POSITIVE_INFINITY;
+  let pagesProcessed = 0;
   const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS);
   const eligible = {
     status: { $in: ["paid", "partially_refunded"] },
@@ -772,17 +777,18 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
   let waitingForEnrollment = 0;
   let failures = 0;
 
-  while (true) {
+  while (pagesProcessed < maxPages) {
     const filter = { ...eligible };
     filter._id = cursor
       ? { $gt: cursor, $lte: upperBound._id }
       : { $lte: upperBound._id };
     const payments = await Payment.find(filter)
-      .sort({ _id: 1 })
+      .sort(options.fair === true ? { purchaseNotificationLastCheckedAt: 1, _id: 1 } : { _id: 1 })
       .limit(limit)
       .populate("course", "title")
       .lean();
     if (!payments.length) break;
+    pagesProcessed += 1;
 
     cursor = payments[payments.length - 1]._id;
     checked += payments.length;
@@ -834,7 +840,12 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
   return { checked, queued, waitingForEnrollment, failures };
 }
 
-export async function reconcilePendingSubscriptionActivationNotifications(now = new Date(), pageSize = 100) {
+export async function reconcilePendingSubscriptionActivationNotifications(now = new Date(), pageSize = 100, options = {}) {
+  const requestedMaxPages = Number(options.maxPages);
+  const maxPages = Number.isFinite(requestedMaxPages)
+    ? Math.max(1, Math.min(100, Math.trunc(requestedMaxPages)))
+    : Number.POSITIVE_INFINITY;
+  let pagesProcessed = 0;
   const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS);
   const eligible = {
     provider: "razorpay",
@@ -857,15 +868,16 @@ export async function reconcilePendingSubscriptionActivationNotifications(now = 
   let waitingForActive = 0;
   let failures = 0;
 
-  while (true) {
+  while (pagesProcessed < maxPages) {
     const filter = { ...eligible };
     filter._id = cursor ? { $gt: cursor, $lte: upperBound._id } : { $lte: upperBound._id };
     const payments = await Payment.find(filter)
-      .sort({ _id: 1 })
+      .sort(options.fair === true ? { subscriptionNotificationLastCheckedAt: 1, _id: 1 } : { _id: 1 })
       .limit(limit)
       .populate("plan", "name billingInterval providerPlanId")
       .lean();
     if (!payments.length) break;
+    pagesProcessed += 1;
 
     cursor = payments[payments.length - 1]._id;
     checked += payments.length;

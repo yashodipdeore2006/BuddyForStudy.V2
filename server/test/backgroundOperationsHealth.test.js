@@ -80,6 +80,8 @@ test("disabled mode reports old expired leases as not expected and suppresses le
   });
 
   assert.equal(jobs[0].status, "not_expected");
+  assert.equal(jobs[0].observedStatus, "expired");
+  assert.ok(jobs.every((job) => job.status === "not_expected"));
   assert.equal(recorded.length, 0);
   assert.equal(resolved.length, BACKGROUND_JOB_LEASES.length);
 });
@@ -117,6 +119,14 @@ test("overall background health is healthy, degraded, stopping or disabled based
     leaseCheck: async () => [{ status: "released" }]
   });
   assert.equal(stopping.status, "stopping");
+
+  const stopped = await getBackgroundOperationsHealth({
+    now: NOW,
+    mode: "inline",
+    workerCheck: async () => ({ status: "stopped" }),
+    leaseCheck: async () => [{ status: "released" }]
+  });
+  assert.equal(stopped.status, "degraded");
 
   const disabled = await getBackgroundOperationsHealth({
     now: NOW,

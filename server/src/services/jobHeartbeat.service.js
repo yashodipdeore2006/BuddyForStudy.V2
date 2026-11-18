@@ -20,7 +20,6 @@ export async function heartbeatWorker(workerStatus = "running", now = new Date()
   const fields = { workerStatus, lastHeartbeatAt: now, ...heartbeatMetadata(metadata) };
   if (workerStatus === "running" && metadata.started === true) fields.lastStartedAt = now;
   if (workerStatus === "stopping") fields.shutdownStartedAt = now;
-  if (workerStatus === "stopped") fields.shutdownStartedAt = fields.shutdownStartedAt || now;
   return JobHeartbeat.findOneAndUpdate(
     { jobName: WORKER_JOB_NAME },
     { $set: fields },
@@ -35,7 +34,7 @@ export function markWorkerStopping(now = new Date(), metadata = {}) {
 export async function markMaintenanceStarted(now = new Date()) {
   return JobHeartbeat.findOneAndUpdate(
     { jobName: WORKER_JOB_NAME },
-    { $set: { workerStatus: "running", lastHeartbeatAt: now, lastMaintenanceStartedAt: now } },
+    { $set: { lastHeartbeatAt: now, lastMaintenanceStartedAt: now } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
   );
 }
@@ -43,7 +42,7 @@ export async function markMaintenanceStarted(now = new Date()) {
 export async function markMaintenanceCompleted(now = new Date()) {
   return JobHeartbeat.findOneAndUpdate(
     { jobName: WORKER_JOB_NAME },
-    { $set: { workerStatus: "running", lastHeartbeatAt: now, lastMaintenanceCompletedAt: now, lastError: "", consecutiveFailures: 0 } },
+    { $set: { lastHeartbeatAt: now, lastMaintenanceCompletedAt: now, lastError: "", consecutiveFailures: 0 } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
   );
 }
@@ -52,7 +51,7 @@ export async function markMaintenanceFailed(error, now = new Date()) {
   const message = String(error?.message || "Unknown maintenance failure").slice(0, 500);
   const heartbeat = await JobHeartbeat.findOneAndUpdate(
     { jobName: WORKER_JOB_NAME },
-    { $set: { workerStatus: "running", lastHeartbeatAt: now, lastError: message }, $inc: { consecutiveFailures: 1 } },
+    { $set: { lastHeartbeatAt: now, lastError: message }, $inc: { consecutiveFailures: 1 } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
   );
   return heartbeat;
@@ -111,6 +110,8 @@ export async function checkWorkerHeartbeat(
     lastHeartbeatAt: lastHeartbeatAt?.toISOString() || null,
     heartbeatAgeSeconds: ageMs === null ? null : Math.floor(ageMs / 1000),
     staleAfterSeconds: Math.floor(staleAfterMs / 1000),
+    lastStartedAt: heartbeat?.lastStartedAt || null,
+    shutdownStartedAt: heartbeat?.shutdownStartedAt || null,
     lastMaintenanceStartedAt: heartbeat?.lastMaintenanceStartedAt || null,
     lastMaintenanceCompletedAt: heartbeat?.lastMaintenanceCompletedAt || null,
     lastError: heartbeat?.lastError || "",

@@ -51,7 +51,8 @@ export function hashProgressSyncOperation(operation) {
     schemaVersion: operation.schemaVersion,
     courseId: operation.courseId,
     itemId: operation.itemId,
-    action: operation.action
+    action: operation.action,
+    clientSequence: operation.clientSequence
   });
   return createHash("sha256").update(canonical).digest("hex");
 }

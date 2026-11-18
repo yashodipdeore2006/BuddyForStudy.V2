@@ -384,6 +384,7 @@ export default function CoursePlayer() {
                 .map((lesson) => [lesson.id, lesson] as const)
             );
             for (const operation of pendingOperations) {
+              if (operation.status !== "pending") continue;
               const targetLesson = lessonsById.get(operation.itemId);
               if (!targetLesson) continue;
               loadedProgress = applyQueuedProgressAction(
@@ -694,6 +695,40 @@ export default function CoursePlayer() {
         .catch(() => {
           // Local queue status is supplemental and must not block course access.
         });
+
+      // Rebuild the visible progress from the authoritative server snapshot
+      // plus only still-pending local actions. Blocked actions require explicit
+      // retry or dismissal and must not stay optimistically applied.
+      if (!course || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+      void apiFetch(`/api/progress/${courseId}`, { cache: "no-store" })
+        .then(async (data) => {
+          let refreshed = mapProgress(data.progress);
+          const remaining = await listPendingProgressOperations(accountId, {
+            courseId,
+            limit: 200,
+            includeDeferred: true
+          });
+          const lessonsById = new Map<string, Course["modules"][number]["lessons"][number]>(
+            course.modules.flatMap((module) => module.lessons).map((lesson) => [lesson.id, lesson] as const)
+          );
+          for (const operation of remaining) {
+            if (operation.status !== "pending") continue;
+            const lesson = lessonsById.get(operation.itemId);
+            if (!lesson) continue;
+            refreshed = applyQueuedProgressAction(
+              refreshed,
+              operation,
+              accountId,
+              courseId,
+              lesson.type,
+              course.modules.reduce((sum, module) => sum + module.lessons.length, 0)
+            );
+          }
+          if (!cancelled) setProgress(refreshed);
+        })
+        .catch(() => {
+          // Queue status still updates when the API is unavailable.
+        });
     };
     window.addEventListener("bfs:progress-queue-updated", refreshPendingCount);
     refreshPendingCount();
@@ -701,7 +736,7 @@ export default function CoursePlayer() {
       cancelled = true;
       window.removeEventListener("bfs:progress-queue-updated", refreshPendingCount);
     };
-  }, [courseId, session?.user.id]);
+  }, [course, courseId, session?.user.id]);
 
   const handleRetryProgressSync = async () => {
     const accountId = session?.user.id;

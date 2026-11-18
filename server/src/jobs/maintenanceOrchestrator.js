@@ -51,6 +51,153 @@ export function createMaintenanceOrchestrator() {
     }
   }
 
+  async function updateLimitedRecords(Model, filter, status, limit = 25) {
+    const records = await Model.find(filter).sort({ _id: 1 }).limit(limit).select('_id').lean();
+    if (!records.length) return { modifiedCount: 0 };
+    return Model.updateMany(
+      { ...filter, _id: { $in: records.map((record) => record._id) } },
+      { $set: { status } }
+    );
+  }
+
+  async function runInlineMaintenance({ shouldContinue = async () => true } = {}) {
+    if (maintenanceInProgress || stopping) {
+      console.info('[inline-worker] maintenance pass skipped because another pass is active or shutdown has started');
+      return { skipped: 'busy_or_stopping' };
+    }
+
+    maintenanceInProgress = true;
+    const startedAt = Date.now();
+    await markMaintenanceStarted().catch((error) => console.error('[inline-worker] unable to record maintenance start', { code: error?.code }));
+
+    try {
+      const now = new Date();
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({
+        now,
+        maxItems: 10,
+        shouldContinue
+      });
+      if (recoveredRoadmapAdmissions) console.warn('[inline-worker] recovered expired roadmap admission leases', { count: recoveredRoadmapAdmissions });
+
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      const [webhookBacklog, youtubeQuota, api5xxRecovery] = await Promise.all([
+        checkPaymentWebhookBacklog(now),
+        checkYouTubeQuotaOperationalState(),
+        resolveRecoveredApi5xxAlert(now)
+      ]);
+      if (api5xxRecovery.resolved) console.info('[inline-worker] resolved API 5xx alert after the recovery window elapsed');
+      if (webhookBacklog.failed || webhookBacklog.staleProcessing) {
+        console.warn('[inline-worker] Razorpay webhook backlog requires attention', {
+          failed: webhookBacklog.failed,
+          staleProcessing: webhookBacklog.staleProcessing
+        });
+      }
+      if (youtubeQuota.state !== 'ok' || youtubeQuota.store === 'unavailable') {
+        console.warn('[inline-worker] YouTube quota is not fully available', {
+          state: youtubeQuota.state,
+          units: youtubeQuota.units,
+          budget: youtubeQuota.budget,
+          store: youtubeQuota.store,
+          resetDay: youtubeQuota.resetDay
+        });
+      }
+
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      const expiryCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const [subscriptions, payments, trialGrants] = await Promise.all([
+        updateLimitedRecords(UserSubscription, {
+          status: { $in: ['trialing', 'active', 'past_due'] },
+          currentPeriodEnd: { $lt: now }
+        }, 'expired', 25),
+        updateLimitedRecords(Payment, {
+          status: { $in: ['created', 'pending'] },
+          createdAt: { $lt: expiryCutoff }
+        }, 'cancelled', 25),
+        updateLimitedRecords(TrialGrant, {
+          status: 'trialing',
+          endsAt: { $lte: now }
+        }, 'expired', 25)
+      ]);
+
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      const notificationJobs = await Promise.allSettled([
+        processPendingAuditOutbox(25, now),
+        deliverPendingNotificationEmails(10),
+        deliverPendingNotificationPush(10),
+        reconcilePendingCoursePurchaseNotifications(now, 10, { maxPages: 1, fair: true }),
+        reconcilePendingSubscriptionActivationNotifications(now, 10, { maxPages: 1, fair: true })
+      ]);
+      const notificationJobNames = [
+        'audit-outbox',
+        'email-delivery',
+        'push-delivery',
+        'course-purchase-reconciliation',
+        'subscription-activation-reconciliation'
+      ];
+      for (let index = 0; index < notificationJobs.length; index += 1) {
+        const result = notificationJobs[index];
+        const jobName = notificationJobNames[index] || ('notification-job-' + (index + 1));
+        const itemFailures = result.status === 'fulfilled'
+          ? Math.max(0, Number(result.value?.failures) || 0)
+          : 1;
+        const jobFailed = result.status === 'rejected' || itemFailures > 0;
+        const alertKey = 'notification-job-' + jobName + '-failure';
+        if (jobFailed) {
+          const errorMessage = result.status === 'rejected'
+            ? String(result.reason?.message || 'Unknown notification job error').slice(0, 500)
+            : 'The job reported ' + itemFailures + ' item-level failure(s).';
+          await recordOperationalAlert({
+            key: alertKey,
+            severity: 'critical',
+            source: 'inline-notification-worker:' + jobName,
+            message: jobName + ' failed: ' + errorMessage
+          });
+          console.error('[inline-worker] notification job failed', { job: jobName, failures: itemFailures, message: errorMessage });
+        } else {
+          await resolveOperationalAlert(alertKey);
+        }
+      }
+
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      await checkNotificationDeliveryBacklog(now).catch((error) => console.error('[inline-worker] notification backlog check failed', { code: error?.code, name: error?.name }));
+      if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+      await resolveOperationalAlert('background-maintenance-failure');
+      await markMaintenanceCompleted().catch((error) => console.error('[inline-worker] unable to record maintenance completion', { code: error?.code }));
+      console.info('[inline-worker] bounded maintenance completed in ' + (Date.now() - startedAt) + 'ms', {
+        subscriptionsExpired: subscriptions.modifiedCount || 0,
+        trialGrantsExpired: trialGrants.modifiedCount || 0,
+        stalePaymentsCancelled: payments.modifiedCount || 0,
+        notificationJobs: notificationJobs.map((item) => item.status)
+      });
+      return {
+        subscriptionsExpired: subscriptions.modifiedCount || 0,
+        trialGrantsExpired: trialGrants.modifiedCount || 0,
+        stalePaymentsCancelled: payments.modifiedCount || 0,
+        notificationJobs: notificationJobs.map((item) => item.status)
+      };
+    } catch (error) {
+      await markMaintenanceFailed(error).catch((heartbeatError) => console.error('[inline-worker] unable to record maintenance failure', { code: heartbeatError?.code }));
+      try {
+        await recordOperationalAlert({
+          key: 'background-maintenance-failure',
+          severity: 'critical',
+          source: 'inline-background-worker',
+          message: 'Maintenance failed: ' + String(error?.message || 'Unknown error').slice(0, 700)
+        });
+      } catch (alertError) {
+        console.error('[inline-worker] failed to persist operational alert', { name: alertError?.name || 'Error', code: alertError?.code });
+      }
+      console.error('[inline-worker] maintenance failed', {
+        name: error?.name || 'Error',
+        message: String(error?.message || 'Unknown maintenance error').slice(0, 500),
+        code: error?.code
+      });
+      return { failed: true };
+    } finally {
+      maintenanceInProgress = false;
+    }
+  }
   async function runMaintenance() {
     if (maintenanceInProgress || stopping) {
       console.info("[worker] maintenance run skipped because another run is active or shutdown has started");
@@ -169,30 +316,36 @@ export function createMaintenanceOrchestrator() {
     }
   }
 
-  async function runAnnouncementBatches() {
-    if (announcementRunInProgress || stopping) return;
+  async function runAnnouncementBatches({ maxBatches = 5, deliveryLimit = 100, shouldContinue = async () => true } = {}) {
+    if (announcementRunInProgress || stopping) return { skipped: 'busy_or_stopping' };
+    const safeMaxBatches = Math.max(1, Math.min(5, Math.trunc(Number(maxBatches) || 5)));
+    const safeDeliveryLimit = Math.max(1, Math.min(100, Math.trunc(Number(deliveryLimit) || 100)));
     announcementRunInProgress = true;
     try {
       let totalBatches = 0;
       let totalQueued = 0;
       let totalFailures = 0;
-      for (let batch = 0; batch < 5; batch += 1) {
+      for (let batch = 0; batch < safeMaxBatches; batch += 1) {
+        if (stopping || !(await shouldContinue())) break;
         const result = await processScheduledAnnouncements(new Date(), 1, 100);
         totalBatches += result.batches || 0;
         totalQueued += result.recipientsQueued || 0;
         totalFailures += result.failures || 0;
         if (!result.batches) break;
         // Drain each newly queued batch before claiming more recipients, keeping provider queues bounded.
-        await deliverPendingNotificationEmails(100);
-        await deliverPendingNotificationPush(100);
+        if (stopping || !(await shouldContinue())) break;
+        await deliverPendingNotificationEmails(safeDeliveryLimit);
+        await deliverPendingNotificationPush(safeDeliveryLimit);
       }
-      if (!totalBatches) {
-        await deliverPendingNotificationEmails(100);
-        await deliverPendingNotificationPush(100);
+      if (!totalBatches && !stopping && await shouldContinue()) {
+        await deliverPendingNotificationEmails(safeDeliveryLimit);
+        await deliverPendingNotificationPush(safeDeliveryLimit);
       }
-      if (totalBatches) console.info("[worker] announcement batches processed", { batches: totalBatches, recipientsQueued: totalQueued, failures: totalFailures });
+      if (totalBatches) console.info('[worker] announcement batches processed', { batches: totalBatches, recipientsQueued: totalQueued, failures: totalFailures });
+      return { batches: totalBatches, recipientsQueued: totalQueued, failures: totalFailures };
     } catch (error) {
-      console.error("[worker] announcement processing failed", { name: error?.name || "Error", message: String(error?.message || "Announcement processing failed").slice(0, 300) });
+      console.error('[worker] announcement processing failed', { name: error?.name || 'Error', message: String(error?.message || 'Announcement processing failed').slice(0, 300) });
+      return { failed: true };
     } finally {
       announcementRunInProgress = false;
     }
@@ -217,6 +370,7 @@ export function createMaintenanceOrchestrator() {
 
   return Object.freeze({
     runMaintenance,
+    runInlineMaintenance,
     runAnnouncementBatches,
     stop,
     isBusy,

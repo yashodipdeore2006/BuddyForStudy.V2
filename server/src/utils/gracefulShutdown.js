@@ -7,6 +7,7 @@ export function createGracefulShutdown({
   server,
   disconnect,
   clearTimers = () => {},
+  beforeClose = async () => {},
   timeoutMs = 10_000,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
@@ -27,6 +28,7 @@ export function createGracefulShutdown({
     shutdownPromise = (async () => {
       logger.info?.("[server] graceful shutdown started", { signal });
       clearTimers();
+      await beforeClose();
 
       let forceCloseTimer;
       const closed = new Promise((resolve, reject) => {

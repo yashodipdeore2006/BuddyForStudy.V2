@@ -48,3 +48,32 @@ self.addEventListener("notificationclick", (event) => {
     return self.clients.openWindow(targetUrl);
   })());
 });
+
+
+const PROGRESS_SYNC_TAG = "bfs-progress-sync";
+
+// Background Sync only wakes an authenticated open page. The Service Worker
+// never reads IndexedDB progress records or receives/stores access tokens.
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "BFS_PROGRESS_QUEUE_UPDATED") return;
+  const syncManager = self.registration.sync;
+  if (!syncManager?.register) return;
+  event.waitUntil(syncManager.register(PROGRESS_SYNC_TAG).catch(() => {
+    // Foreground startup/online events remain the fallback on unsupported browsers.
+  }));
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag !== PROGRESS_SYNC_TAG) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true
+    });
+    for (const client of windows) {
+      client.postMessage({ type: "BFS_PROGRESS_SYNC_REQUESTED" });
+    }
+    // If no page is open, leave the IndexedDB queue untouched. The next
+    // authenticated app session will request synchronization on startup.
+  })());
+});

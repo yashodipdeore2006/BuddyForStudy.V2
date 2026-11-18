@@ -351,6 +351,20 @@ This architecture is implemented in the following order:
 
 Do not move to the next implementation task until the current task's tests and branch verification pass. Do not deploy, merge, change Render services, or modify another branch as part of this sequence.
 
+
+### 12.1 Standalone lease integration checkpoint
+
+The V2.2 Task 6 implementation uses the shared `server/src/jobs/leasedJobRunner.js` from both the API-inline scheduler and the standalone worker.
+
+- `background-maintenance` protects the full standalone maintenance pass.
+- `announcement-dispatch` protects scheduled announcement dispatch.
+- `youtube-curation` protects the nightly YouTube stale-video refresh and skill-resource-prior rebuild independently from the maintenance lease.
+- The standalone worker remains restricted to `BACKGROUND_WORKER_MODE=standalone`, retains the existing 15-minute maintenance and 30-second announcement intervals, and continues to run the full reminder/reconciliation workload.
+- Long-running record scans receive a `shouldContinue` ownership callback and stop before claiming further records after lease loss. Existing per-notification, audit-outbox, announcement, and roadmap-admission claims remain the record-level safety layer.
+- Shutdown clears scheduler intervals, stops new leased work, waits for active lease release and orchestrator idle state, records the stopped heartbeat, and then disconnects MongoDB.
+
+The lease does not guarantee exactly-once execution. Work already in flight when a lease is lost must still rely on its existing atomic claims and idempotency contracts.
+
 ## 13. Acceptance criteria
 
 The architecture is considered correctly implemented only when:

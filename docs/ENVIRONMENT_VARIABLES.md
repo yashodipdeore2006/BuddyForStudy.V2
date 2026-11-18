@@ -66,9 +66,10 @@
 
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
-| `RAZORPAY_KEY_ID` | **Required in production** | Treat as sensitive | Must have the `rzp_live_` prefix and must not be a placeholder. Use production credentials only in the production environment. |
-| `RAZORPAY_KEY_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 16 characters. Razorpay API secret; server-side only. |
-| `RAZORPAY_WEBHOOK_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 32 characters; must match the configured Razorpay webhook endpoint. |
+| `PAYMENTS_ENABLED` | Defaults to `false`; set explicitly for production | No | Enables payment and webhook routes. Keep `false` until live Razorpay credentials and checkout/webhook flows are ready. |
+| `RAZORPAY_KEY_ID` | Required only when `PAYMENTS_ENABLED=true` | Treat as sensitive | Must have the `rzp_live_` prefix and must not be a placeholder. Use production credentials only in the production environment. |
+| `RAZORPAY_KEY_SECRET` | Required only when `PAYMENTS_ENABLED=true` | **Yes** | Must be non-placeholder and at least 16 characters. Razorpay API secret; server-side only. |
+| `RAZORPAY_WEBHOOK_SECRET` | Required only when `PAYMENTS_ENABLED=true` | **Yes** | Must be non-placeholder and at least 32 characters; must match the configured Razorpay webhook endpoint. |
 
 ## Email, Web Push, cache, and observability
 

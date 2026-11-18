@@ -34,7 +34,7 @@ test("standalone shutdown stops new ticks, drains leased jobs and then disconnec
   assert.match(shutdown, /await leaseRunner\.stop\(\)/);
   assert.match(shutdown, /await orchestrator\.waitForIdle\(\)/);
   assert.match(shutdown, /await heartbeatInProgress/);
-  assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
+  assert.match(shutdown, /heartbeatWorker\("stopped",\s*new Date\(\),/);
   assert.match(shutdown, /mongoose\.disconnect\(\)/);
   assert.ok(shutdown.indexOf("await leaseRunner.stop()") < shutdown.indexOf("mongoose.disconnect()"));
 });

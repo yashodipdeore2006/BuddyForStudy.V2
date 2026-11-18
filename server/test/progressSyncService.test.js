@@ -91,6 +91,11 @@ test("progress sync operation normalization enforces schema, ObjectIds, UUID and
     clientSequence: 1
   });
   assert.match(hashProgressSyncOperation(normalized), /^[0-9a-f]{64}$/);
+  assert.notEqual(
+    hashProgressSyncOperation(normalized),
+    hashProgressSyncOperation({ ...normalized, clientSequence: 2 }),
+    "the immutable sequence is part of the idempotency fingerprint"
+  );
   assert.match(normalizeProgressSyncOperation(validOperation({ action: "remove" })).error, /action/i);
   assert.match(normalizeProgressSyncOperation(validOperation({ schemaVersion: 9 })).error, /schema/i);
   assert.match(normalizeProgressSyncOperation(validOperation({ clientSequence: 0 })).error, /clientSequence/i);
@@ -305,4 +310,42 @@ test("course access failures can be retried with the same operationId after acce
   assert.equal(first.errorCode, "COURSE_ACCESS_DENIED");
   assert.equal(second.status, "applied");
   assert.equal(applications, 2);
+});
+
+
+test("an unresolved earlier operation blocks later actions for the same course in a batch", async () => {
+  const store = createMemoryStore();
+  const attempts = [];
+  const operations = [
+    validOperation(),
+    validOperation({
+      operationId: "2a2b3c4d-1234-4234-8234-123456789abc",
+      clientSequence: 2,
+      action: "uncomplete"
+    }),
+    validOperation({
+      operationId: "3a2b3c4d-1234-4234-8234-123456789abc",
+      courseId: "507f1f77bcf86cd799439099",
+      clientSequence: 3,
+      action: "complete"
+    })
+  ];
+
+  const results = await syncProgressOperations(USER_ID, operations, {
+    store,
+    now: deterministicClock(),
+    createClaimToken: deterministicTokens(),
+    applyAction: async (_userId, operation) => {
+      attempts.push(operation.clientSequence);
+      if (operation.clientSequence === 1) {
+        const error = new Error("Temporary service failure");
+        error.status = 503;
+        throw error;
+      }
+    }
+  });
+
+  assert.deepEqual(attempts, [1, 3], "later same-course action must not overtake the retryable first action");
+  assert.deepEqual(results.map((result) => result.status), ["retryable", "retryable", "applied"]);
+  assert.equal(results[1].errorCode, "EARLIER_PROGRESS_ACTION_PENDING");
 });

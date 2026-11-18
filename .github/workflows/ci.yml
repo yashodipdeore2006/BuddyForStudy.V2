@@ -9,7 +9,7 @@ permissions:
 
 on:
   push:
-    branches: ["main", "test"]
+    branches: ["main", "test", "buddy-for-study-v2.2"]
   pull_request:
     branches: ["main"]
 

@@ -79,8 +79,9 @@ heartbeatHandle.unref?.();
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 maintenanceHandle = setInterval(() => {
-  void runMaintenance();
-  void runNightlyCurationJobs();
+  void runMaintenance().finally(() => {
+    if (!stopping) void runNightlyCurationJobs();
+  });
 }, maintenanceIntervalMs);
 announcementHandle = setInterval(() => void runAnnouncementBatches(), announcementIntervalMs);
 maintenanceHandle.unref?.();

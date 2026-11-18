@@ -38,6 +38,13 @@ function runAnnouncementBatches() {
   );
 }
 
+function runNightlyCurationJobs() {
+  return leaseRunner.run(
+    JOB_LEASE_KEYS.YOUTUBE_CURATION,
+    ({ shouldContinue }) => orchestrator.runNightlyCurationJobs(new Date(), { shouldContinue })
+  );
+}
+
 async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
@@ -71,12 +78,16 @@ heartbeatHandle = setInterval(() => {
 heartbeatHandle.unref?.();
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
-maintenanceHandle = setInterval(() => void runMaintenance(), maintenanceIntervalMs);
+maintenanceHandle = setInterval(() => {
+  void runMaintenance();
+  void runNightlyCurationJobs();
+}, maintenanceIntervalMs);
 announcementHandle = setInterval(() => void runAnnouncementBatches(), announcementIntervalMs);
 maintenanceHandle.unref?.();
 announcementHandle.unref?.();
 await runMaintenance();
 await runAnnouncementBatches();
+await runNightlyCurationJobs();
 console.info("[worker] background maintenance worker started", {
   ownerId: leaseRunner.ownerId,
   maintenanceIntervalMs,

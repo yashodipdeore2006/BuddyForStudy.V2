@@ -122,7 +122,7 @@ export function createMaintenanceOrchestrator() {
 
       if (!(await shouldContinue())) return { skipped: 'lease_lost' };
       const notificationJobs = await Promise.allSettled([
-        processPendingAuditOutbox(25, now),
+        processPendingAuditOutbox(25, now, { maxRecoveries: 25 }),
         deliverPendingNotificationEmails(10),
         deliverPendingNotificationPush(10),
         reconcilePendingCoursePurchaseNotifications(now, 10, { maxPages: 1, fair: true }),

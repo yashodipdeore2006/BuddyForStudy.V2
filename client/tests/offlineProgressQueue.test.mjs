@@ -116,7 +116,7 @@ test("the IndexedDB v1-to-v2 upgrade adds schemaVersion without discarding saved
   assert.match(queue, /request.onupgradeneeded = \(event\)/);
   assert.match(queue, /if \(event.oldVersion < 2/);
   assert.match(queue, /operation.schemaVersion = 1/);
-  assert.match(queue, /cursor.update(operation)/);
+  assert.ok(queue.includes("cursor.update(operation)"));
   assert.match(queue, /includeDeferred === true/);
   assert.match(queue, /operation.status === "blocked"/);
 });

@@ -129,10 +129,10 @@ test("production config rejects an invalid payments feature flag", () => {
 
 
 test("production config requires an explicit supported background worker mode", () => {
-  for (const value of ["", "worker", "true", "INLINE", "disabled-ish"]) {
+  for (const value of ["", "worker", "true", "disabled-ish"]) {
     assert.ok(getProductionConfigErrors({ ...validConfig, BACKGROUND_WORKER_MODE: value }).some((error) => error.includes("BACKGROUND_WORKER_MODE")));
   }
-  for (const value of ["inline", "standalone", "disabled"]) {
+  for (const value of ["inline", "standalone", "disabled", "INLINE"]) {
     assert.ok(getProductionConfigErrors({ ...validConfig, BACKGROUND_WORKER_MODE: value }).every((error) => !error.includes("BACKGROUND_WORKER_MODE")));
   }
 });

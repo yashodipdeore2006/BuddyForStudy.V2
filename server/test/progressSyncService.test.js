@@ -238,12 +238,12 @@ test("the batch processor preserves operation order and enforces the batch cap",
   const now = deterministicClock();
   const createClaimToken = deterministicTokens();
   const operations = [
-    validOperation(),
     validOperation({
       operationId: "2a2b3c4d-1234-4234-8234-123456789abc",
       clientSequence: 2,
       action: "uncomplete"
-    })
+    }),
+    validOperation()
   ];
   const results = await syncProgressOperations(USER_ID, operations, {
     store,

@@ -37,7 +37,7 @@ import publicSettingsRoutes from "./routes/publicSettings.routes.js";
 import consentRoutes from "./routes/consent.routes.js";
 import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import adminTrialsRoutes from "./routes/adminTrials.routes.js";
-import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
+import { getBackgroundOperationsHealth } from "./services/backgroundOperationsHealth.service.js";
 import { createInlineBackgroundScheduler } from "./jobs/inlineBackgroundScheduler.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { requestId } from "./middleware/requestId.js";
@@ -134,13 +134,24 @@ connectDatabase()
     }
 
     if (env.backgroundWorkerMode !== "disabled") {
+      const monitorBackgroundOperations = async () => {
+        const health = await getBackgroundOperationsHealth();
+        if (health.status === "degraded") {
+          console.warn("[operations] background execution health is degraded", {
+            mode: health.mode,
+            workerStatus: health.worker.status,
+            jobs: health.jobs.filter((job) => job.status === "expired").map((job) => job.jobKey)
+          });
+        }
+        return health;
+      };
       workerHealthTimer = setInterval(() => {
-        void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
+        void monitorBackgroundOperations().catch((error) => console.error("[operations] background health monitor failed", { name: error?.name || "Error", code: error?.code }));
       }, 60 * 1000);
       workerHealthTimer.unref?.();
-      void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
+      void monitorBackgroundOperations().catch((error) => console.error("[operations] initial background health check failed", { name: error?.name || "Error", code: error?.code }));
     } else {
-      console.info("[operations] background scheduling is explicitly disabled");
+      console.info("[operations] background scheduling is explicitly disabled; heartbeat and lease alerts are suppressed");
     }
 
     const server = app.listen(env.port, "0.0.0.0", () => {

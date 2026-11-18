@@ -35,6 +35,10 @@ test("Render Blueprint includes a static frontend and one bounded inline API ser
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
   assert.equal((render.match(/- type:/g) || []).length, 2,
     "the cost-conscious blueprint must contain one API and one static frontend, with no worker");
+  assert.match(render, /name: buddyforstudy-api[\s\S]*plan: free/,
+    "the constrained API plan must be explicit rather than silently selecting a paid default");
+  assert.match(render, /source: \/\*\s+destination: \/index\.html/,
+    "the Render static site must support SPA deep links");
   assert.match(render, /name: buddyforstudy-web[\s\S]*runtime: static/);
   assert.match(render, /rootDir: client/);
   assert.match(render, /staticPublishPath: dist/);

@@ -681,7 +681,7 @@ export async function deliverPendingNotificationPush(limit = 50) {
   };
 }
 
-export async function processSubscriptionExpiryReminders(now = new Date()) {
+export async function processSubscriptionExpiryReminders(now = new Date(), options = {}) {
   const platform = await getNotificationPlatformSettings();
   if (!platform.subscriptionExpiryRemindersEnabled) {
     return { checked: 0, queued: 0, disabled: true };
@@ -700,6 +700,7 @@ export async function processSubscriptionExpiryReminders(now = new Date()) {
   let checked = 0;
   let queued = 0;
   while (true) {
+    if (await options.shouldContinue?.() === false) break;
     const filter = { ...eligible };
     filter._id = cursor ? { $gt: cursor, $lte: upperBound._id } : { $lte: upperBound._id };
     const subscriptions = await UserSubscription.find(filter)
@@ -712,6 +713,7 @@ export async function processSubscriptionExpiryReminders(now = new Date()) {
     cursor = subscriptions[subscriptions.length - 1]._id;
     checked += subscriptions.length;
     for (const subscription of subscriptions) {
+      if (await options.shouldContinue?.() === false) break;
       try {
         const periodEnd = subscription.currentPeriodEnd;
         const subscriptionId = String(subscription.providerSubscriptionId || subscription._id);
@@ -778,6 +780,7 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
   let failures = 0;
 
   while (pagesProcessed < maxPages) {
+    if (await options.shouldContinue?.() === false) break;
     const filter = { ...eligible };
     filter._id = cursor
       ? { $gt: cursor, $lte: upperBound._id }
@@ -793,6 +796,7 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
     cursor = payments[payments.length - 1]._id;
     checked += payments.length;
     for (const payment of payments) {
+      if (await options.shouldContinue?.() === false) break;
       try {
         const course = payment.course;
         const enrollment = await Enrollment.findOne({
@@ -971,7 +975,7 @@ export async function reconcilePendingSubscriptionActivationNotifications(now = 
   return { checked, queued, waitingForActive, failures };
 }
 
-export async function processLearningReminders(now = new Date(), batchSize = 500) {
+export async function processLearningReminders(now = new Date(), batchSize = 500, options = {}) {
   const platform = await getNotificationPlatformSettings();
   if (!platform.learningRemindersEnabled) return { checked: 0, sent: 0, disabled: true };
 
@@ -984,6 +988,7 @@ export async function processLearningReminders(now = new Date(), batchSize = 500
   const processedUsers = new Set();
 
   while (true) {
+    if (await options.shouldContinue?.() === false) break;
     const filter = { status: "active" };
     if (lastId) filter._id = { $gt: lastId };
     const enrollments = await Enrollment.find(filter)
@@ -1005,6 +1010,7 @@ export async function processLearningReminders(now = new Date(), batchSize = 500
     const progressMap = new Map(progressDocs.map((item) => [String(item.user) + ":" + String(item.course), item]));
 
     for (const enrollment of enrollments) {
+      if (await options.shouldContinue?.() === false) break;
       const userId = String(enrollment.user);
       const course = enrollment.course;
       if (!course?._id || course.isPublished === false || processedUsers.has(userId)) continue;

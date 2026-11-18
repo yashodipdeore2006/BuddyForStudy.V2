@@ -13,15 +13,15 @@ export const JOB_LEASE_KEYS = Object.freeze({
 
 function requireText(value, fieldName, maxLength) {
   if (typeof value !== "string") {
-    throw new TypeError(\`${fieldName} must be a string.\`);
+    throw new TypeError(`${fieldName} must be a string.`);
   }
 
   const normalized = value.trim();
   if (!normalized) {
-    throw new TypeError(\`${fieldName} is required.\`);
+    throw new TypeError(`${fieldName} is required.`);
   }
   if (normalized.length > maxLength) {
-    throw new RangeError(\`${fieldName} must be at most ${maxLength} characters.\`);
+    throw new RangeError(`${fieldName} must be at most ${maxLength} characters.`);
   }
 
   return normalized;
@@ -38,7 +38,7 @@ function normalizeLeaseDuration(leaseDurationMs) {
   const duration = Number(leaseDurationMs);
   if (!Number.isSafeInteger(duration) || duration < 1000 || duration > MAX_JOB_LEASE_DURATION_MS) {
     throw new RangeError(
-      \`leaseDurationMs must be an integer between 1000 and ${MAX_JOB_LEASE_DURATION_MS}.\`
+      `leaseDurationMs must be an integer between 1000 and ${MAX_JOB_LEASE_DURATION_MS}.`
     );
   }
   return duration;

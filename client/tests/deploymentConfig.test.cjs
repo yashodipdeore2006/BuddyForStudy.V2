@@ -34,13 +34,13 @@ test("Render defaults to one API service with bounded inline background executio
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
   assert.equal((render.match(/^\\s+- type:/gm) || []).length, 1,
     "the cost-conscious default blueprint must not create a separately billed worker");
-  assert.match(render, /key: BACKGROUND_WORKER_MODE\\s+value: inline/);
-  assert.match(render, /key: PAYMENTS_ENABLED\\s+value: ["']?false["']?/);
+  assert.ok(render.includes("key: BACKGROUND_WORKER_MODE\\n        value: inline"));
+  assert.ok(render.includes('key: PAYMENTS_ENABLED\\n        value: "false"'));
   assert.match(render, /rootDir: server/);
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /startCommand: npm run start/);
   assert.doesNotMatch(render, /startCommand: npm run worker/);
-  assert.match(render, /healthCheckPath: \\/api\\/health\\/ready/);
+  assert.ok(render.includes("healthCheckPath: /api/health/ready"));
   assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 1,
     "the API service must deploy only after linked CI checks pass");
   assert.match(render, /maxShutdownDelaySeconds: 120/,

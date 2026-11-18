@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
 import { syncBrowserPushSubscription, logoutBrowserPush } from '@/lib/pushNotifications';
+import { subscribeToProgressSyncRequests } from '@/lib/serviceWorker';
+import { syncPendingProgressForAccount } from '@/lib/progressSyncClient';
 import type { Profile } from '@/types';
 
 export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; authProvider: 'local'|'google'|'local_google'; profileImage?: string; phoneNumber?: string; }; }
@@ -83,6 +85,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('bfs:session-expired', handleExpiredSession);
     return () => window.removeEventListener('bfs:session-expired', handleExpiredSession);
   }, []);
+
+  useEffect(() => {
+    const accountId = session?.user.id;
+    if (!accountId) return;
+
+    let cancelled = false;
+    let syncInFlight = false;
+    let rerunRequested = false;
+
+    const runSync = () => {
+      if (cancelled || syncInFlight || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+        if (syncInFlight) rerunRequested = true;
+        return;
+      }
+      syncInFlight = true;
+      void syncPendingProgressForAccount(accountId).finally(() => {
+        syncInFlight = false;
+        if (rerunRequested && !cancelled) {
+          rerunRequested = false;
+          runSync();
+        }
+      });
+    };
+
+    const unsubscribe = subscribeToProgressSyncRequests(runSync);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") runSync();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Flush on authenticated app startup. The same handler is used for
+    // connectivity restoration, Service Worker wake-ups and manual retries.
+    runSync();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [session?.user.id]);
 
   useEffect(() => {
     const userId = session?.user.id;

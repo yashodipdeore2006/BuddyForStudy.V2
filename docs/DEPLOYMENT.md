@@ -7,16 +7,16 @@ This repository includes deployment configuration for a Vite SPA on Vercel and a
 - Backend production preflight: `cd server && npm run validate:production-config`
 - Deployed smoke test: `cd server && npm run verify:deployment`
 
-The Blueprint targets the `main` branch and sets Render's `autoDeployTrigger: checksPass`. Render will deploy a Git-backed service only after the linked commit's checks pass. This is a deployment gate, not a substitute for GitHub branch protection or a release approval process.
+The V2.2 release Blueprint targets the `buddy-for-study-v2.2` branch and sets Render's `autoDeployTrigger: checksPass`. Render will deploy a Git-backed service only after the linked commit's checks pass. This is a deployment gate, not a substitute for GitHub branch protection or a release approval process.
 
 ## 1. Vercel frontend
 
-Import the repository into Vercel and set the project root to `client/`. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
+Import the repository into Vercel and set the project root to `client/`. For this V2.2 release, set Vercel's Production Branch to `buddy-for-study-v2.2` in Project Settings → Git; the repository's `vercel.json` controls build and routing, not the Git deployment branch. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
 
 | Setting | Value |
 |---|---|
 | Framework preset | Vite |
-| Production branch | `main` |
+| Production branch | `buddy-for-study-v2.2` |
 | Install command | `npm ci` (runs in `client/`) |
 | Build command | `npm run build` (runs in `client/`) |
 | Output directory | `dist` |
@@ -45,7 +45,7 @@ Use Render **New → Blueprint** and connect this repository. The default root `
 |---|---|---|---|---|
 | `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
 
-The Blueprint uses Node.js 24, the Singapore region, and `main`. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
+The Blueprint uses Node.js 24, the Singapore region, and `buddy-for-study-v2.2`. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
 
 ### Background execution modes
 

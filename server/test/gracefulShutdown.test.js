@@ -20,6 +20,7 @@ test("graceful shutdown stops timers, closes HTTP connections, then disconnects 
   const first = shutdown("SIGTERM");
   const second = shutdown("SIGINT");
   assert.equal(first, second);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(calls.slice(0, 3), ["clear-timers", "close", "close-idle"]);
 
   closeCallback();
@@ -64,7 +65,7 @@ test("graceful shutdown stops background scheduling before closing the API", asy
   });
 
   const pending = shutdown("SIGTERM");
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(calls.slice(0, 3), ["clear-timers", "before-close", "close"]);
   closeCallback();
   await pending;

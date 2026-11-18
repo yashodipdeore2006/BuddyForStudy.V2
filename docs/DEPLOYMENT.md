@@ -136,7 +136,7 @@ After deploy, verify:
 - Signup, email OTP, login, Google OAuth, password reset and expired-session behavior work.
 - Public catalog, learner course enrollment, lesson completion, saved courses, notifications and admin permission boundaries work.
 - When `PAYMENTS_ENABLED=true`, verify Razorpay sandbox/live-mode checkout and webhook signatures reconcile exactly once; test refunds only in the appropriate provider environment.
-- Email and (if enabled) browser push deliver successfully; worker retries and notification outbox reconciliation are visible.
+- Email and (if enabled) browser push deliver successfully; scheduled retries and notification outbox reconciliation are visible.
 - Build with AI and YouTube quota behavior are checked with an intentionally conservative test budget before enabling any rollout flags.
 
 Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback.
@@ -147,7 +147,7 @@ This configuration is not proof of a deployed environment. A production release 
 
 - GitHub branch protection/ruleset requires the frontend and backend CI checks and disallows bypass by default.
 - A staging environment has been deployed and exercised against real provider sandboxes.
-- Render API and worker are running with healthy database connections and a current worker heartbeat.
+- The Render API is running with a healthy database connection and a current heartbeat for the configured `BACKGROUND_WORKER_MODE`; when `standalone` mode is selected, the separate worker must also be healthy.
 - Data export/deletion/retention requirements have an approved policy and implemented, tested workflow.
 - Subscription upgrade/downgrade, grace-period and plan-change rules have an approved product/payment contract and matching integration tests.
 - Rollback owners, alert thresholds, and an actual rollback rehearsal are recorded.

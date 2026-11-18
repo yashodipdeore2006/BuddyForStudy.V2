@@ -67,12 +67,7 @@ async function scheduleNextProgressRetry(
     return;
   }
 
-  let nextAttemptAt: number | null = null;
-  try {
-    nextAttemptAt = await getNextProgressRetryAt(accountId);
-  } catch {
-    return;
-  }
+  const nextAttemptAt = await getNextProgressRetryAt(accountId).catch(() => null);
 
   const current = progressRetryTimers.get(accountId);
   if (current !== undefined) window.clearTimeout(current);
@@ -129,12 +124,13 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
     remaining: 0
   };
 
-  let tokenAvailable = false;
-  try {
-    tokenAvailable = Boolean(getToken());
-  } catch {
-    tokenAvailable = false;
-  }
+  const tokenAvailable = (() => {
+    try {
+      return Boolean(getToken());
+    } catch {
+      return false;
+    }
+  })();
   if (!accountId || !tokenAvailable) {
     result.status = "unauthenticated";
     return result;

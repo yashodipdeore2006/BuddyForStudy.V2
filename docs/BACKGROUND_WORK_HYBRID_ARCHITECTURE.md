@@ -319,6 +319,22 @@ Do not treat client timestamps or clientSequence as proof of authority. The serv
 - Never accept role, payment, subscription, admin, approval, or access-control fields from the offline queue.
 - Do not rely on Service Worker background execution for eventual delivery. Provide a visible pending-sync indicator and a manual retry path.
 
+
+### 10.4 V2.2 browser queue implementation checkpoint
+
+The browser-side queue foundation is implemented in `client/src/lib/offlineProgressQueue.ts`:
+
+- IndexedDB database: `buddyforstudy-offline-progress`.
+- Stores only an operation UUID, account scope, course/lesson identifiers, action (`complete` or `uncomplete`), per-account sequence, local timestamps, retry metadata, and queue status.
+- Sequence allocation and queue insertion happen in one IndexedDB read/write transaction, preserving local action order across tabs.
+- Reads and deletes require the current authenticated account ID. The account ID is local scoping metadata and is not an authentication credential.
+- The learner player applies pending actions optimistically and overlays the account's queued actions after it reloads course/progress data.
+- If a delayed retry exists for a course, later actions for that same course remain behind it; independent course queues can continue.
+- The app registers the existing Service Worker independently of push opt-in. Queue changes request Background Sync where supported.
+- The Service Worker only posts a `BFS_PROGRESS_SYNC_REQUESTED` message to open clients. It never reads the queue, sends a protected API request, or stores an access token.
+
+**Scope boundary:** This task establishes durable browser storage, local restoration, and synchronization wake-up signals. The authenticated batch endpoint, server idempotency, and actual queue-draining network loop are Task 8. If a Background Sync event fires when no app tab is open, the Service Worker leaves the queue untouched; the next authenticated app session requests a foreground sync. Offline course content itself is not cached by this queue feature.
+
 ## 11. Proposed configuration surface
 
 These names are design proposals; add them to the environment schema and sample file only during the implementation task that introduces and tests them.
@@ -397,4 +413,4 @@ Therefore:
 - Do not move privileged backend jobs onto user devices to avoid hosting cost.
 
 ---
-**Implementation note:** This file records the target architecture. It does not mean the lease model, inline scheduler, IndexedDB queue, or sync endpoint already exists.
+**Implementation note:** The V2.2 branch has implemented the MongoDB lease foundation, shared orchestration, bounded inline scheduler, standalone lease integration, and browser IndexedDB queue. The authenticated progress-sync endpoint and actual queue-draining network loop remain to be implemented in Task 8.

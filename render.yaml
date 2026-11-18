@@ -75,7 +75,7 @@ services:
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
-        value: "587"
+        sync: false
       - key: SMTP_SECURE
         value: "false"
       - key: SMTP_USER

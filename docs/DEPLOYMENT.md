@@ -110,7 +110,7 @@ Render's Blueprint deliberately does not commit credentials. Complete every `syn
 | `CLIENT_URL` | Exact public frontend origin, including HTTPS and no path. |
 | `API_URL` | Exact public API origin, including HTTPS and no path. |
 | `TRUST_PROXY_HOPS` | Blueprint sets `1` for the Render proxy topology. Confirm the actual trusted proxy chain before changing it; do not use blanket trust. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. Verify the sender/domain and TLS mode with the chosen mail provider. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. `SMTP_PORT` must be explicitly configured. Verify the sender/domain and TLS mode with the chosen mail provider. |
 | `PAYMENTS_ENABLED` | Keep `false` until payment-provider onboarding and payment flows are ready. |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Add these API environment variables only when `PAYMENTS_ENABLED=true`. Use live-mode credentials in production; never use test credentials in the production environment. |
 | `GOOGLE_CLIENT_ID` | Google OAuth Web Client ID. Add the exact frontend origin to Authorized JavaScript origins in Google Cloud Console. |
@@ -119,6 +119,8 @@ Render's Blueprint deliberately does not commit credentials. Complete every `syn
 | `REDIS_URL` | Optional. If configured, use an authenticated `rediss://` URL. Leave it blank if using the Mongo-backed stores. |
 | `SENTRY_DSN` | Optional error monitoring DSN. |
 | `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` | Optional, but configure all three together. The private key is server-side only. Generate with `cd server && npm run generate:web-push-keys`. |
+
+**Render Free SMTP limitation — release blocker for standard SMTP setups:** Render Free web services block outbound traffic on SMTP ports `25`, `465`, and `587`. BuddyForStudy currently sends OTP and notification email through Nodemailer SMTP, so a provider that requires one of those ports will not work from the free API service. The Blueprint therefore asks for `SMTP_PORT` explicitly instead of silently selecting `587`. A free API deployment can send mail only if the selected provider documents a supported TLS/STARTTLS submission port outside the blocked list (some providers offer `2525`); verify that exact provider/port from the deployed service with a real signup OTP and password-reset email before relying on it. Render documentation does not guarantee every alternative port or provider route. If the provider only supports ports `25`, `465`, or `587`, use paid API compute or implement and test an HTTPS email-provider integration; the current code does not include an HTTP email adapter. Until mail delivery is verified end-to-end, email signup/login recovery is not production-cleared.
 
 After the first Render Blueprint sync, add or review all environment values in the Render Dashboard. The Blueprint's `sync: false` values are initial prompts; adding new secrets to an existing Blueprint requires adding them to the deployed service's environment manually. Never expose server secrets through `VITE_*` variables or frontend build output.
 

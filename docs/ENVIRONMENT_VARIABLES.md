@@ -76,7 +76,7 @@
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
 | `SMTP_HOST` | **Required in production** | No | Remote SMTP hostname. Production validator rejects blank/loopback hostnames; SMTP transport requires TLS. |
-| `SMTP_PORT` | **Required/validated in production; defaults to `587`** | No | Integer port 1–65535. Typically 587 with STARTTLS or 465 with implicit TLS; verify provider settings. |
+| `SMTP_PORT` | **Explicitly required in production** | No | Integer port 1–65535; no production fallback is accepted. Render Free blocks outbound SMTP ports 25, 465 and 587. Use an alternative TLS/STARTTLS port only when the chosen provider documents it and a deployed OTP test confirms delivery; otherwise use paid API compute or implement an HTTPS email-provider adapter. |
 | `SMTP_SECURE` | Optional; defaults to false | No | Must be the string `true` or `false`. Production transports require TLS, including STARTTLS when `false`. |
 | `SMTP_USER` | **Required in production** | Treat as sensitive | SMTP login; must be set. Used as sender fallback if `MAIL_FROM` is omitted, and therefore must be a valid address in that case. |
 | `SMTP_PASS` | **Required in production** | **Yes** | Non-placeholder provider password/token of at least 8 characters. |

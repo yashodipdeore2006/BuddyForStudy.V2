@@ -72,6 +72,7 @@ test("production config requires valid SMTP for email authentication", () => {
     ["SMTP_HOST", ""],
     ["SMTP_HOST", "localhost"],
     ["SMTP_PORT", "70000"],
+    ["SMTP_PORT", ""],
     ["SMTP_USER", ""],
     ["SMTP_PASS", "short"],
     ["MAIL_FROM", "not-an-email"],

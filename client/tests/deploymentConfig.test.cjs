@@ -72,6 +72,13 @@ test("the deployment runbook documents the standalone worker as an explicit futu
   assert.match(runbook, /Do not run API-inline and standalone scheduling against the same environment/);
 });
 
+test("Render Free API requires an explicitly configured SMTP port", () => {
+  assert.ok(render.includes("      - key: SMTP_PORT\n        sync: false"),
+    "SMTP_PORT must be entered explicitly; Render Free blocks standard SMTP ports");
+  assert.ok(!render.includes("      - key: SMTP_PORT\n        value: \"587\""),
+    "the Blueprint must not silently configure port 587 on Render Free");
+});
+
 test("Render production secrets are referenced or collected through secure fields", () => {
   const lines = render.split(/\r?\n/);
   const sensitiveKeys = new Set([

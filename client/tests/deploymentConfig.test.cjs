@@ -33,7 +33,7 @@ test("Render Blueprint includes a static frontend and one bounded inline API ser
   assert.match(render, /name: buddyforstudy-api/);
   assert.match(render, /branch: buddy-for-study-v2\.2/, "Render must deploy the approved V2.2 release branch");
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
-  assert.equal((render.match(/- type:/g) || []).length, 2,
+  assert.equal((render.match(/^  - type: web$/gm) || []).length, 2,
     "the cost-conscious blueprint must contain one API and one static frontend, with no worker");
   assert.match(render, /name: buddyforstudy-api[\s\S]*plan: free/,
     "the constrained API plan must be explicit rather than silently selecting a paid default");

@@ -6,6 +6,7 @@ import { authMiddleware } from "../middleware/auth.js";
 const router = Router();
 
 router.use(authMiddleware);
+router.post("/sync", requireFeature("learning_progress"), controller.sync);
 router.get("/:courseId", requireFeature("learning_progress"), controller.get);
 router.post("/:courseId/items/:itemId/complete", requireFeature("learning_progress"), controller.complete);
 router.delete("/:courseId/items/:itemId/complete", requireFeature("learning_progress"), controller.uncomplete);

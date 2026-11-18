@@ -201,7 +201,7 @@ test("retryable operation receipts can be reclaimed and successfully applied", a
   assert.equal(store.records.get(OPERATION_ID).attempts, 2);
 });
 
-test("permanent course access errors stay rejected and are returned consistently on replay", async () => {
+test("permanent missing-lesson errors stay rejected and are returned consistently on replay", async () => {
   const store = createMemoryStore();
   let applications = 0;
   const dependencies = {
@@ -213,7 +213,7 @@ test("permanent course access errors stay rejected and are returned consistently
     applyAction: async () => {
       applications += 1;
       const error = new Error("Active enrollment required");
-      error.status = 403;
+      error.status = 404;
       throw error;
     }
   };
@@ -222,7 +222,7 @@ test("permanent course access errors stay rejected and are returned consistently
   const replay = await processProgressSyncOperation(dependencies);
 
   assert.equal(first.status, "rejected");
-  assert.equal(first.errorCode, "COURSE_ACCESS_DENIED");
+  assert.equal(first.errorCode, "LEARNING_ITEM_NOT_FOUND");
   assert.equal(replay.status, "rejected");
   assert.equal(applications, 1);
 });
@@ -274,4 +274,35 @@ test("invalid operations return a terminal per-operation rejection without touch
   assert.equal(result.status, "rejected");
   assert.equal(result.errorCode, "INVALID_PROGRESS_OPERATION");
   assert.equal(storeCalls, 0);
+});
+
+
+test("course access failures can be retried with the same operationId after access is restored", async () => {
+  const store = createMemoryStore();
+  let accessRestored = false;
+  let applications = 0;
+  const dependencies = {
+    userId: USER_ID,
+    value: validOperation(),
+    store,
+    now: deterministicClock(),
+    createClaimToken: deterministicTokens(),
+    applyAction: async () => {
+      applications += 1;
+      if (!accessRestored) {
+        const error = new Error("Course access unavailable");
+        error.status = 403;
+        throw error;
+      }
+    }
+  };
+
+  const first = await processProgressSyncOperation(dependencies);
+  accessRestored = true;
+  const second = await processProgressSyncOperation(dependencies);
+
+  assert.equal(first.status, "retryable");
+  assert.equal(first.errorCode, "COURSE_ACCESS_DENIED");
+  assert.equal(second.status, "applied");
+  assert.equal(applications, 2);
 });

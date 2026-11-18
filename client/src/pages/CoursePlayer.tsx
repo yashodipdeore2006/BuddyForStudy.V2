@@ -689,10 +689,19 @@ export default function CoursePlayer() {
     setCompleting(true);
     setError("");
     try {
-      const queuedCount = session?.user.id
-        ? await getPendingProgressOperationCount(session.user.id, courseId)
-        : 0;
-      if (navigator.onLine === false || queuedCount > 0) {
+      if (navigator.onLine === false) {
+        await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
+        return;
+      }
+      let queuedCount = 0;
+      if (session?.user.id) {
+        try {
+          queuedCount = await getPendingProgressOperationCount(session.user.id, courseId);
+        } catch {
+          // A storage issue must not block normal online progress updates.
+        }
+      }
+      if (queuedCount > 0) {
         await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
         return;
       }
@@ -726,10 +735,19 @@ export default function CoursePlayer() {
     setTogglingLessonIds((current) => new Set(current).add(targetLessonId));
     setError("");
     try {
-      const queuedCount = session?.user.id
-        ? await getPendingProgressOperationCount(session.user.id, courseId)
-        : 0;
-      if (navigator.onLine === false || queuedCount > 0) {
+      if (navigator.onLine === false) {
+        await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
+        return;
+      }
+      let queuedCount = 0;
+      if (session?.user.id) {
+        try {
+          queuedCount = await getPendingProgressOperationCount(session.user.id, courseId);
+        } catch {
+          // A storage issue must not block normal online progress updates.
+        }
+      }
+      if (queuedCount > 0) {
         await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
         return;
       }

@@ -42,7 +42,7 @@ test("Render defaults to one API service with bounded inline background executio
   assert.doesNotMatch(render, /startCommand: npm run worker/);
   assert.ok(render.includes("/api/health/ready"));
   assert.equal((render.match(/- type:/g) || []).length, 1,
-    "the API service must deploy only after linked CI checks pass");
+  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 1,
   assert.match(render, /maxShutdownDelaySeconds: 120/,
     "the API should have a bounded shutdown window for inline maintenance");
 });

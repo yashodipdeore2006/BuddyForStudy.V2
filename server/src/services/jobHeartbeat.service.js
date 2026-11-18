@@ -74,6 +74,8 @@ export async function checkWorkerHeartbeat(
       lastHeartbeatAt: null,
       heartbeatAgeSeconds: null,
       staleAfterSeconds: Math.floor(staleAfterMs / 1000),
+      lastStartedAt: null,
+      shutdownStartedAt: null,
       lastMaintenanceStartedAt: null,
       lastMaintenanceCompletedAt: null,
       lastError: "",
@@ -90,13 +92,17 @@ export async function checkWorkerHeartbeat(
   // before escalating it to a critical missed-heartbeat alert.
   const stale = !heartbeat || !lastHeartbeatAt || ageMs > staleAfterMs;
   const stopped = heartbeat?.workerStatus === "stopped" && !stale;
+  const modeMismatch = Boolean(heartbeat?.executionMode && heartbeat.executionMode !== mode);
+  const unhealthy = stale || modeMismatch;
 
-  if (stale) {
-    const reason = !heartbeat || !lastHeartbeatAt
-      ? "The background worker has not reported a heartbeat."
-      : heartbeat.workerStatus === "stopped"
-        ? "The background worker reported that it stopped."
-        : `The background worker heartbeat is stale (${Math.floor(ageMs / 1000)} seconds old).`;
+  if (unhealthy) {
+    const reason = modeMismatch
+      ? "The background worker reported mode " + heartbeat.executionMode + " but this API expects " + mode + "."
+      : !heartbeat || !lastHeartbeatAt
+        ? "The background worker has not reported a heartbeat."
+        : heartbeat.workerStatus === "stopped"
+          ? "The background worker reported that it stopped."
+          : `The background worker heartbeat is stale (${Math.floor(ageMs / 1000)} seconds old).`;
     await recordOperationalAlert({
       key: "background-worker-heartbeat-stale",
       severity: "critical",
@@ -122,8 +128,10 @@ export async function checkWorkerHeartbeat(
   return {
     jobName: WORKER_JOB_NAME,
     mode,
-    status: stale ? "stale" : stopping ? "stopping" : stopped ? "stopped" : consecutiveFailures > 0 ? "degraded" : "healthy",
+    status: unhealthy ? "stale" : stopping ? "stopping" : stopped ? "stopped" : consecutiveFailures > 0 ? "degraded" : "healthy",
     workerStatus: heartbeat?.workerStatus || "unknown",
+    executionMode: heartbeat?.executionMode || "legacy",
+    modeMismatch,
     instanceId: heartbeat?.instanceId || "",
     lastHeartbeatAt: lastHeartbeatAt?.toISOString() || null,
     heartbeatAgeSeconds: ageMs === null ? null : Math.floor(ageMs / 1000),

@@ -100,7 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       syncInFlight = true;
-      void syncPendingProgressForAccount(accountId).finally(() => {
+      void syncPendingProgressForAccount(accountId).catch(() => {
+        // A local storage/browser failure must not disrupt authentication.
+      }).finally(() => {
         syncInFlight = false;
         if (rerunRequested && !cancelled) {
           rerunRequested = false;

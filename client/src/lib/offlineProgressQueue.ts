@@ -178,7 +178,7 @@ export async function enqueueProgressOperation(
 
 export async function listPendingProgressOperations(
   accountIdValue: string,
-  options: { courseId?: string; limit?: number; now?: number } = {}
+  options: { courseId?: string; limit?: number; now?: number; includeDeferred?: boolean } = {}
 ): Promise<ProgressQueueOperation[]> {
   const accountId = requireIdentifier(accountIdValue, "accountId");
   const limitValue = Number(options.limit ?? DEFAULT_PENDING_LIMIT);
@@ -206,7 +206,7 @@ export async function listPendingProgressOperations(
       .filter((operation) =>
         isProgressOperationForAccount(operation, accountId) &&
         operation.status === "pending" &&
-        operation.nextAttemptAt <= now
+        (options.includeDeferred === true || operation.nextAttemptAt <= now)
       )
       .slice(0, limit);
   } finally {

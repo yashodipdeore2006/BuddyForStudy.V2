@@ -199,7 +199,7 @@ export function createMaintenanceOrchestrator() {
       maintenanceInProgress = false;
     }
   }
-  async function runMaintenance() {
+  async function runMaintenance({ shouldContinue = async () => true } = {}) {
     if (maintenanceInProgress || stopping) {
       console.info("[worker] maintenance run skipped because another run is active or shutdown has started");
       return;
@@ -210,9 +210,11 @@ export function createMaintenanceOrchestrator() {
     await markMaintenanceStarted().catch((error) => console.error("[worker] unable to record maintenance start", { code: error?.code }));
 
     try {
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const now = new Date();
-      const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({ now });
+      const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({ now, shouldContinue });
       if (recoveredRoadmapAdmissions) console.warn("[worker] recovered expired roadmap admission leases", { count: recoveredRoadmapAdmissions });
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const [webhookBacklog, youtubeQuota, api5xxRecovery] = await Promise.all([
         checkPaymentWebhookBacklog(now),
         checkYouTubeQuotaOperationalState(),
@@ -234,7 +236,11 @@ export function createMaintenanceOrchestrator() {
           resetDay: youtubeQuota.resetDay
         });
       }
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
+      // Nightly curation is part of this maintenance lease scope, so only one
+      // standalone or inline maintenance owner can run it at a time.
       await runNightlyCurationJobs(now);
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const [subscriptions, payments, trialGrants] = await Promise.all([
         UserSubscription.updateMany(
           { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lt: now } },
@@ -249,14 +255,15 @@ export function createMaintenanceOrchestrator() {
           { $set: { status: "expired" } }
         )
       ]);
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const notificationJobs = await Promise.allSettled([
-        processPendingAuditOutbox(100, now),
+        processPendingAuditOutbox(100, now, { shouldContinue }),
         deliverPendingNotificationEmails(50),
         deliverPendingNotificationPush(50),
-        processLearningReminders(now, 500),
-        reconcilePendingCoursePurchaseNotifications(now, 100),
-        reconcilePendingSubscriptionActivationNotifications(now, 100),
-        processSubscriptionExpiryReminders(now)
+        processLearningReminders(now, 500, { shouldContinue }),
+        reconcilePendingCoursePurchaseNotifications(now, 100, { shouldContinue }),
+        reconcilePendingSubscriptionActivationNotifications(now, 100, { shouldContinue }),
+        processSubscriptionExpiryReminders(now, { shouldContinue })
       ]);
       const notificationJobNames = [
         "audit-outbox",
@@ -295,7 +302,9 @@ export function createMaintenanceOrchestrator() {
           await resolveOperationalAlert(alertKey);
         }
       }
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       await checkNotificationDeliveryBacklog(now).catch((error) => console.error("[worker] notification backlog check failed", { code: error?.code, name: error?.name }));
+      if (!(await shouldContinue())) return { skipped: "lease_lost" };
       await resolveOperationalAlert("background-maintenance-failure");
       await markMaintenanceCompleted().catch((error) => console.error("[worker] unable to record maintenance completion", { code: error?.code }));
       console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; trial grants expired=${trialGrants.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);

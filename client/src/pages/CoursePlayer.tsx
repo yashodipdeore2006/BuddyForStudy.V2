@@ -391,7 +391,7 @@ export default function CoursePlayer() {
                 loadedProgress,
                 operation,
                 accountId,
-                courseId,
+                String(courseId),
                 targetLesson.type,
                 mappedCourse.modules.reduce((sum, module) => sum + module.lessons.length, 0)
               );

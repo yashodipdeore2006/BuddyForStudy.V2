@@ -7,6 +7,7 @@ This directory is the single home for project documentation. Start with [the rep
 - [Repository structure and local development commands](REPOSITORY_STRUCTURE.md)
 - [Backend API, environment variables, AI provider setup, and deployment checks](backend/README.md)
 - [Deployment runbook](DEPLOYMENT.md)
+- [Hybrid background work architecture](BACKGROUND_WORK_HYBRID_ARCHITECTURE.md)
 - [Environment variables](ENVIRONMENT_VARIABLES.md)
 - [Google Sign-In troubleshooting](GOOGLE_SIGN_IN_TROUBLESHOOTING.md)
 - [Notifications](NOTIFICATIONS.md)

@@ -70,3 +70,25 @@ test("graceful shutdown stops background scheduling before closing the API", asy
   await pending;
   assert.deepEqual(calls, ["clear-timers", "before-close", "close", "close-idle", "disconnect"]);
 });
+
+
+test("graceful shutdown bounds a stuck background drain before closing MongoDB", async () => {
+  const calls = [];
+  const logs = [];
+  const shutdown = createGracefulShutdown({
+    server: {
+      close() { calls.push("close"); },
+      closeIdleConnections() { calls.push("close-idle"); },
+      closeAllConnections() { calls.push("close-all"); }
+    },
+    clearTimers: () => calls.push("clear-timers"),
+    beforeClose: () => new Promise(() => {}),
+    disconnect: async () => calls.push("disconnect"),
+    timeoutMs: 5,
+    logger: { warn(message) { logs.push(message); } }
+  });
+
+  await shutdown("SIGTERM");
+  assert.deepEqual(calls, ["clear-timers", "close", "close-idle", "close-all", "disconnect"]);
+  assert.ok(logs.some((message) => message.includes("background shutdown deadline")));
+});

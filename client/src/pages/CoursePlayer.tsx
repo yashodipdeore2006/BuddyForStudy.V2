@@ -386,6 +386,7 @@ export default function CoursePlayer() {
             );
             for (const operation of pendingOperations) {
               if (operation.status !== "pending") continue;
+              if (typeof operation.itemId !== "string" || operation.itemId.length === 0) continue;
               const targetLesson = lessonsById.get(operation.itemId);
               if (!targetLesson) continue;
               loadedProgress = applyQueuedProgressAction(

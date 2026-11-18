@@ -256,7 +256,7 @@ export async function processProgressSyncOperation({
     return { operationId, status: "applied" };
   } catch (error) {
     const failure = publicFailureFor(error);
-    await store.finish({
+    const savedFailure = await store.finish({
       recordId: receipt._id,
       claimToken,
       values: {
@@ -266,6 +266,7 @@ export async function processProgressSyncOperation({
         errorMessage: failure.message
       }
     });
+    if (!savedFailure) return { operationId, status: "in_progress", retryAfterMs: 3000 };
     return {
       operationId,
       status: failure.status,

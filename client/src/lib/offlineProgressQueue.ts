@@ -267,6 +267,25 @@ export async function listPendingProgressOperations(
   }
 }
 
+export async function getNextProgressRetryAt(accountIdValue: string): Promise<number | null> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const operations = await listPendingProgressOperations(accountId, {
+    limit: MAX_PENDING_LIMIT,
+    includeDeferred: true
+  });
+  const visitedCourses = new Set<string>();
+  let nextAttemptAt: number | null = null;
+
+  for (const operation of sortProgressQueueOperations(operations)) {
+    if (visitedCourses.has(operation.courseId)) continue;
+    visitedCourses.add(operation.courseId);
+    if (operation.status !== "pending") continue;
+    const candidate = Math.max(Date.now(), Number(operation.nextAttemptAt) || Date.now());
+    nextAttemptAt = nextAttemptAt === null ? candidate : Math.min(nextAttemptAt, candidate);
+  }
+  return nextAttemptAt;
+}
+
 export async function getBlockedProgressOperationCount(
   accountIdValue: string,
   courseId?: string

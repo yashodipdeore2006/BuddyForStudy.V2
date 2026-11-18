@@ -25,7 +25,7 @@ test("progress sync route is authenticated and protected by the learning-progres
   const authIndex = route.indexOf("router.use(authMiddleware)");
   const syncIndex = route.indexOf('router.post("/sync"');
   assert.ok(authIndex >= 0 && syncIndex > authIndex);
-  assert.match(route.slice(syncIndex), /requireFeature\\("learning_progress"\\)/);
+  assert.match(route.slice(syncIndex), /requireFeature\("learning_progress"\)/);
 });
 
 test("progress sync controller derives identity from auth middleware and caps request size", async () => {
@@ -33,7 +33,7 @@ test("progress sync controller derives identity from auth middleware and caps re
   const syncStart = controller.indexOf("export async function sync");
   assert.ok(syncStart >= 0);
   const syncHandler = controller.slice(syncStart);
-  assert.match(syncHandler, /syncProgressOperations\\(req\.user\.userId,\s*operations\)/);
+  assert.match(syncHandler, /syncProgressOperations\(req\.user\.userId,\s*operations\)/);
   assert.match(syncHandler, /operations\.length > MAX_PROGRESS_SYNC_BATCH_SIZE/);
   assert.doesNotMatch(syncHandler, /req\.body\.userId|req\.body\?\.userId/);
   assert.match(syncHandler, /results,\s*summary/);

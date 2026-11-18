@@ -64,6 +64,7 @@ test("graceful shutdown stops background scheduling before closing the API", asy
   });
 
   const pending = shutdown("SIGTERM");
+  await Promise.resolve();
   assert.deepEqual(calls.slice(0, 3), ["clear-timers", "before-close", "close"]);
   closeCallback();
   await pending;

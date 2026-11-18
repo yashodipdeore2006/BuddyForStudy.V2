@@ -346,6 +346,7 @@ export default function CoursePlayer() {
 
   useEffect(() => {
     if (!courseId) return;
+    const activeCourseId = courseId;
     let cancelled = false;
     async function load() {
       try {
@@ -391,7 +392,7 @@ export default function CoursePlayer() {
                 loadedProgress,
                 operation,
                 accountId,
-                String(courseId),
+                activeCourseId,
                 targetLesson.type,
                 mappedCourse.modules.reduce((sum, module) => sum + module.lessons.length, 0)
               );

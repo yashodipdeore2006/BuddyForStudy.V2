@@ -286,18 +286,46 @@ export async function syncProgressOperations(userId, operations, options = {}) {
   }
 
   const store = options.store || createMongoProgressSyncStore();
+  const orderedOperations = operations.map((value, index) => {
+    const normalized = normalizeProgressSyncOperation(value);
+    const rawCourseId = typeof value?.courseId === "string" ? value.courseId.trim().toLowerCase() : "";
+    return {
+      value,
+      index,
+      sequence: normalized.clientSequence || Number.MAX_SAFE_INTEGER,
+      courseId: normalized.courseId || (isValidObjectId(rawCourseId) ? rawCourseId : "")
+    };
+  }).sort((left, right) => left.sequence - right.sequence || left.index - right.index);
+
   const results = [];
-  // Preserve the browser's account sequence order within each request. Client
-  // requests are bounded, so sequential processing also limits DB contention.
-  for (const operation of operations) {
-    results.push(await processProgressSyncOperation({
+  const blockedCourses = new Set();
+  // A pending/failed earlier action must not be overtaken by a later action
+  // for the same course, even if a second tab or a retried batch overlaps.
+  for (const entry of orderedOperations) {
+    if (entry.courseId && blockedCourses.has(entry.courseId)) {
+      results.push({
+        operationId: typeof entry.value?.operationId === "string" ? entry.value.operationId : "",
+        status: "retryable",
+        errorCode: "EARLIER_PROGRESS_ACTION_PENDING",
+        message: "An earlier progress action for this course is still pending.",
+        retryAfterMs: 3000
+      });
+      continue;
+    }
+
+    const result = await processProgressSyncOperation({
       userId,
-      value: operation,
+      value: entry.value,
       store,
       applyAction: options.applyAction,
       now: options.now,
       createClaimToken: options.createClaimToken
-    }));
+    });
+    results.push(result);
+
+    if (entry.courseId && ["in_progress", "retryable", "rejected", "conflict"].includes(result.status)) {
+      blockedCourses.add(entry.courseId);
+    }
   }
   return results;
 }

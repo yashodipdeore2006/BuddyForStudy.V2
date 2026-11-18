@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { connectDatabase } from "../config/db.js";
-import { heartbeatWorker } from "../services/jobHeartbeat.service.js";
+import { heartbeatWorker, markWorkerStopping } from "../services/jobHeartbeat.service.js";
 import { env } from "../config/env.js";
 import { JOB_LEASE_KEYS } from "../services/jobLease.service.js";
 import { createLeasedJobRunner } from "./leasedJobRunner.js";
@@ -49,6 +49,10 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   console.info("[worker] received " + signal + "; stopping maintenance scheduler");
+  await markWorkerStopping(new Date(), {
+    executionMode: "standalone",
+    instanceId: leaseRunner.ownerId
+  }).catch((error) => console.error("[worker] unable to record stopping heartbeat", { code: error?.code }));
   if (maintenanceHandle) clearInterval(maintenanceHandle);
   if (heartbeatHandle) clearInterval(heartbeatHandle);
   if (announcementHandle) clearInterval(announcementHandle);
@@ -58,7 +62,10 @@ async function shutdown(signal) {
     await leaseRunner.stop();
     await orchestrator.waitForIdle();
     await heartbeatInProgress;
-    await heartbeatWorker("stopped").catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));
+    await heartbeatWorker("stopped", new Date(), {
+      executionMode: "standalone",
+      instanceId: leaseRunner.ownerId
+    }).catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));
     await mongoose.disconnect();
     console.info("[worker] database connection closed");
     process.exitCode = 0;
@@ -69,9 +76,16 @@ async function shutdown(signal) {
 }
 
 await connectDatabase();
-await heartbeatWorker("running");
+await heartbeatWorker("running", new Date(), {
+  executionMode: "standalone",
+  instanceId: leaseRunner.ownerId,
+  started: true
+});
 heartbeatHandle = setInterval(() => {
-  heartbeatInProgress = heartbeatInProgress.then(() => heartbeatWorker("running")).catch((error) => {
+  heartbeatInProgress = heartbeatInProgress.then(() => heartbeatWorker("running", new Date(), {
+    executionMode: "standalone",
+    instanceId: leaseRunner.ownerId
+  })).catch((error) => {
     console.error("[worker] heartbeat write failed", { code: error?.code, name: error?.name });
   });
 }, 60 * 1000);

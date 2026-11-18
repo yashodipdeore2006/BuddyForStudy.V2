@@ -3,7 +3,7 @@
 **Status:** Approved architecture for the V2.2 implementation sequence  
 **Scope:** Background processing, offline learner progress synchronization, worker ownership, and low-cost deployment  
 **Implementation branch:** buddy-for-study-v2.2  
-**Current state:** Architecture only. Runtime behavior is not changed by this document.
+**Current state:** Tasks 1–8 have implementation commits on `buddy-for-study-v2.2`; full regression and deployment verification remain pending.
 
 ## 1. Decision summary
 
@@ -333,7 +333,33 @@ The browser-side queue foundation is implemented in `client/src/lib/offlineProgr
 - The app registers the existing Service Worker independently of push opt-in. Queue changes request Background Sync where supported.
 - The Service Worker only posts a `BFS_PROGRESS_SYNC_REQUESTED` message to open clients. It never reads the queue, sends a protected API request, or stores an access token.
 
-**Scope boundary:** This task establishes durable browser storage, local restoration, and synchronization wake-up signals. The authenticated batch endpoint, server idempotency, and actual queue-draining network loop are Task 8. If a Background Sync event fires when no app tab is open, the Service Worker leaves the queue untouched; the next authenticated app session requests a foreground sync. Offline course content itself is not cached by this queue feature.
+**Scope boundary:** This task established durable browser storage, local restoration, and synchronization wake-up signals. Task 8 adds the authenticated batch endpoint and queue-draining retry loop. If a Background Sync event fires when no app tab is open, the Service Worker leaves the queue untouched; the next authenticated app session requests a foreground sync. Offline course content itself is not cached by this queue feature.
+
+
+### 10.5 V2.2 authenticated sync and idempotency implementation checkpoint
+
+Task 8 adds the server-authoritative synchronization path:
+
+- Authenticated endpoint: `POST /api/progress/sync`, mounted under the existing progress router. It uses `authMiddleware` and the `learning_progress` entitlement gate.
+- The controller uses only `req.user.userId` as the learner identity. Any account identifier in a request body is ignored.
+- Requests are bounded to 1–50 operations. Each operation must have a UUID, schema version 1, valid course and lesson ObjectIds, a `complete` or `uncomplete` action, and a positive client sequence.
+- MongoDB collection `progress_sync_operations` stores an immutable request hash and a per-user operation receipt. The unique `{ user: 1, operationId: 1 }` index prevents the same learner operation from being claimed twice.
+- Operation receipts use `processing`, `succeeded`, `rejected`, and `retryable` states with a two-minute processing lease. Expired or retryable receipts can be claimed again; a succeeded replay returns `duplicate`; a reused operation ID with a different semantic payload returns `conflict`; an active claim returns `in_progress`.
+- The server applies actions through the existing `completeItem` and `uncompleteItem` business services, sequentially in the order supplied by the browser. Existing enrollment, course access, and curriculum checks remain authoritative.
+- Course access failures keep the receipt retryable so the learner can restore access and retry the same immutable operation ID. Invalid/missing lesson operations remain rejected and can be dismissed from the local queue.
+
+The authenticated browser synchronizer is implemented in `client/src/lib/progressSyncClient.ts`:
+
+- It runs for the current signed-in account at app startup, when the tab becomes visible, after connectivity returns, after a Service Worker wake-up, and on explicit learner retry.
+- It uses the ordinary authenticated `apiFetch` path with an expected-account guard. Before each request, the stored signed-in account must match the queue account, preventing one account's queued operations from being submitted with a different account's token.
+- An account-specific IndexedDB lease serializes queue draining across tabs. Queue reads are limited to 50 operations per batch and five batches per run.
+- Applied and duplicate operations are removed. Retryable/in-progress operations remain queued with exponential backoff capped at 15 minutes. Authentication failures pause without discarding data. Permission failures and permanent operation errors are marked blocked.
+- Learners can retry recoverable blocked operations or explicitly remove blocked operations that are no longer valid.
+- The Service Worker remains a wake-up mechanism only; it never reads progress records or makes authenticated API requests.
+
+**Delivery semantics:** This is at-least-once delivery with server-side idempotency, not a distributed exactly-once transaction. A process can lose its lease after the business operation is applied but before its receipt is marked successful; replay is safe because the same operation ID is deduplicated and the underlying completion/uncompletion operations are idempotent for the progress state. The existing progress service's separate analytics/notification effects still retain their own business idempotency boundaries.
+
+**Validation boundary:** Unit tests and MongoDB index integration coverage were added. Full frontend build/typecheck, complete backend suite, a live MongoDB integration run, and real-browser offline/reconnect testing have not yet been confirmed in this environment. Those checks remain part of Task 10.
 
 ## 11. Proposed configuration surface
 
@@ -354,16 +380,16 @@ No new Redis service is required for the first lease implementation. MongoDB is 
 
 This architecture is implemented in the following order:
 
-1. **Branch and current-state audit** — completed before this document; all changes remain on buddy-for-study-v2.2.
-2. **Architecture and execution modes** — this document; define ownership, job classes, lease semantics, and browser/server boundaries.
-3. **Distributed job leases** — add the lease model/service and race, expiry, renewal, token-mismatch, and release tests.
-4. **Reusable maintenance orchestration** — extract shared job handlers from the standalone entry point without changing job contracts.
-5. **Bounded inline scheduler** — add mode-aware API startup, batch/runtime limits, and graceful shutdown integration.
-6. **Standalone compatibility** — preserve npm worker startup in standalone mode and reject incompatible modes.
-7. **Browser offline queue** — implement IndexedDB storage and account-safe pending progress operations.
-8. **Sync/retry/idempotency** — implement the authenticated batch API, server-side deduplication, conflict handling, and retry policy.
-9. **Health/recovery** — make heartbeat checks mode-aware and expose lease/job health without false alarms.
-10. **Regression and deployment verification** — test API, standalone, inline, disabled, multi-instance contention, shutdown, browser reconnect, and retry recovery.
+1. **Branch and current-state audit** — complete; all implementation changes remain on buddy-for-study-v2.2.
+2. **Architecture and execution modes** — complete; ownership, job classes, lease semantics, and browser/server boundaries are documented.
+3. **Distributed job leases** — complete; MongoDB lease model/service and contention, expiry, renewal, token-mismatch, and release coverage are implemented.
+4. **Reusable maintenance orchestration** — complete; shared job handlers are used by inline and standalone schedulers.
+5. **Bounded inline scheduler** — complete; mode-aware startup, bounded work, and graceful shutdown integration are implemented.
+6. **Standalone compatibility** — complete; standalone mode is enforced and existing worker cadence is preserved.
+7. **Browser offline queue** — complete; IndexedDB storage, account scoping, local restoration, and Service Worker wake-up signals are implemented.
+8. **Sync/retry/idempotency** — implementation complete; authenticated batch API, unique server receipts, conflict handling, cross-tab locks, backoff, and manual recovery are implemented.
+9. **Health/recovery** — next; make heartbeat checks mode-aware and expose lease/job health without false alarms.
+10. **Regression and deployment verification** — pending; test API, standalone, inline, disabled, multi-instance contention, shutdown, browser reconnect, and retry recovery.
 
 Do not move to the next implementation task until the current task's tests and branch verification pass. Do not deploy, merge, change Render services, or modify another branch as part of this sequence.
 
@@ -413,4 +439,4 @@ Therefore:
 - Do not move privileged backend jobs onto user devices to avoid hosting cost.
 
 ---
-**Implementation note:** The V2.2 branch has implemented the MongoDB lease foundation, shared orchestration, bounded inline scheduler, standalone lease integration, and browser IndexedDB queue. The authenticated progress-sync endpoint and actual queue-draining network loop remain to be implemented in Task 8.
+**Implementation note:** V2.2 now contains the MongoDB lease foundation, shared orchestration, bounded inline scheduler, standalone lease integration, browser IndexedDB queue, authenticated batch-sync endpoint, server idempotency receipts, and client retry pipeline. Full regression and deployment verification remain pending in Task 10.

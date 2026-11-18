@@ -46,6 +46,7 @@ services:
     name: buddyforstudy-api
     runtime: node
     region: singapore
+    plan: free
     branch: buddy-for-study-v2.2
     rootDir: server
     buildCommand: npm ci

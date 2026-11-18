@@ -1,6 +1,33 @@
+## 1. Render static frontend (recommended low-cost deployment)
+
+The V2.2 Blueprint includes a free Render Static Site so the frontend can deploy without relying on the current Vercel build quota. Render static sites are served through a global CDN and do not require a continuously running Node process.
+
+| Setting | Value |
+|---|---|
+| Service | `buddyforstudy-web` |
+| Branch | `buddy-for-study-v2.2` |
+| Root directory | `client` |
+| Runtime | Static |
+| Build command | `npm ci && npm run build` |
+| Publish directory | `dist` |
+
+Set these build-time variables on the static site in Render:
+
+| Variable | Value |
+|---|---|
+| `VITE_API_URL` | Required public HTTPS origin of the Render API, without a trailing slash |
+| `VITE_PUBLIC_SITE_URL` | Required canonical frontend HTTPS origin |
+| `VITE_GOOGLE_CLIENT_ID` | The matching Google OAuth Web Client ID |
+| `VITE_INTENT_V2` | `false` for the initial release |
+| `VITE_ASYNC_ROADMAP` | `false` for the initial release |
+
+Vite embeds `VITE_*` values into the static bundle at build time. These values are public; never put secrets in them. Changing an API URL or public client ID requires a new frontend build. The Blueprint includes the SPA rewrite to `/index.html` and immutable caching for hashed assets. Attach the custom domain to this Render Static Site and verify its DNS/TLS status before switching production traffic.
+
+Render documents static sites as free to deploy, subject to workspace bandwidth and pipeline usage. The API remains a separate web service; a free API instance can spin down after inactivity and is not a production-grade always-on service. Treat this combined free deployment as staging/preview or a constrained launch only when the API's sleep and background-job limitations are acceptable. For reliable production service, use an always-on API plan and verify the selected MongoDB region, backups, alerts, and rollback process.
+
 # Production deployment — Vercel + Render
 
-This repository includes deployment configuration for a Vite SPA on Vercel and a Node.js API on Render. The default V2.2 Blueprint uses bounded inline background execution; a dedicated standalone worker is an optional upgrade.
+This repository includes deployment configuration for a Vite SPA on Render Static Sites (with Vercel as an optional alternative) and a Node.js API on Render. The V2.2 Blueprint deploys the frontend as a Render Static Site and the API with bounded inline background execution; a dedicated standalone worker is an optional upgrade.
 
 - Vercel configuration: `vercel.json`
 - Render Blueprint: `render.yaml` (one API service; `BACKGROUND_WORKER_MODE=inline`)
@@ -9,7 +36,7 @@ This repository includes deployment configuration for a Vite SPA on Vercel and a
 
 The V2.2 release Blueprint targets the `buddy-for-study-v2.2` branch and sets Render's `autoDeployTrigger: checksPass`. Render will deploy a Git-backed service only after the linked commit's checks pass. This is a deployment gate, not a substitute for GitHub branch protection or a release approval process.
 
-## 1. Vercel frontend
+## 2. Vercel frontend (optional alternative)
 
 Import the repository into Vercel and set the project root to `client/`. For this V2.2 release, set Vercel's Production Branch to `buddy-for-study-v2.2` in Project Settings → Git; the repository's `vercel.json` controls build and routing, not the Git deployment branch. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
 
@@ -37,7 +64,7 @@ The checked-in `vercel.json` configures the Vite SPA fallback so direct requests
 
 Attach the production domain to the Vercel project. A domain being verified at the registrar is not sufficient: it must be assigned to this project and show a valid deployment. Verify both the root domain and `www` behavior in Vercel.
 
-## 2. Render API and background execution
+## 3. Render API and background execution
 
 Use Render **New → Blueprint** and connect this repository. The default root `render.yaml` defines one long-running API service:
 
@@ -45,7 +72,7 @@ Use Render **New → Blueprint** and connect this repository. The default root `
 |---|---|---|---|---|
 | `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
 
-The Blueprint uses Node.js 24, the Singapore region, and `buddy-for-study-v2.2`. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
+The API Blueprint uses Node.js 24, the Singapore region, and `buddy-for-study-v2.2`; the static frontend is served globally. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
 
 ### Background execution modes
 
@@ -96,7 +123,7 @@ After the first Render Blueprint sync, add or review all environment values in t
 
 The following flags are explicitly off in the Blueprint: `USE_CURATION_ENGINE_FOR_AI`, `INTENT_V2`, `ASYNC_ROADMAP`, `YT_COMBINED_SEARCH`, `ENABLE_TRUSTED_CHANNELS`, `ENABLE_CURATION_COMPLIANCE_WORKERS`, and `AI_PRIVATE_COURSES_SKIP_REVIEW`. Keep them off for the first production deployment. Follow [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md) to stage each capability separately. Do not enable `AI_PRIVATE_COURSES_SKIP_REVIEW` as a routine rollout switch.
 
-## 3. Provider callbacks and access configuration
+## 4. Provider callbacks and access configuration
 
 After the API has a stable HTTPS hostname:
 
@@ -108,7 +135,7 @@ After the API has a stable HTTPS hostname:
 6. Configure VAPID only when browser push is part of the launch scope. Keep the VAPID private key exclusively in Render.
 7. If Redis is enabled, use TLS and authentication. The production validator rejects non-TLS or unauthenticated Redis URLs.
 
-## 4. Pre-deploy verification
+## 5. Pre-deploy verification
 
 Run from a clean checkout of the exact release commit:
 
@@ -141,7 +168,7 @@ After deploy, verify:
 
 Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback.
 
-## 5. Release blockers that this configuration does not waive
+## 6. Release blockers that this configuration does not waive
 
 This configuration is not proof of a deployed environment. A production release is still blocked until all of the following have evidence:
 
@@ -155,6 +182,9 @@ This configuration is not proof of a deployed environment. A production release 
 See the [Production Readiness Master Checklist](PRODUCTION_READINESS_MASTER_CHECKLIST.md). Do not mark a task complete without evidence for the exact commit and environment.
  
 ## References
+
+- [Render Static Sites](https://render.com/docs/static-sites)
+- [Render free services](https://render.com/docs/free)
 
 - [Render Blueprint YAML reference](https://render.com/docs/blueprint-spec)
 - [Render health checks](https://render.com/docs/health-checks)

@@ -155,6 +155,10 @@ export function getProductionConfigErrors(config = {}) {
   validateHttpsUrl(config.CLIENT_URL, "CLIENT_URL", errors);
   validateHttpsUrl(config.API_URL, "API_URL", errors);
   validateTrustProxyHops(config, errors);
+  const backgroundWorkerMode = String(config.BACKGROUND_WORKER_MODE || "").trim().toLowerCase();
+  if (!["inline", "standalone", "disabled"].includes(backgroundWorkerMode)) {
+    errors.push("BACKGROUND_WORKER_MODE must be explicitly set to inline, standalone, or disabled in production");
+  }
   validateMongoUri(config.MONGO_URI, errors);
   validateSmtp(config, errors);
   validateOptionalWebPush(config, errors);

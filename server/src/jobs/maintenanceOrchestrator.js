@@ -121,20 +121,21 @@ export function createMaintenanceOrchestrator() {
       ]);
 
       if (!(await shouldContinue())) return { skipped: 'lease_lost' };
-      const notificationJobs = await Promise.allSettled([
-        processPendingAuditOutbox(25, now, { maxRecoveries: 25 }),
-        deliverPendingNotificationEmails(10),
-        deliverPendingNotificationPush(10),
-        reconcilePendingCoursePurchaseNotifications(now, 10, { maxPages: 1, fair: true }),
-        reconcilePendingSubscriptionActivationNotifications(now, 10, { maxPages: 1, fair: true })
-      ]);
-      const notificationJobNames = [
-        'audit-outbox',
-        'email-delivery',
-        'push-delivery',
-        'course-purchase-reconciliation',
-        'subscription-activation-reconciliation'
+      const notificationJobSpecs = [
+        ['audit-outbox', () => processPendingAuditOutbox(25, now, { maxRecoveries: 25 })],
+        ['email-delivery', () => deliverPendingNotificationEmails(10)],
+        ['push-delivery', () => deliverPendingNotificationPush(10)],
+        ['course-purchase-reconciliation', () => reconcilePendingCoursePurchaseNotifications(now, 10, { maxPages: 1, fair: true })],
+        ['subscription-activation-reconciliation', () => reconcilePendingSubscriptionActivationNotifications(now, 10, { maxPages: 1, fair: true })]
       ];
+      const notificationJobNames = [];
+      const notificationJobs = [];
+      for (const [jobName, runJob] of notificationJobSpecs) {
+        if (!(await shouldContinue())) return { skipped: 'lease_lost' };
+        notificationJobNames.push(jobName);
+        const [result] = await Promise.allSettled([runJob()]);
+        notificationJobs.push(result);
+      }
       for (let index = 0; index < notificationJobs.length; index += 1) {
         const result = notificationJobs[index];
         const jobName = notificationJobNames[index] || ('notification-job-' + (index + 1));

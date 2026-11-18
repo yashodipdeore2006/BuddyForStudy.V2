@@ -139,3 +139,76 @@ test("audit outbox truncates fractional batch limits instead of exceeding the re
     assert.equal(claims, 1);
   });
 });
+
+
+test("inline audit recovery caps stale processing records before replay", async () => {
+  const now = new Date("2026-11-18T12:00:00.000Z");
+  const observed = { limit: null, updateFilter: null, updateManyCalls: 0, claims: 0 };
+  const staleItems = [{ _id: "stale-1" }, { _id: "stale-2" }];
+  const staleQuery = {
+    sort(value) {
+      observed.sort = value;
+      return this;
+    },
+    limit(value) {
+      observed.limit = value;
+      return this;
+    },
+    select(value) {
+      observed.select = value;
+      return this;
+    },
+    lean: async () => staleItems
+  };
+
+  await withMocks([
+    [AuditOutbox, {
+      find: (filter) => {
+        observed.staleFilter = filter;
+        return staleQuery;
+      },
+      updateMany: async (filter) => {
+        observed.updateManyCalls += 1;
+        observed.updateFilter = filter;
+        return { modifiedCount: 2 };
+      },
+      findOneAndUpdate: async () => {
+        observed.claims += 1;
+        return null;
+      }
+    }]
+  ], async () => {
+    const result = await processPendingAuditOutbox(5, now, { maxRecoveries: 2 });
+    assert.deepEqual(result, { processed: 0, failures: 0 });
+  });
+
+  assert.deepEqual(observed.staleFilter, {
+    status: "processing",
+    lockedAt: { $lt: new Date(now.getTime() - 5 * 60 * 1000) }
+  });
+  assert.deepEqual(observed.sort, { lockedAt: 1, _id: 1 });
+  assert.equal(observed.limit, 2);
+  assert.equal(observed.select, "_id");
+  assert.deepEqual(observed.updateFilter._id, { $in: ["stale-1", "stale-2"] });
+  assert.equal(observed.updateManyCalls, 1);
+  assert.equal(observed.claims, 1);
+});
+
+test("inline audit recovery can be disabled without scanning stale records", async () => {
+  let staleScanCalled = false;
+  let updateManyCalled = false;
+  await withMocks([
+    [AuditOutbox, {
+      find: () => { staleScanCalled = true; throw new Error("must not scan"); },
+      updateMany: async () => { updateManyCalled = true; },
+      findOneAndUpdate: async () => null
+    }]
+  ], async () => {
+    const result = await processPendingAuditOutbox(1, new Date("2026-11-18T12:00:00.000Z"), {
+      maxRecoveries: 0
+    });
+    assert.deepEqual(result, { processed: 0, failures: 0 });
+  });
+  assert.equal(staleScanCalled, false);
+  assert.equal(updateManyCalled, false);
+});

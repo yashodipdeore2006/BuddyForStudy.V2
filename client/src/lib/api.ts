@@ -27,7 +27,9 @@ function cacheKey(path: string, token: string | null) {
 }
 
 function invalidateRelatedGetCache(path: string) {
-  const prefixes = path.startsWith('/api/saved-courses')
+  const prefixes = path.startsWith('/api/progress')
+    ? ['/api/progress']
+    : path.startsWith('/api/saved-courses')
     ? ['/api/saved-courses']
     : path.startsWith('/api/enrollments')
       ? ['/api/enrollments']

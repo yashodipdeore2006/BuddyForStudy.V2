@@ -29,18 +29,29 @@ test("Vercel config builds the Vite app and serves client-side routes directly",
   )), "hashed build assets should use immutable caching");
 });
 
-test("Render defines a separately supervised API and continuously running worker", () => {
+test("Render defaults to one API service with bounded inline background execution", () => {
   assert.match(render, /name: buddyforstudy-api/);
-  assert.match(render, /name: buddyforstudy-worker/);
+  assert.doesNotMatch(render, /name: buddyforstudy-worker/);
+  assert.equal((render.match(/^\\s+- type:/gm) || []).length, 1,
+    "the cost-conscious default blueprint must not create a separately billed worker");
+  assert.match(render, /key: BACKGROUND_WORKER_MODE\\s+value: inline/);
+  assert.match(render, /key: PAYMENTS_ENABLED\\s+value: ["']?false["']?/);
   assert.match(render, /rootDir: server/);
   assert.match(render, /buildCommand: npm ci/);
   assert.match(render, /startCommand: npm run start/);
-  assert.match(render, /startCommand: npm run worker/);
-  assert.match(render, /healthCheckPath: \/api\/health\/ready/);
-  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 2,
-    "both services must deploy only after linked CI checks pass");
-  assert.match(render, /maxShutdownDelaySeconds: 300/,
-    "worker should have time to drain its in-flight maintenance before termination");
+  assert.doesNotMatch(render, /startCommand: npm run worker/);
+  assert.match(render, /healthCheckPath: \\/api\\/health\\/ready/);
+  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 1,
+    "the API service must deploy only after linked CI checks pass");
+  assert.match(render, /maxShutdownDelaySeconds: 120/,
+    "the API should have a bounded shutdown window for inline maintenance");
+});
+
+test("the deployment runbook documents the standalone worker as an explicit future upgrade", () => {
+  const runbook = fs.readFileSync(path.join(root, "..", "docs", "DEPLOYMENT.md"), "utf8");
+  assert.match(runbook, /BACKGROUND_WORKER_MODE=standalone/);
+  assert.match(runbook, /npm run worker/);
+  assert.match(runbook, /Do not run API-inline and standalone scheduling against the same environment/);
 });
 
 test("Render production secrets are referenced or collected through secure fields", () => {

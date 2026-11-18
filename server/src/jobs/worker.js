@@ -49,16 +49,17 @@ async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   console.info("[worker] received " + signal + "; stopping maintenance scheduler");
-  await markWorkerStopping(new Date(), {
-    executionMode: "standalone",
-    instanceId: leaseRunner.ownerId
-  }).catch((error) => console.error("[worker] unable to record stopping heartbeat", { code: error?.code }));
   if (maintenanceHandle) clearInterval(maintenanceHandle);
   if (heartbeatHandle) clearInterval(heartbeatHandle);
   if (announcementHandle) clearInterval(announcementHandle);
-  orchestrator.stop();
 
   try {
+    await heartbeatInProgress;
+    await markWorkerStopping(new Date(), {
+      executionMode: "standalone",
+      instanceId: leaseRunner.ownerId
+    }).catch((error) => console.error("[worker] unable to record stopping heartbeat", { code: error?.code }));
+    orchestrator.stop();
     await leaseRunner.stop();
     await orchestrator.waitForIdle();
     await heartbeatInProgress;

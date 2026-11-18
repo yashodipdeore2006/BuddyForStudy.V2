@@ -341,14 +341,17 @@ export default function CoursePlayer() {
 
   useEffect(() => {
     if (!courseId) return;
+    let cancelled = false;
     async function load() {
       try {
         const courseData = await apiFetch(`/api/courses/${courseId}/learn`);
+        if (cancelled) return;
         const mappedCourse = mapCourse(courseData.course);
         setCourse(mappedCourse);
 
         try {
           const progressData = await apiFetch(`/api/progress/${courseId}`);
+          if (cancelled) return;
           let loadedProgress = mapProgress(progressData.progress);
           const accountId = session?.user.id;
           if (accountId) {
@@ -360,6 +363,7 @@ export default function CoursePlayer() {
                 includeDeferred: true
               });
               const pendingCount = await getPendingProgressOperationCount(accountId, courseId);
+              if (cancelled) return;
               setPendingOfflineProgressCount(pendingCount);
               if (pendingCount > 0) requestProgressSync(accountId, courseId);
             } catch {
@@ -383,20 +387,23 @@ export default function CoursePlayer() {
               );
             }
           }
+          if (cancelled) return;
           setProgress(loadedProgress);
           setProgressUnavailable(false);
         } catch {
+          if (cancelled) return;
           // Progress is independently plan-controlled; do not block course access when disabled.
           setProgress(null);
           setProgressUnavailable(true);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load this course.");
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load this course.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     void load();
+    return () => { cancelled = true; };
   }, [courseId, session?.user.id]);
 
   useEffect(() => {
@@ -682,7 +689,13 @@ export default function CoursePlayer() {
     setCompleting(true);
     setError("");
     try {
-      if (navigator.onLine === false) throw new Error("You are currently offline.");
+      const queuedCount = session?.user.id
+        ? await getPendingProgressOperationCount(session.user.id, courseId)
+        : 0;
+      if (navigator.onLine === false || queuedCount > 0) {
+        await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
+        return;
+      }
       const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
       setProgress(mapProgress(data.progress));
       activeLessonCompletedRef.current = true;
@@ -713,7 +726,13 @@ export default function CoursePlayer() {
     setTogglingLessonIds((current) => new Set(current).add(targetLessonId));
     setError("");
     try {
-      if (navigator.onLine === false) throw new Error("You are currently offline.");
+      const queuedCount = session?.user.id
+        ? await getPendingProgressOperationCount(session.user.id, courseId)
+        : 0;
+      if (navigator.onLine === false || queuedCount > 0) {
+        await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
+        return;
+      }
       const method = wasCompleted ? "DELETE" : "POST";
       const data = await apiFetch(`/api/progress/${courseId}/items/${targetLessonId}/complete`, { method });
       setProgress(mapProgress(data.progress));

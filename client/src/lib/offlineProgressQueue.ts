@@ -72,7 +72,7 @@ function openProgressDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
       if (!database.objectStoreNames.contains(OPERATIONS_STORE)) {
         const store = database.createObjectStore(OPERATIONS_STORE, { keyPath: "operationId" });
@@ -257,7 +257,7 @@ export async function listPendingProgressOperations(
 
     const accountOperations = sortProgressQueueOperations(operations).filter((operation) =>
       isProgressOperationForAccount(operation, accountId) &&
-      (operation.status === "pending" || (options.includeDeferred === true && operation.status === "blocked"))
+      (operation.status === "pending" || operation.status === "blocked")
     );
     if (options.includeDeferred === true) return accountOperations.slice(0, limit);
     return selectDueProgressOperations(accountOperations, limit, now);

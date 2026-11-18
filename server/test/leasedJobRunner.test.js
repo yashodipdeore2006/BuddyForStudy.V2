@@ -191,3 +191,35 @@ test("shared lease runner validates owner and lease timing configuration", () =>
   assert.throws(() => createLeasedJobRunner({ ownerId: "" }), /ownerId/);
   assert.throws(() => createLeasedJobRunner({ leaseDurationMs: 1000, leaseRenewalIntervalMs: 1000 }), /leaseRenewalIntervalMs/);
 });
+
+
+test("repeated record checkpoints reuse a recent successful ownership check", async () => {
+  let ownershipChecks = 0;
+  const runner = createLeasedJobRunner({
+    ownerId: "worker-check-cache",
+    dependencies: deps({
+      async isJobLeaseOwned() {
+        ownershipChecks += 1;
+        return true;
+      }
+    }),
+    logger: { warn() {}, error() {} }
+  });
+
+  const result = await runner.run("background-maintenance", async ({ shouldContinue }) => {
+    for (let index = 0; index < 20; index += 1) {
+      assert.equal(await shouldContinue(), true);
+    }
+    return { checkpoints: 20 };
+  });
+
+  assert.deepEqual(result, { checkpoints: 20 });
+  assert.equal(ownershipChecks, 1);
+});
+
+test("shared lease runner rejects an unsafe ownership-check cache interval", () => {
+  assert.throws(
+    () => createLeasedJobRunner({ ownershipCheckIntervalMs: 30_001 }),
+    /ownershipCheckIntervalMs/
+  );
+});

@@ -25,7 +25,7 @@ export interface EnqueueProgressOperationInput {
 }
 
 const DATABASE_NAME = "buddyforstudy-offline-progress";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const OPERATIONS_STORE = "progressOperations";
 const METADATA_STORE = "metadata";
 const BACKGROUND_SYNC_TAG = "bfs-progress-sync";
@@ -81,6 +81,26 @@ function openProgressDatabase(): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(METADATA_STORE)) {
         database.createObjectStore(METADATA_STORE, { keyPath: "key" });
+      }
+
+      // Task 7 records predate the explicit operation schemaVersion field.
+      // Upgrade them in place so an existing local queue remains synchronizable.
+      if (event.oldVersion < 2 && database.objectStoreNames.contains(OPERATIONS_STORE)) {
+        const transaction = request.transaction;
+        const store = transaction?.objectStore(OPERATIONS_STORE);
+        const cursorRequest = store?.openCursor();
+        if (cursorRequest) {
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            const operation = cursor.value as ProgressQueueOperation;
+            if (!operation.schemaVersion) {
+              operation.schemaVersion = 1;
+              cursor.update(operation);
+            }
+            cursor.continue();
+          };
+        }
       }
     };
 

@@ -1,6 +1,6 @@
 # BuddyForStudy.V2 — Environment Variable Inventory
 
-**Scope:** current `main` configuration, `.env.example`, server `env.js`, production validator, admin bootstrap scripts, and deployment smoke verifier.
+**Scope:** V2.2 release configuration, `.env.example`, server `env.js`, production validator, admin bootstrap scripts, and deployment smoke verifier.
 
 ## Rules for all environments
 

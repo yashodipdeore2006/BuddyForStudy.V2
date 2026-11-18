@@ -246,6 +246,33 @@ export async function listPendingProgressOperations(
   }
 }
 
+export async function getBlockedProgressOperationCount(
+  accountIdValue: string,
+  courseId?: string
+): Promise<number> {
+  const accountId = requireIdentifier(accountIdValue, "accountId");
+  const database = await openProgressDatabase();
+  try {
+    const operations = await new Promise<ProgressQueueOperation[]>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readonly");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const index = courseId ? store.index("accountCourseSequence") : store.index("accountSequence");
+      const range = courseId
+        ? accountCourseSequenceRange(accountId, requireIdentifier(courseId, "courseId"))
+        : accountSequenceRange(accountId);
+      const request = index.getAll(range);
+      request.onsuccess = () => resolve(request.result as ProgressQueueOperation[]);
+      request.onerror = () => reject(request.error || new Error("Unable to count blocked progress actions."));
+    });
+    return operations.filter((operation) =>
+      isProgressOperationForAccount(operation, accountId) &&
+      operation.status === "blocked"
+    ).length;
+  } finally {
+    database.close();
+  }
+}
+
 export async function getPendingProgressOperationCount(
   accountIdValue: string,
   courseId?: string

@@ -29,6 +29,7 @@ export function createInlineBackgroundScheduler({
   clearIntervalFn = clearInterval
 } = {}) {
   const writeHeartbeat = dependencies.heartbeatWorker || heartbeatWorker;
+  const writeStoppingHeartbeat = dependencies.markWorkerStopping || markWorkerStopping;
   const leaseRunner = createLeasedJobRunner({
     ownerId,
     leaseDurationMs,
@@ -125,7 +126,7 @@ export function createInlineBackgroundScheduler({
     if (heartbeatTimer) clearIntervalFn(heartbeatTimer);
 
     stopPromise = (async () => {
-      await markWorkerStopping(new Date(), {
+      await writeStoppingHeartbeat(new Date(), {
         executionMode: "inline",
         instanceId: leaseRunner.ownerId
       }).catch((error) => {
@@ -138,7 +139,10 @@ export function createInlineBackgroundScheduler({
       await leaseRunner.stop();
       await orchestrator.waitForIdle();
       await heartbeatInProgress;
-      await writeHeartbeat("stopped");
+      await writeHeartbeat("stopped", new Date(), {
+        executionMode: "inline",
+        instanceId: leaseRunner.ownerId
+      });
       logger.info?.("[inline-worker] scheduler stopped and active jobs drained", { ownerId: leaseRunner.ownerId });
       return { stopped: true, ownerId: leaseRunner.ownerId };
     })();

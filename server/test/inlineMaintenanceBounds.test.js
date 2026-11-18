@@ -13,7 +13,7 @@ test("inline maintenance invokes only bounded handlers and leaves full scans to 
   assert.match(inline, /shouldContinue/);
   assert.match(inline, /'expired',\s*25/);
   assert.match(inline, /'cancelled',\s*25/);
-  assert.match(inline, /processPendingAuditOutbox\(25,\s*now\)/);
+  assert.match(inline, /processPendingAuditOutbox\(25,\s*now,\s*\{\s*maxRecoveries:\s*25\s*\}\)/);
   assert.match(inline, /deliverPendingNotificationEmails\(10\)/);
   assert.match(inline, /deliverPendingNotificationPush\(10\)/);
   assert.match(inline, /reconcilePendingCoursePurchaseNotifications\(now,\s*10,\s*\{\s*maxPages:\s*1,\s*fair:\s*true\s*\}\)/);

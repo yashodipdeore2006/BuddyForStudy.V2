@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   isProgressOperationForAccount,
-  sortProgressQueueOperations
+  sortProgressQueueOperations,
+  selectDueProgressOperations
 } from "../src/lib/offlineProgressQueue.ts";
 
 test("offline progress operations are ordered by their account sequence", () => {
@@ -77,4 +78,21 @@ test("course player restores account-scoped pending actions and saves network fa
   assert.match(player, /if \(navigator\.onLine === false\)/);
   assert.match(player, /requestProgressSync\(accountId,\s*courseId\)/);
   assert.match(player, /pendingOfflineProgressCount > 0/);
+});
+
+
+test("a delayed retry blocks later actions for its course but not other courses", () => {
+  const operations = [
+    { operationId: "course-a-1", accountId: "user-1", courseId: "course-a", itemId: "lesson-1", action: "complete", sequence: 1, createdAt: 1, updatedAt: 1, retryCount: 1, nextAttemptAt: 5000, status: "pending" },
+    { operationId: "course-a-2", accountId: "user-1", courseId: "course-a", itemId: "lesson-2", action: "complete", sequence: 2, createdAt: 2, updatedAt: 2, retryCount: 0, nextAttemptAt: 1000, status: "pending" },
+    { operationId: "course-b-1", accountId: "user-1", courseId: "course-b", itemId: "lesson-3", action: "complete", sequence: 3, createdAt: 3, updatedAt: 3, retryCount: 0, nextAttemptAt: 1000, status: "pending" }
+  ];
+  assert.deepEqual(
+    selectDueProgressOperations(operations, 10, 2000).map((operation) => operation.operationId),
+    ["course-b-1"]
+  );
+  assert.deepEqual(
+    selectDueProgressOperations(operations, 10, 6000).map((operation) => operation.operationId),
+    ["course-a-1", "course-a-2", "course-b-1"]
+  );
 });

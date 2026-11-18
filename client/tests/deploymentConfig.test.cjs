@@ -31,16 +31,16 @@ test("Vercel config builds the Vite app and serves client-side routes directly",
 
 test("Render Blueprint includes a static frontend and one bounded inline API service", () => {
   assert.match(render, /name: buddyforstudy-api/);
-  assert.match(render, /branch: buddy-for-study-v2\\.2/, "Render must deploy the approved V2.2 release branch");
+  assert.match(render, /branch: buddy-for-study-v2\.2/, "Render must deploy the approved V2.2 release branch");
   assert.doesNotMatch(render, /name: buddyforstudy-worker/);
   assert.equal((render.match(/- type:/g) || []).length, 2,
     "the cost-conscious blueprint must contain one API and one static frontend, with no worker");
-  assert.match(render, /name: buddyforstudy-web[\\s\\S]*runtime: static/);
+  assert.match(render, /name: buddyforstudy-web[\s\S]*runtime: static/);
   assert.match(render, /rootDir: client/);
   assert.match(render, /staticPublishPath: dist/);
-  assert.match(render, /key: VITE_API_URL[\\s\\S]{0,40}sync: false/);
-  assert.match(render, /key: VITE_PUBLIC_SITE_URL[\\s\\S]{0,50}sync: false/);
-  assert.equal((render.match(/branch: buddy-for-study-v2\\.2/g) || []).length, 2,
+  assert.match(render, /key: VITE_API_URL[\s\S]{0,40}sync: false/);
+  assert.match(render, /key: VITE_PUBLIC_SITE_URL[\s\S]{0,50}sync: false/);
+  assert.equal((render.match(/branch: buddy-for-study-v2\.2/g) || []).length, 2,
     "both frontend and API must deploy the V2.2 branch");
 
   const modeStart = render.indexOf("key: BACKGROUND_WORKER_MODE");

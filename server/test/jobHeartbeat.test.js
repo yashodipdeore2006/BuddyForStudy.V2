@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { JobHeartbeat } from "../src/models/JobHeartbeat.js";
 import { OperationalAlert } from "../src/models/OperationalAlert.js";
-import { checkWorkerHeartbeat, heartbeatWorker, markWorkerStopping, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed, WORKER_HEARTBEAT_STALE_AFTER_MS, WORKER_JOB_NAME } from "../src/services/jobHeartbeat.service.js";
+import { checkWorkerHeartbeat, heartbeatWorker, markWorkerStopping, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed, WORKER_HEARTBEAT_STALE_AFTER_MS, WORKER_JOB_NAME, MAINTENANCE_FAILURE_ALERT_KEY } from "../src/services/jobHeartbeat.service.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -30,18 +30,21 @@ test("worker heartbeat is persisted with a stable job identity", async () => {
 });
 
 test("stale or missing worker heartbeat raises a critical alert", async () => {
-  let alert;
+  const alerts = [];
   await withMocks([
     [JobHeartbeat, { findOne: () => ({ lean: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T09:00:00Z") }) }) }],
-    [OperationalAlert, { findOneAndUpdate: async (filter, update) => { alert = { filter, update }; return {}; } }]
+    [OperationalAlert, { findOneAndUpdate: async (filter, update) => { alerts.push({ filter, update }); return {}; } }]
   ], async () => {
     const result = await checkWorkerHeartbeat(new Date("2026-10-19T09:10:00Z"));
     assert.equal(result.status, "stale");
     assert.equal(result.staleAfterSeconds, WORKER_HEARTBEAT_STALE_AFTER_MS / 1000);
   });
-  assert.equal(alert.filter.key, "background-worker-heartbeat-stale");
-  assert.equal(alert.update.$set.severity, "critical");
-  assert.equal(alert.update.$set.status, "open");
+  const staleAlert = alerts.find((entry) => entry.filter.key === "background-worker-heartbeat-stale");
+  assert.equal(staleAlert.update.$set.severity, "critical");
+  assert.equal(staleAlert.update.$set.status, "open");
+  assert.ok(alerts.some((entry) =>
+    entry.filter.key === MAINTENANCE_FAILURE_ALERT_KEY && entry.update.$set.status === "resolved"
+  ));
 });
 
 test("fresh worker heartbeat resolves the stale-worker alert", async () => {
@@ -218,4 +221,32 @@ test("worker heartbeat records mode, instance and stopping lifecycle metadata", 
   assert.equal(calls[1].$set.shutdownStartedAt.toISOString(), "2026-11-18T12:01:00.000Z");
   assert.equal(calls[2].$set.workerStatus, "stopped");
   assert.equal(calls[2].$set.instanceId, "api-1");
+});
+
+
+test("consecutive maintenance failures raise a warning that resolves after recovery", async () => {
+  const alerts = [];
+  let heartbeat = {
+    jobName: WORKER_JOB_NAME,
+    workerStatus: "running",
+    lastHeartbeatAt: new Date("2026-11-18T12:00:00Z"),
+    consecutiveFailures: 2,
+    lastError: "provider timeout"
+  };
+  await withMocks([
+    [JobHeartbeat, { findOne: () => ({ lean: async () => heartbeat }) }],
+    [OperationalAlert, { findOneAndUpdate: async (filter, update) => { alerts.push({ filter, update }); return {}; } }]
+  ], async () => {
+    const degraded = await checkWorkerHeartbeat(new Date("2026-11-18T12:01:00Z"), WORKER_HEARTBEAT_STALE_AFTER_MS, "inline");
+    assert.equal(degraded.status, "degraded");
+    assert.equal(degraded.consecutiveFailures, 2);
+    heartbeat = { ...heartbeat, consecutiveFailures: 0, lastError: "" };
+    const recovered = await checkWorkerHeartbeat(new Date("2026-11-18T12:02:00Z"), WORKER_HEARTBEAT_STALE_AFTER_MS, "inline");
+    assert.equal(recovered.status, "healthy");
+  });
+
+  const failureAlerts = alerts.filter((entry) => entry.filter.key === MAINTENANCE_FAILURE_ALERT_KEY);
+  assert.equal(failureAlerts[0].update.$set.severity, "warning");
+  assert.equal(failureAlerts[0].update.$set.status, "open");
+  assert.equal(failureAlerts[1].update.$set.status, "resolved");
 });

@@ -8,6 +8,7 @@ const validConfig = {
   CLIENT_URL: "https://buddyforstudy.example",
   API_URL: "https://api.buddyforstudy.example",
   TRUST_PROXY_HOPS: "1",
+  BACKGROUND_WORKER_MODE: "standalone",
   PAYMENTS_ENABLED: "true",
   SMTP_HOST: "smtp.buddyforstudy.example",
   SMTP_PORT: "587",
@@ -124,4 +125,14 @@ test("production config requires all live Razorpay values only when payments are
 
 test("production config rejects an invalid payments feature flag", () => {
   assert.ok(getProductionConfigErrors({ ...validConfig, PAYMENTS_ENABLED: "sometimes" }).some((error) => error.includes("PAYMENTS_ENABLED")));
+});
+
+
+test("production config requires an explicit supported background worker mode", () => {
+  for (const value of ["", "worker", "true", "INLINE", "disabled-ish"]) {
+    assert.ok(getProductionConfigErrors({ ...validConfig, BACKGROUND_WORKER_MODE: value }).some((error) => error.includes("BACKGROUND_WORKER_MODE")));
+  }
+  for (const value of ["inline", "standalone", "disabled"]) {
+    assert.ok(getProductionConfigErrors({ ...validConfig, BACKGROUND_WORKER_MODE: value }).every((error) => !error.includes("BACKGROUND_WORKER_MODE")));
+  }
 });

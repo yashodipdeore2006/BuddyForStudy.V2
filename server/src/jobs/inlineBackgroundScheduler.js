@@ -1,4 +1,4 @@
-import { heartbeatWorker } from "../services/jobHeartbeat.service.js";
+import { heartbeatWorker, markWorkerStopping } from "../services/jobHeartbeat.service.js";
 import {
   JOB_LEASE_KEYS,
   DEFAULT_JOB_LEASE_DURATION_MS,
@@ -73,7 +73,10 @@ export function createInlineBackgroundScheduler({
 
   function pulseHeartbeat() {
     heartbeatInProgress = heartbeatInProgress
-      .then(() => writeHeartbeat("running"))
+      .then(() => writeHeartbeat("running", new Date(), {
+        executionMode: "inline",
+        instanceId: leaseRunner.ownerId
+      }))
       .catch((error) => {
         logger.error?.("[inline-worker] heartbeat write failed", {
           name: error?.name || "Error",
@@ -88,7 +91,11 @@ export function createInlineBackgroundScheduler({
     if (stopping) return { started: false, reason: "already_stopped" };
     started = true;
 
-    await writeHeartbeat("running");
+    await writeHeartbeat("running", new Date(), {
+      executionMode: "inline",
+      instanceId: leaseRunner.ownerId,
+      started: true
+    });
     heartbeatTimer = setIntervalFn(() => { void pulseHeartbeat(); }, heartbeatIntervalMs);
     heartbeatTimer?.unref?.();
     maintenanceTimer = setIntervalFn(() => { void runMaintenance(); }, maintenanceIntervalMs);
@@ -117,8 +124,17 @@ export function createInlineBackgroundScheduler({
     if (announcementTimer) clearIntervalFn(announcementTimer);
     if (heartbeatTimer) clearIntervalFn(heartbeatTimer);
 
-    orchestrator.stop();
     stopPromise = (async () => {
+      await markWorkerStopping(new Date(), {
+        executionMode: "inline",
+        instanceId: leaseRunner.ownerId
+      }).catch((error) => {
+        logger.warn?.("[inline-worker] unable to record stopping heartbeat", {
+          name: error?.name || "Error",
+          code: error?.code
+        });
+      });
+      orchestrator.stop();
       await leaseRunner.stop();
       await orchestrator.waitForIdle();
       await heartbeatInProgress;

@@ -352,8 +352,8 @@ The authenticated browser synchronizer is implemented in `client/src/lib/progres
 
 - It runs for the current signed-in account at app startup, when the tab becomes visible, after connectivity returns, after a Service Worker wake-up, and on explicit learner retry.
 - It uses the ordinary authenticated `apiFetch` path with an expected-account guard. Before each request, the stored signed-in account must match the queue account, preventing one account's queued operations from being submitted with a different account's token.
-- An account-specific IndexedDB lease serializes queue draining across tabs. Queue reads are limited to 50 operations per batch and five batches per run.
-- Applied and duplicate operations are removed. Retryable/in-progress operations remain queued with exponential backoff capped at 15 minutes. Authentication failures pause without discarding data. Permission failures and permanent operation errors are marked blocked.
+- An account-specific IndexedDB lease serializes queue draining across tabs. Queue reads are limited to 50 operations per batch and five batches per run. The server re-sorts each batch by client sequence and blocks later same-course actions while an earlier action is unresolved or still processing.
+- Applied and duplicate operations are removed. Retryable/in-progress operations remain queued with exponential backoff capped at 15 minutes; an active foreground tab schedules a best-effort timer for the next retry deadline. Authentication failures pause without discarding data. Permission failures and permanent operation errors are marked blocked.
 - Learners can retry recoverable blocked operations or explicitly remove blocked operations that are no longer valid.
 - The Service Worker remains a wake-up mechanism only; it never reads progress records or makes authenticated API requests.
 

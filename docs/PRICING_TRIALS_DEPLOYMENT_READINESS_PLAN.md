@@ -152,7 +152,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | DONE |
-| 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | IN_PROGRESS |
+| 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | DONE |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | NOT_STARTED |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | NOT_STARTED |
 | 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | NOT_STARTED |
@@ -331,3 +331,22 @@ The model defines draft/published/paused/ended lifecycle states, bounded trial d
 **Verification evidence:** 7 new TrialCampaign model tests passed. Full backend test suite: **1,038 passed, 0 failed, 0 skipped**. Backend lint, production-config preflight, and server syntax checks passed. Frontend lint, typecheck, unit tests, deployment-config checks, production build, and Playwright browser navigation smoke tests passed.
 
 **Task 10 disposition:** complete for this V2.2 repository candidate. Live MongoDB index initialization and environment backup/rollback evidence remain deployment gates in Tasks 29–30.
+
+
+## 12. Task 11 implementation and verification — complete
+
+Implemented on \`buddy-for-study-v2.2\`:
+
+- \`server/src/utils/trialCampaignAdminValidation.js\` — strict create/update schemas, bounded fields, date-window checks, eligibility validation, and explicit consent-only conversion configuration.
+- \`server/src/controllers/adminTrialCampaigns.controller.js\` — paginated list/search, detail, create, update, publish, pause, disable, active-plan reference validation, conditional lifecycle writes, and audit events.
+- \`server/src/routes/adminTrials.routes.js\` — seven protected self-serve campaign endpoints under \`/api/admin/trials/campaigns\`, each using the existing \`trials.manage\` permission.
+- \`server/test/trialCampaignAdminRoutes.test.js\`, \`server/test/trialCampaignAdminControllerSafety.test.js\`, and \`server/test/trialCampaignAdminValidation.test.js\` — route/permission, lifecycle safety, and request-validation coverage.
+
+The existing administrator-issued \`TrialGrant\` routes (\`/grants\`, \`/preview\`, \`/grant\`) remain registered and unchanged. Campaign creation always starts in draft. Only draft or paused campaigns with no learner claims may be edited. Publish/pause/disable use conditional state transitions. Disabling a campaign stops new offers and does not revoke or rewrite existing learner entitlements. An optional paid conversion plan is configuration only and requires a separate learner-consent flow in later tasks.
+
+**Implementation candidate:** \`fd45cd939aa29c8929a53e2ba97a15f60ae310b1\`  
+**CI run:** [BuddyForStudy CI #44584056449](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44584056449) — backend, frontend, and Production release gate all completed successfully.
+
+**Verification:** backend lint, production-config preflight, full backend test suite, AI selector comparison, server JavaScript syntax checks; frontend lint, typecheck, unit tests, Vercel deployment-config tests, production build, Playwright browser navigation smoke tests; and the Production release gate all passed on the exact implementation candidate.
+
+**Task 11 disposition:** complete for the V2.2 repository candidate. This verifies repository CI only; no staging campaign CRUD or real MongoDB-backed administrator walkthrough has been performed. External-environment verification remains in Tasks 29–30.

@@ -128,7 +128,7 @@ test("deactivating a plan removes it from public selection but does not revoke e
   const billingRoutes = readFileSync(new URL("../src/routes/billing.routes.js", import.meta.url), "utf8");
 
   assert.match(adminController, /SubscriptionPlan\.find\(\)\.sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
-  assert.match(billingRoutes, /PlanModel\.find\(\{ isActive: true \}\)\.sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
+  assert.match(billingRoutes, /PlanModel\.find\(\{ isActive: true \}\)\s*\.sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
   assert.match(entitlementService, /UserSubscription\.findOne\(\{[\s\S]*?status: \{ \$in: \["trialing", "active", "past_due"\] \}[\s\S]*?\}\)\.populate\("plan"\)/);
   const activeSubscriptionQuery = entitlementService.slice(
     entitlementService.indexOf("export async function getActiveSubscriptionForUser"),

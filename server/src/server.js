@@ -41,7 +41,6 @@ import { getBackgroundOperationsHealth } from "./services/backgroundOperationsHe
 import { createInlineBackgroundScheduler } from "./jobs/inlineBackgroundScheduler.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { requestId } from "./middleware/requestId.js";
-import { createPaymentAvailabilityMiddleware } from "./middleware/paymentAvailability.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
@@ -51,7 +50,6 @@ app.set("trust proxy", env.trustProxyHops);
 app.use(requestId);
 const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("payments"), message: { success: false, message: "Too many payment requests. Please try again later." } });
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("webhooks") });
-const requirePaymentsEnabled = createPaymentAvailabilityMiddleware({ enabled: env.paymentsEnabled });
 
 app.disable("x-powered-by");
 app.use(helmet());
@@ -117,8 +115,10 @@ app.use("/api/achievements", achievementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/saved-courses", savedCourseRoutes);
 app.use("/api/legal", legalRoutes);
-app.use("/api/payments", paymentLimiter, requirePaymentsEnabled, paymentRoutes);
-app.use("/api/webhooks", webhookLimiter, requirePaymentsEnabled, webhookRoutes);
+// Gate only new order creation inside paymentRoutes. Keep verification and
+// signed webhooks available so already-created transactions can be reconciled.
+app.use("/api/payments", paymentLimiter, paymentRoutes);
+app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -37,3 +37,33 @@ test("payment routes continue when payments are explicitly enabled", () => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.body, null);
 });
+
+import { readFile } from "node:fs/promises";
+
+test("only new payment-order routes are guarded by the payments availability switch", async () => {
+  const routes = await readFile(new URL("../src/routes/payment.routes.js", import.meta.url), "utf8");
+  assert.match(routes, /router\.post\("\/course\/order", requirePaymentsEnabled, controller\.createCourseOrder\)/);
+  assert.match(routes, /router\.post\("\/subscription\/order", requirePaymentsEnabled, controller\.createSubscriptionOrder\)/);
+  assert.match(routes, /router\.post\("\/course\/verify", controller\.verifyCoursePayment\)/);
+});
+
+test("signed provider webhooks and payment reconciliation routes remain mounted when checkout is disabled", async () => {
+  const server = await readFile(new URL("../src/server.js", import.meta.url), "utf8");
+  assert.match(server, /app\.use\("\/api\/payments", paymentLimiter, paymentRoutes\)/);
+  assert.match(server, /app\.use\("\/api\/webhooks", webhookLimiter, webhookRoutes\)/);
+  assert.doesNotMatch(server, /app\.use\("\/api\/webhooks",[^\n]*requirePaymentsEnabled/);
+  assert.doesNotMatch(server, /app\.use\("\/api\/payments",[^\n]*requirePaymentsEnabled/);
+});
+
+test("provider client availability is independent from the new-checkout switch", async () => {
+  const source = await readFile(new URL("../src/services/razorpay.service.js", import.meta.url), "utf8");
+  const clientStart = source.indexOf("function getClient(");
+  const clientEnd = source.indexOf("\n}\n", clientStart);
+  const clientFactory = source.slice(clientStart, clientEnd);
+  assert.ok(clientStart >= 0 && clientEnd > clientStart);
+  assert.doesNotMatch(clientFactory, /paymentsEnabled/);
+  assert.match(source, /export async function createOrder[\s\S]*?assertPaymentsEnabled\(dependencies\.config \|\| env\)/);
+  assert.match(source, /export async function createSubscription[\s\S]*?assertPaymentsEnabled\(dependencies\.config \|\| env\)/);
+  assert.match(source, /export async function fetchSubscription\(subscriptionId, dependencies = \{\}\)[\s\S]*?getClient\(dependencies\)/);
+  assert.match(source, /export async function cancelSubscription\(subscriptionId, cancelAtCycleEnd = true, dependencies = \{\}\)[\s\S]*?getClient\(dependencies\)/);
+});

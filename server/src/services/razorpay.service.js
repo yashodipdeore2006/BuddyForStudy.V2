@@ -3,23 +3,27 @@ import crypto from "crypto";
 import { env } from "../config/env.js";
 import { toRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
 
-function getClient() {
-  if (!env.paymentsEnabled) {
-    const error = new Error("Payments are temporarily unavailable.");
-    error.status = 503;
-    throw error;
-  }
+export function assertPaymentsEnabled(config = env) {
+  if (config.paymentsEnabled) return;
+  const error = new Error("Payments are temporarily unavailable.");
+  error.status = 503;
+  error.isOperational = true;
+  throw error;
+}
 
-  const keyId = String(env.razorpayKeyId || "").trim();
-  const keySecret = String(env.razorpayKeySecret || "").trim();
+function getClient({ config = env, RazorpayClient = Razorpay } = {}) {
+  // Existing transaction reconciliation, refunds, and cancellation may still
+  // need the provider client after new checkout has been disabled.
+  const keyId = String(config.razorpayKeyId || "").trim();
+  const keySecret = String(config.razorpayKeySecret || "").trim();
 
   if (!keyId || !keySecret) {
-    const error = new Error("Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in server/.env.");
+    const error = new Error("Razorpay is not configured. Keep existing provider credentials available while transactions or subscriptions require reconciliation.");
     error.status = 503;
     throw error;
   }
 
-  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+  return new RazorpayClient({ key_id: keyId, key_secret: keySecret });
 }
 
 function getProviderErrorMessage(error) {
@@ -44,8 +48,9 @@ function wrapProviderError(operation, error) {
   throw wrapped;
 }
 
-export async function createOrder({ amount, currency, receipt, notes = {} }) {
-  const client = getClient();
+export async function createOrder({ amount, currency, receipt, notes = {} }, dependencies = {}) {
+  assertPaymentsEnabled(dependencies.config || env);
+  const client = getClient(dependencies);
   return client.orders.create({
     amount: toRazorpayMinorUnits(amount, currency),
     currency,
@@ -54,8 +59,9 @@ export async function createOrder({ amount, currency, receipt, notes = {} }) {
   });
 }
 
-export async function createSubscriptionPlan({ name, amount, currency, interval, period }) {
-  const client = getClient();
+export async function createSubscriptionPlan({ name, amount, currency, interval, period }, dependencies = {}) {
+  assertPaymentsEnabled(dependencies.config || env);
+  const client = getClient(dependencies);
   try {
     return await client.plans.create({
       period,
@@ -72,8 +78,9 @@ export async function createSubscriptionPlan({ name, amount, currency, interval,
   }
 }
 
-export async function createSubscription({ planId, customerNotify = 1, totalCount }) {
-  const client = getClient();
+export async function createSubscription({ planId, customerNotify = 1, totalCount }, dependencies = {}) {
+  assertPaymentsEnabled(dependencies.config || env);
+  const client = getClient(dependencies);
   const payload = {
     plan_id: planId,
     customer_notify: customerNotify,
@@ -88,8 +95,8 @@ export async function createSubscription({ planId, customerNotify = 1, totalCoun
   }
 }
 
-export async function fetchSubscription(subscriptionId) {
-  const client = getClient();
+export async function fetchSubscription(subscriptionId, dependencies = {}) {
+  const client = getClient(dependencies);
   try {
     return await client.subscriptions.fetch(subscriptionId);
   } catch (error) {
@@ -97,13 +104,13 @@ export async function fetchSubscription(subscriptionId) {
   }
 }
 
-export async function fetchPayment(paymentId) {
-  const client = getClient();
+export async function fetchPayment(paymentId, dependencies = {}) {
+  const client = getClient(dependencies);
   return client.payments.fetch(paymentId);
 }
 
-export async function fetchRefund({ refundId, paymentId }) {
-  const client = getClient();
+export async function fetchRefund({ refundId, paymentId }, dependencies = {}) {
+  const client = getClient(dependencies);
   try {
     return await client.refunds.fetch(refundId, { payment_id: paymentId });
   } catch (error) {
@@ -111,16 +118,16 @@ export async function fetchRefund({ refundId, paymentId }) {
   }
 }
 
-export async function refundPayment({ paymentId, amount, currency = "INR", notes }) {
-  const client = getClient();
+export async function refundPayment({ paymentId, amount, currency = "INR", notes }, dependencies = {}) {
+  const client = getClient(dependencies);
   const payload = {};
   if (amount != null) payload.amount = toRazorpayMinorUnits(amount, currency);
   if (notes && typeof notes === "object" && !Array.isArray(notes)) payload.notes = notes;
   return client.payments.refund(paymentId, payload);
 }
 
-export async function cancelSubscription(subscriptionId, cancelAtCycleEnd = true) {
-  const client = getClient();
+export async function cancelSubscription(subscriptionId, cancelAtCycleEnd = true, dependencies = {}) {
+  const client = getClient(dependencies);
   return client.subscriptions.cancel(subscriptionId, cancelAtCycleEnd);
 }
 

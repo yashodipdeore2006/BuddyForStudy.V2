@@ -21,11 +21,32 @@ const router = Router();
 async function sendNotificationSafely(payload, context) {
   return sendBillingNotificationSafely(payload, context, createNotificationEvent);
 }
-router.get("/plans", async (_req,res,next)=>{ try {
-  const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();
-  const visiblePlans = env.paymentsEnabled ? plans : plans.filter((plan) => plan.slug === "free" || Number(plan.price) === 0);
-  return success(res,{plans:visiblePlans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)})),paymentsEnabled:env.paymentsEnabled});
-} catch(e){next(e)} });
+export async function listPublicPlans(_req, res, next, dependencies = {}) {
+  const PlanModel = dependencies.SubscriptionPlan || SubscriptionPlan;
+  const paymentsEnabled = dependencies.paymentsEnabled ?? env.paymentsEnabled;
+  const normalizeFeatures = dependencies.normalizeFeatures || normalizeSubscriptionFeatures;
+
+  try {
+    // Public catalogue visibility is controlled by the admin-managed active flag,
+    // not by checkout availability. Learners can compare paid plans while checkout
+    // is disabled; server-side order creation remains independently gated.
+    const plans = await PlanModel.find({ isActive: true })
+      .sort({ sortOrder: 1, createdAt: 1 })
+      .lean();
+
+    return success(res, {
+      plans: plans.map((plan) => ({
+        ...plan,
+        features: normalizeFeatures(plan.features)
+      })),
+      paymentsEnabled
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+router.get("/plans", listPublicPlans);
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try {

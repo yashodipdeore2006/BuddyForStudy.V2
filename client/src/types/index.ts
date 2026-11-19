@@ -35,6 +35,15 @@ export interface Profile {
   phone_number?: string;
   phone_number_verified?: boolean;
   city?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+    formatted?: string;
+  };
   learning_goal?: string;
   profile_setup_skipped_at?: string | null;
   marketing_email_consent?: boolean;

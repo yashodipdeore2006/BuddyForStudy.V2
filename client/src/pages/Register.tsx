@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -9,6 +9,7 @@ import { routes } from "@/lib/routes";
 export default function Register() {
   const navigate = useNavigate();
   const { session, profile, signUp, signInWithGoogle } = useAuth();
+  const googleProfileRedirect = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +23,9 @@ export default function Register() {
     if (session && profile) {
       if (profile.role === 'admin') {
         navigate(routes.adminHome(), { replace: true });
+      } else if (googleProfileRedirect.current) {
+        googleProfileRedirect.current = false;
+        navigate(routes.profile(), { replace: true });
       } else {
         navigate(routes.home(), { replace: true });
       }
@@ -29,6 +33,7 @@ export default function Register() {
   }, [session, profile, navigate]);
 
   const handleGoogle = async (credential: string) => {
+    googleProfileRedirect.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -38,6 +43,7 @@ export default function Register() {
         marketingEmailConsent
       });
     } catch (err) {
+      googleProfileRedirect.current = false;
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);

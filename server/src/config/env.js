@@ -54,6 +54,9 @@ export const env = {
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
   redisUrl: process.env.REDIS_URL || "",
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
+  twilioVerifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID || "",
   sentryDsn: process.env.SENTRY_DSN || "",
   sentryTracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
 

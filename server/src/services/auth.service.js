@@ -20,6 +20,7 @@ function publicUser(user) {
     phoneNumber: user.phoneNumber || "",
     phoneNumberVerified: user.phoneNumberVerified === true,
     city: user.city || "",
+    address: user.address || {},
     learningGoal: user.learningGoal || "",
     profileSetupSkippedAt: user.profileSetupSkippedAt || null,
     termsAcceptedVersion: user.termsAcceptedVersion || "",
@@ -253,17 +254,32 @@ export async function googleLogin(credential, consent = null) {
   return googleLoginWithDependencies(credential, consent);
 }
 
-export async function updateProfile(userId, { name }) {
-  const normalizedName = name.trim();
-  if (normalizedName.length < 2 || normalizedName.length > 100) {
-    throw authError("Name must be between 2 and 100 characters", 400);
-  }
-
+export async function updateProfile(userId, input) {
   const user = await User.findById(userId);
   if (!user) throw authError("User not found", 404);
   if (!user.isActive) throw authError("Account is inactive", 401);
 
-  user.name = normalizedName;
+  if (input.name !== undefined) {
+    const normalizedName = input.name.trim();
+    if (normalizedName.length < 2 || normalizedName.length > 100) {
+      throw authError("Name must be between 2 and 100 characters", 400);
+    }
+    user.name = normalizedName;
+  }
+
+  if (input.phoneNumber !== undefined) {
+    const phoneNumber = input.phoneNumber.trim();
+    if (phoneNumber !== user.phoneNumber) user.phoneNumberVerified = false;
+    user.phoneNumber = phoneNumber;
+  }
+
+  if (input.city !== undefined) user.city = input.city.trim();
+  if (input.address !== undefined) {
+    const currentAddress = user.address?.toObject ? user.address.toObject() : (user.address || {});
+    user.address = { ...currentAddress, ...input.address };
+    if (input.address.city !== undefined) user.city = input.address.city.trim();
+  }
+
   await user.save();
   return { user: publicUser(user) };
 }

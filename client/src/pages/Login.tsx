@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, profile, signIn, signInWithGoogle } = useAuth();
+  const googleProfileRedirect = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,6 +24,9 @@ export default function Login() {
     if (session && profile) {
       if (profile.role === 'admin') {
         navigate(routes.adminHome(), { replace: true });
+      } else if (googleProfileRedirect.current) {
+        googleProfileRedirect.current = false;
+        navigate(routes.profile(), { replace: true });
       } else if (from) {
         navigate(from, { replace: true });
       } else {
@@ -32,11 +36,13 @@ export default function Login() {
   }, [session, profile, navigate, from]);
 
   const handleGoogle = async (credential: string) => {
+    googleProfileRedirect.current = !profile?.phone_number || !profile?.address?.line1 || profile.phone_number_verified !== true;
     setError(null);
     setLoading(true);
     try {
       await signInWithGoogle(credential);
     } catch (err) {
+      googleProfileRedirect.current = false;
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);

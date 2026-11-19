@@ -5,6 +5,7 @@ import AccountSettings from "@/pages/Settings";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import ContactDetailsCard from "@/components/ContactDetailsCard";
 import {
   UserRound, Mail, ShieldCheck, CreditCard, ArrowUpRight, Clock3,
   ReceiptText, BookOpen, Settings2, Bell, CheckCircle2, XCircle, AlertCircle, Loader2
@@ -167,6 +168,8 @@ export default function Profile() {
           </div>
         </div>
       </section>
+
+      <ContactDetailsCard />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <form id="personal-information" onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">

@@ -41,10 +41,32 @@ interface GoogleAccountsId {
   }): void;
 }
 
+interface GoogleOAuthTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  scope?: string;
+  error?: string;
+}
+
+interface GoogleOAuthTokenClient {
+  requestAccessToken(options?: { prompt?: string }): void;
+}
+
+interface GoogleOAuthTokenClientConfig {
+  client_id: string;
+  scope: string;
+  include_granted_scopes?: boolean;
+  callback: (response: GoogleOAuthTokenResponse) => void;
+  error_callback?: (error: { type?: string; message?: string }) => void;
+}
+
 interface Window {
   google?: {
     accounts: {
       id: GoogleAccountsId;
+      oauth2: {
+        initTokenClient(config: GoogleOAuthTokenClientConfig): GoogleOAuthTokenClient;
+      };
     };
   };
 }

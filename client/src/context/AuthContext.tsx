@@ -36,6 +36,7 @@ type AuthUser = {
   phoneNumber?: string;
   phoneNumberVerified?: boolean;
   city?: string;
+  address?: Profile["address"];
   learningGoal?: string;
   profileSetupSkippedAt?: string | null;
   marketingEmailConsent?: boolean;
@@ -45,7 +46,7 @@ function profileFromUser(u: AuthUser):Profile {
     id:u.id,name:u.name,role:u.role,auth_provider:u.authProvider,is_active:u.isActive,
     created_at:new Date().toISOString(),updated_at:new Date().toISOString(),
     phone_number:u.phoneNumber || "",phone_number_verified:u.phoneNumberVerified === true,
-    city:u.city || "",learning_goal:u.learningGoal || "",
+    city:u.city || "",address:u.address || {},learning_goal:u.learningGoal || "",
     profile_setup_skipped_at:u.profileSetupSkippedAt || null,
     marketing_email_consent:u.marketingEmailConsent === true
   };

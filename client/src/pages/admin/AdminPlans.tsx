@@ -387,7 +387,7 @@ export default function AdminPlans() {
       )}
 
       <div className="mt-6">
-        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={setActiveSection} items={[{ value: "plans" as const, label: `Plans (${plans.length})` }, ...(permissions.includes("plans.manage") ? [{ value: "create" as const, label: "Create plan" }] : [])]} onChange={(value) => { if (value === "create") startCreatePlan(); else setActiveSection("plans"); }} />
+        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={(value) => { if (value === "create") startCreatePlan(); else setActiveSection("plans"); }} items={[{ value: "plans" as const, label: `Plans (${plans.length})` }, ...(permissions.includes("plans.manage") ? [{ value: "create" as const, label: "Create plan" }] : [])]} />
       </div>
 
       {activeSection === "create" && (

@@ -381,5 +381,5 @@ test("subscription plan creation is a guided, validated flow with a learner-faci
   assert.match(plansPage, /Mark as popular/);
   assert.match(plansPage, /Learner-facing plan preview/);
   assert.match(plansPage, /continueCreatePlan/);
-  assert.match(plansPage, /Create plan does not enable payments globally/);
+  assert.match(plansPage, /Creating a plan does not enable payments globally/);
 });

@@ -23,10 +23,12 @@ test("standalone worker preserves its original maintenance and announcement cade
 
 test("standalone shutdown stops new ticks, drains leased jobs and then disconnects MongoDB", async () => {
   const worker = await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8");
-  const start = worker.indexOf("async function shutdown(signal)");
-  const end = worker.indexOf("\n}\n", start);
+  // Git may check this file out with CRLF on Windows; normalize before slicing.
+  const normalizedWorker = worker.replace(/\r\n/g, "\n");
+  const start = normalizedWorker.indexOf("async function shutdown(signal)");
+  const end = normalizedWorker.indexOf("\n}\n", start);
   assert.ok(start >= 0 && end > start);
-  const shutdown = worker.slice(start, end + 3);
+  const shutdown = normalizedWorker.slice(start, end + 3);
   assert.match(shutdown, /clearInterval\(maintenanceHandle\)/);
   assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
   assert.match(shutdown, /clearInterval\(announcementHandle\)/);

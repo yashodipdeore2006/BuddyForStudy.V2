@@ -140,11 +140,11 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 4 | Correct public plans API | All active public plans returned independently of payment availability | IN_PROGRESS |
-| 5 | Correct learner Pricing page | Paid and free plan cards remain visible when payments are disabled | IN_PROGRESS |
-| 6 | Disable paid checkout actions in UI | No Razorpay load/order attempt when disabled; clear status message | IN_PROGRESS |
-| 7 | Harden server payment availability controls | New orders blocked; existing verification, webhooks, sync, and cancellation remain usable | IN_PROGRESS |
-| 8 | Verify default free-plan assignment | Idempotent free access and concurrent assignment tests pass | IN_PROGRESS |
+| 4 | Correct public plans API | All active public plans returned independently of payment availability | DONE |
+| 5 | Correct learner Pricing page | Paid and free plan cards remain visible when payments are disabled | DONE |
+| 6 | Disable paid checkout actions in UI | No Razorpay load/order attempt when disabled; clear status message | DONE |
+| 7 | Harden server payment availability controls | New orders blocked; existing verification, webhooks, sync, and cancellation remain usable | DONE |
+| 8 | Verify default free-plan assignment | Idempotent free access and concurrent assignment tests pass | DONE |
 | 9 | Improve subscription-plan configuration | Validated plan lifecycle, price, interval, features, limits, order, and visibility behaviour | NOT_STARTED |
 
 ### Phase 3 — Trial campaign backend
@@ -278,3 +278,20 @@ This protection is too broad for the required lifecycle. The revised design shou
 - Google contact import: the previous implementation is retained; Google People API scope/consent, privacy disclosure, and manual fallback need live configuration checks. Phone numbers stay unverified and no paid SMS verification is part of this programme.
 
 **Task 3 disposition:** architecture and gaps mapped; proceed to Task 4. Do not mark any external deployment task complete from this source review alone.
+
+
+## 9. Execution evidence — Phase 2 Tasks 4–8
+
+**Verification date:** 2026-11-19  
+**Implementation candidate:** `22be28b96f69615bc79181e36834d5ebd9eef871` on `buddy-for-study-v2.2`  
+**CI run:** [BuddyForStudy CI #44520058132](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44520058132) — frontend, backend, and Production release gate completed successfully.
+
+| Task | Verified change | Evidence |
+|---:|---|---|
+| 4 | Public plans API now returns all active plans irrespective of payment availability and separately returns the checkout flag. | `server/test/publicPlanCatalogue.test.js`, `server/test/subscriptionPlanOrder.test.js`; backend CI passed. |
+| 5 | Pricing page continues to render eligible active paid and free plans when payments are disabled. | Updated Pricing page and `client/tests/courseNav.test.cjs`; frontend lint, typecheck, unit, and production build passed. |
+| 6 | Paid purchase path exits before calling order API or loading Razorpay when payments are disabled; learner receives a clear unavailable notice. | Frontend test assertions and browser navigation smoke tests passed. |
+| 7 | Only new course/subscription order routes are gated. Existing course verification, signed provider webhooks, subscription sync/cancellation, and provider reconciliation remain mounted and can use existing provider credentials. | `server/test/paymentAvailability.test.js`, `server/test/paymentVerification.test.js`, `server/test/paymentWebhookTransitions.test.js`; backend CI and production release gate passed. |
+| 8 | Free-plan assignment is extracted to an idempotent service, preserves existing subscriptions, recovers duplicate-key races, and fails without inventing premium access if no free plan exists. | `server/test/freePlanAssignment.test.js`; full backend test suite and production config preflight passed. |
+
+**Limit:** These results verify repository CI, not live Razorpay credentials, webhook delivery, production secrets, DNS, backups, or staging provider behaviour. Keep those as deployment evidence gates in Tasks 29–30.

@@ -4,6 +4,7 @@ import { Payment } from "../models/Payment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 const featureByKey = new Map(SUBSCRIPTION_FEATURES.map((feature) => [feature.key, feature]));
@@ -59,16 +60,30 @@ export async function getEntitlement(userId, feature) {
     }).lean(),
     getActiveSubscriptionForUser(userId)
   ]);
-  const [plan, expiredTrialSubscription] = await Promise.all([
+  // Trial grants are the durable source of truth for trial history. The
+  // maintenance scheduler changes both TrialGrant and UserSubscription from
+  // "trialing" to "expired", so querying only a trialing subscription loses
+  // the learner-facing expiry state after maintenance has run.
+  const entitlementCheckAt = new Date();
+  const [plan, expiredTrialGrant, expiredTrialSubscription] = await Promise.all([
     subscription?.plan ? Promise.resolve(subscription.plan) : getFreePlan(),
+    !subscription && !override
+      ? TrialGrant.findOne({
+          user: userId,
+          status: { $in: ["trialing", "expired"] },
+          endsAt: { $ne: null, $lte: entitlementCheckAt }
+        }).populate("plan").sort({ endsAt: -1 }).lean()
+      : Promise.resolve(null),
     !subscription && !override
       ? UserSubscription.findOne({
           user: userId,
           status: "trialing",
-          currentPeriodEnd: { $ne: null, $lte: new Date() }
+          currentPeriodEnd: { $ne: null, $lte: entitlementCheckAt }
         }).populate("plan").sort({ currentPeriodEnd: -1 }).lean()
       : Promise.resolve(null)
   ]);
+  const expiredTrialPlan = expiredTrialGrant?.plan || expiredTrialSubscription?.plan;
+  const expiredTrialFeatures = normalizeSubscriptionFeatures(expiredTrialPlan?.features || []);
 
   if (override) {
     return {
@@ -87,7 +102,7 @@ export async function getEntitlement(userId, feature) {
     };
   }
   if (!plan) {
-    const expiredFeatures = normalizeSubscriptionFeatures(expiredTrialSubscription?.plan?.features || []);
+    const expiredFeatures = expiredTrialFeatures;
     return {
       allowed: false,
       feature: definition,
@@ -103,7 +118,6 @@ export async function getEntitlement(userId, feature) {
   const features = normalizeSubscriptionFeatures(plan.features || []);
   const allowed = features.includes(definition.label);
   const isTrial = Boolean(allowed && subscription?.status === "trialing");
-  const expiredTrialFeatures = normalizeSubscriptionFeatures(expiredTrialSubscription?.plan?.features || []);
   const trialExpired = Boolean(!allowed && expiredTrialFeatures.includes(definition.label));
   return {
     allowed,

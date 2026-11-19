@@ -93,3 +93,46 @@ test("legacy one-time subscription records remain editable without changing thei
   });
   assert.deepEqual(result, { valid: true, errors: [] });
 });
+
+
+test("subscription plan validation rejects overlong or non-text descriptions", () => {
+  const base = { name: "Pro", slug: "pro", price: 199, currency: "INR", billingInterval: "monthly" };
+  assert.ok(validateSubscriptionPlanAdminInput({ ...base, description: "x".repeat(501) }).errors.some((error) => error.field === "description"));
+  assert.ok(validateSubscriptionPlanAdminInput({ ...base, description: { html: "unsafe" } }).errors.some((error) => error.field === "description"));
+  assert.deepEqual(validateSubscriptionPlanAdminInput({ ...base, description: "A clear learner-facing description." }), { valid: true, errors: [] });
+});
+
+test("subscription plan validation accepts only configured feature labels and rejects duplicates", () => {
+  const base = { name: "Pro", slug: "pro", price: 199, currency: "INR", billingInterval: "monthly" };
+  assert.deepEqual(validateSubscriptionPlanAdminInput({ ...base, features: ["Build with AI", "Access published courses"] }), { valid: true, errors: [] });
+  assert.ok(validateSubscriptionPlanAdminInput({ ...base, features: ["Unconfigured premium feature"] }).errors.some((error) => error.field === "features"));
+  assert.ok(validateSubscriptionPlanAdminInput({ ...base, features: ["Build with AI", "Build with AI"] }).errors.some((error) => error.field === "features"));
+});
+
+test("subscription plan usage limits must be integers of at least -1 with safe keys", () => {
+  const base = { name: "Pro", slug: "pro", price: 199, currency: "INR", billingInterval: "monthly" };
+  assert.deepEqual(validateSubscriptionPlanAdminInput({
+    ...base,
+    limits: { ai_course_builds_per_month: -1, ai_quiz_generations_per_month: 0, youtube_discovery_courses_per_month: 25 }
+  }), { valid: true, errors: [] });
+  for (const value of [1.5, -1.1, -2, "", null, "unlimited"]) {
+    const result = validateSubscriptionPlanAdminInput({ ...base, limits: { ai_course_builds_per_month: value } });
+    assert.ok(result.errors.some((error) => error.field === "limits.ai_course_builds_per_month"), `expected invalid limit: ${String(value)}`);
+  }
+  assert.ok(validateSubscriptionPlanAdminInput({ ...base, limits: { "$where": 1 } }).errors.some((error) => error.field === "limits.$where"));
+});
+
+test("deactivating a plan removes it from public selection but does not revoke existing subscription entitlements", () => {
+  const adminController = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const entitlementService = readFileSync(new URL("../src/services/subscriptionEntitlement.service.js", import.meta.url), "utf8");
+  const billingRoutes = readFileSync(new URL("../src/routes/billing.routes.js", import.meta.url), "utf8");
+
+  assert.match(adminController, /SubscriptionPlan\.find\(\)\.sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
+  assert.match(billingRoutes, /PlanModel\.find\(\{ isActive: true \}\)\.sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
+  assert.match(entitlementService, /UserSubscription\.findOne\(\{[\s\S]*?status: \{ \$in: \["trialing", "active", "past_due"\] \}[\s\S]*?\}\)\.populate\("plan"\)/);
+  const activeSubscriptionQuery = entitlementService.slice(
+    entitlementService.indexOf("export async function getActiveSubscriptionForUser"),
+    entitlementService.indexOf("async function getFreePlan")
+  );
+  assert.doesNotMatch(activeSubscriptionQuery, /plan\.isActive|isActive: true/);
+});

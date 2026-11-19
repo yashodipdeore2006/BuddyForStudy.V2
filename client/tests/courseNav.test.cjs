@@ -394,3 +394,14 @@ test("subscription admin uses recurring intervals for new plans and currency-awa
   assert.match(planValidation, /keepsLegacyOneTimeInterval/);
   assert.match(planValidation, /Subscription plans must use a recurring billing interval/);
 });
+
+
+test("subscription plan admin makes public visibility and ordering explicit in the review", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  assert.match(plansPage, /Show this plan to learners/);
+  assert.match(plansPage, /Active plans appear in the public plan catalogue/);
+  assert.match(plansPage, /Lower numbers appear first/);
+  assert.match(plansPage, /Visible to learners/);
+  assert.match(plansPage, /Hidden from learners/);
+  assert.match(plansPage, /Display order \{form\.sortOrder\}/);
+});

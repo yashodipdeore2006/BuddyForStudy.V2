@@ -134,7 +134,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 |---:|---|---|---|
 | 1 | Audit current V2.2 source and previous task registers | Findings recorded against exact branch SHA | DONE |
 | 2 | Formalize product rules and this 30-task tracker | This document committed to execution branch | DONE |
-| 3 | Map plan, checkout, entitlement, trial, admin, and deployment dependencies | Route/model/component/deployment map and identified gaps | NOT_STARTED |
+| 3 | Map plan, checkout, entitlement, trial, admin, and deployment dependencies | Route/model/component/deployment map and identified gaps | DONE |
 
 ### Phase 2 — Plans and payment availability
 
@@ -220,17 +220,17 @@ The older production-readiness checklist and admin master specification remain h
 
 ## 8. Current V2.2 architecture map and verified gaps
 
-This map was checked against candidate `ee972d68b70ba02688488c57a51e92b91ffd453f`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
+This map was checked against source candidate `5b43ce3534a47b2ca783e9f19e15ae546ac2c6e7`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
 
 ### 8.1 Public plan and learner billing path
 
 | Layer | Current implementation | Finding |
 |---|---|---|
 | Plan model | `server/src/models/SubscriptionPlan.js` | Stores name, slug, description, price, currency, interval, features, limits, active/popular flags, trialDays, sortOrder, provider plan ID. No separate campaign entity exists in this model. |
-| Public catalogue API | `server/src/routes/billing.routes.js` — `GET /api/billing/plans` | Returns active plans but filters to zero-price/free plans when `paymentsEnabled=false`. This contradicts the confirmed display requirement. |
-| Learner plan page | `client/src/pages/Pricing.tsx` | Reads the payment flag and also filters paid plans on the client. Paid cards can show “Coming soon” but are currently removed from the displayed list in the disabled state. |
+| Public catalogue API | `server/src/routes/billing.routes.js` — `GET /api/billing/plans` | Returns every active plan in `sortOrder`, independent of `paymentsEnabled`; checkout availability is returned separately. Regression coverage: `server/test/publicPlanCatalogue.test.js`. |
+| Learner plan page | `client/src/pages/Pricing.tsx` | Retains the active public catalogue when payments are disabled, displays paid-plan unavailability, and exits before creating an order or loading Razorpay. |
 | Learner billing | `GET /api/billing/me`, `/entitlements`, `/payments`, `/trial` and `client/src/pages/Billing.tsx` | Existing subscription, entitlement, transaction, and active-trial surfaces exist. |
-| Default entitlement | `server/src/services/subscriptionEntitlement.service.js` and `GET /api/billing/me` | There is a free-plan lookup and a race-safe unique-user subscription assignment path. Must be regression-tested under the final changes. |
+| Default entitlement | `server/src/services/freePlanAssignment.service.js`, `server/src/services/subscriptionEntitlement.service.js`, and `GET /api/billing/me` | Idempotent assignment uses an active free plan and recovers duplicate-key races. Existing stored subscriptions load their referenced plan without checking its current `isActive` state, so deactivation does not itself revoke their plan entitlements. |
 
 ### 8.2 Admin pricing path
 
@@ -239,7 +239,7 @@ This map was checked against candidate `ee972d68b70ba02688488c57a51e92b91ffd453f
 | Subscription Plans | `client/src/pages/admin/AdminPlans.tsx`, `server/src/models/SubscriptionPlan.js`, existing admin plan APIs | Manage platform membership plans and entitlements. |
 | Course Pricing Studio | `client/src/pages/admin/AdminPricingStudio.tsx`, `server/src/controllers/adminPricing.controller.js`, `server/src/routes/adminPricing.routes.js` | Manage individual course pricing, bulk edits, previews, rules, recommendations, history, and rollback. |
 | Admin navigation | `client/src/pages/admin/AdminLayout.tsx` | Currently lists both work areas in Finance & Governance; preserve their distinct meaning while making the group easier to scan. |
-| Authorization | `plans.read/manage`, `pricing.manage`, admin middleware and per-route permission checks | UI navigation is not security; backend permission checks must remain in place. |
+| Authorization | `server/src/routes/adminPro.routes.js` — `plans.read` for listing; `plans.manage` for create/update; `pricing.manage` for course pricing | The admin route is authenticated and role-protected, with a permission check per endpoint. UI navigation is not a security boundary. |
 
 ### 8.3 Existing trial path and missing self-serve campaign path
 
@@ -254,14 +254,15 @@ This map was checked against candidate `ee972d68b70ba02688488c57a51e92b91ffd453f
 
 ### 8.4 Payment route boundary
 
-Current wiring in `server/src/server.js`:
+Current wiring in `server/src/server.js` and `server/src/routes/payment.routes.js`:
 
-- `/api/payments` is protected by `paymentLimiter` and `requirePaymentsEnabled` at the router mount.
-- The mounted router contains both order creation and verification endpoints: `POST /course/order`, `POST /course/verify`, and `POST /subscription/order`.
-- `/api/webhooks` is also protected by `requirePaymentsEnabled`.
-- Billing subscription sync and cancellation are separate routes under `/api/billing`.
+- `/api/payments` is mounted with its rate limiter but without a router-wide payments-enabled guard.
+- `requirePaymentsEnabled` is attached only to `POST /course/order` and `POST /subscription/order`.
+- `POST /course/verify` remains available for an order created before checkout was disabled.
+- Signed provider webhook routes remain mounted without a payments-enabled guard so existing transactions and subscriptions can be reconciled.
+- Subscription sync and cancellation remain separate billing routes.
 
-This protection is too broad for the required lifecycle. The revised design should guard only new order-creation actions. It must allow verification of an already-created order, signed provider webhooks, reconciliation/sync, and subscription cancellation. The exact route-level guard and regression tests are part of Task 7.
+This is the implemented lifecycle boundary. Regression coverage is in `server/test/paymentAvailability.test.js`, `server/test/paymentVerification.test.js`, and webhook transition tests.
 
 ### 8.5 Deployment topology and external evidence
 
@@ -277,7 +278,7 @@ This protection is too broad for the required lifecycle. The revised design shou
 - Build With AI: prior requested-duration accuracy, content-language matching, resource fallback, API quota handling, and account-level rate limiting must be included in final regression.
 - Google contact import: the previous implementation is retained; Google People API scope/consent, privacy disclosure, and manual fallback need live configuration checks. Phone numbers stay unverified and no paid SMS verification is part of this programme.
 
-**Task 3 disposition:** architecture and gaps mapped; proceed to Task 4. Do not mark any external deployment task complete from this source review alone.
+**Task 3 disposition:** architecture and dependencies mapped against source candidate `5b43ce3534a47b2ca783e9f19e15ae546ac2c6e7`; route, model, component, authorization, and deployment gaps are recorded. Task 3 is complete. Do not mark any external deployment task complete from this source review alone.
 
 
 ## 9. Execution evidence — Phase 2 Tasks 4–8

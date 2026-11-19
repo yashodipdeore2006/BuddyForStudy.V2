@@ -1888,7 +1888,7 @@ function normalizePlanLimits(value) {
   for (const [key, raw] of Object.entries(input)) {
     const parsed = Number(raw);
     if (!Number.isFinite(parsed)) continue;
-    output[key] = Math.trunc(parsed);
+    output[key] = parsed;
   }
   return output;
 }

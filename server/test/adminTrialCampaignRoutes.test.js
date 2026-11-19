@@ -36,13 +36,13 @@ function runPermission(middleware, role, overrides = []) {
 test("self-serve campaign management exposes list, detail, create, update and lifecycle endpoints", () => {
   const routes = getRoutes();
   const expected = [
-    ["GET", "/campaigns"],
-    ["GET", "/campaigns/:campaignId"],
-    ["POST", "/campaigns"],
-    ["PUT", "/campaigns/:campaignId"],
-    ["POST", "/campaigns/:campaignId/publish"],
-    ["POST", "/campaigns/:campaignId/pause"],
-    ["POST", "/campaigns/:campaignId/disable"]
+    ["get", "/campaigns"],
+    ["get", "/campaigns/:campaignId"],
+    ["post", "/campaigns"],
+    ["put", "/campaigns/:campaignId"],
+    ["post", "/campaigns/:campaignId/publish"],
+    ["post", "/campaigns/:campaignId/pause"],
+    ["post", "/campaigns/:campaignId/disable"]
   ];
   for (const [method, path] of expected) {
     assert.ok(routes.some((route) => route.path === path && route.methods.includes(method)), method + " " + path);

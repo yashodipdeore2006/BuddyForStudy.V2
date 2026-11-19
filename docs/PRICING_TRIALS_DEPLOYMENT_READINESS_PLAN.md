@@ -141,7 +141,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 4 | Correct public plans API | All active public plans returned independently of payment availability | IN_PROGRESS |
-| 5 | Correct learner Pricing page | Paid and free plan cards remain visible when payments are disabled | NOT_STARTED |
+| 5 | Correct learner Pricing page | Paid and free plan cards remain visible when payments are disabled | IN_PROGRESS |
 | 6 | Disable paid checkout actions in UI | No Razorpay load/order attempt when disabled; clear status message | NOT_STARTED |
 | 7 | Harden server payment availability controls | New orders blocked; existing verification, webhooks, sync, and cancellation remain usable | NOT_STARTED |
 | 8 | Verify default free-plan assignment | Idempotent free access and concurrent assignment tests pass | NOT_STARTED |

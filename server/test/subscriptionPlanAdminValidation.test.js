@@ -62,3 +62,34 @@ test("admin plan updates block billing term edits for plans with provider billin
   assert.match(handler, /Payment\.exists\([\s\S]*?provider: "razorpay",[\s\S]*?"metadata\.checkoutType": "subscription"/);
   assert.match(handler, /Create a new subscription plan to change its price, currency, or billing interval/);
 });
+
+
+test("new subscription plans reject one-time billing because one-time purchases belong to course checkout", () => {
+  const result = validateSubscriptionPlanAdminInput({
+    name: "Lifetime",
+    slug: "lifetime",
+    price: 999,
+    currency: "INR",
+    billingInterval: "one_time"
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.field === "billingInterval"));
+});
+
+test("legacy one-time subscription records remain editable without changing their historical interval", () => {
+  const result = validateSubscriptionPlanAdminInput({
+    description: "Legacy plan; existing members are not migrated by this edit.",
+    isPopular: false
+  }, {
+    name: "Legacy",
+    slug: "legacy",
+    price: 999,
+    currency: "INR",
+    billingInterval: "one_time",
+    isActive: true,
+    isPopular: false,
+    trialDays: 0,
+    sortOrder: 0
+  });
+  assert.deepEqual(result, { valid: true, errors: [] });
+});

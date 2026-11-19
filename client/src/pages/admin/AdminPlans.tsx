@@ -147,7 +147,7 @@ export default function AdminPlans() {
     if (step === 1) {
       if (!Number.isFinite(Number(form.price)) || Number(form.price) < 0) return "Plan price must be zero or greater.";
       if (!/^[A-Za-z]{3}$/.test(form.currency.trim())) return "Currency must be a three-letter code, such as INR.";
-      if (!["monthly", "quarterly", "yearly", "one_time"].includes(form.billingInterval)) return "Choose a valid billing interval.";
+      if (!["monthly", "quarterly", "yearly"].includes(form.billingInterval)) return "Subscription plans must use a recurring billing interval.";
       if (!Number.isInteger(Number(form.sortOrder))) return "Display order must be a whole number.";
     }
     if (step === 2) {
@@ -295,6 +295,7 @@ export default function AdminPlans() {
         body: JSON.stringify({
           description: plan.description || "",
           price: Math.max(Number(plan.price) || 0, 0),
+          currency: String(plan.currency || "INR").trim().toUpperCase(),
           billingInterval: plan.billingInterval,
           trialDays: Math.max(Number(plan.trialDays || 0), 0),
           sortOrder: Number(plan.sortOrder || 0),
@@ -492,7 +493,6 @@ export default function AdminPlans() {
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
                       <option value="yearly">Yearly</option>
-                      <option value="one_time">One time</option>
                     </select>
                   </label>
                   <label className="block text-sm font-semibold text-slate-700">
@@ -637,6 +637,16 @@ export default function AdminPlans() {
                             title={plan.providerPlanId ? "Create a new plan to change provider billing terms" : "Plan price"}
                             onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, price: Number(e.target.value) } : item))}
                           />
+                          <input
+                            aria-label={`Plan currency for ${plan.name}`}
+                            className="input-field uppercase"
+                            type="text"
+                            maxLength={3}
+                            value={plan.currency || "INR"}
+                            disabled={Boolean(plan.providerPlanId)}
+                            title={plan.providerPlanId ? "Create a new plan to change provider billing terms" : "Currency"}
+                            onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, currency: e.target.value.toUpperCase() } : item))}
+                          />
                           <select
                             className="input-field"
                             value={plan.billingInterval}
@@ -647,7 +657,7 @@ export default function AdminPlans() {
                             <option value="monthly">Monthly</option>
                             <option value="quarterly">Quarterly</option>
                             <option value="yearly">Yearly</option>
-                            <option value="one_time">One time</option>
+                            {plan.billingInterval === "one_time" && <option value="one_time" disabled>Legacy one-time (read existing plan)</option>}
                           </select>
                           <input className="input-field" type="number" min="0" value={plan.trialDays || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, trialDays: Number(e.target.value) } : item))} placeholder="Trial days" />
                           <input className="input-field" type="number" min="0" value={plan.sortOrder || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, sortOrder: Number(e.target.value) } : item))} placeholder="Sort order" />
@@ -662,7 +672,8 @@ export default function AdminPlans() {
                     ) : (
                       <>
                         <p className="mt-1 line-clamp-2 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
-                        <p className="mt-3 text-3xl font-extrabold text-slate-950">₹{plan.price}<span className="text-xs font-normal text-slate-500">{plan.price === 0 ? " · free" : " / " + plan.billingInterval}</span></p>
+                        <p className="mt-3 text-3xl font-extrabold text-slate-950">{formatPlanPrice(plan.price, plan.currency || "INR", plan.billingInterval)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{Number(plan.price) === 0 ? "Free plan" : "Recurring subscription plan"}</p>
                         <p className="mt-1 text-xs text-slate-400">Trial {plan.trialDays || 0} days · Sort {plan.sortOrder || 0}</p>
                         <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">AI usage limits / month</p>

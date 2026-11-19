@@ -383,3 +383,14 @@ test("subscription plan creation is a guided, validated flow with a learner-faci
   assert.match(plansPage, /continueCreatePlan/);
   assert.match(plansPage, /Creating a plan does not enable payments globally/);
 });
+
+
+test("subscription admin uses recurring intervals for new plans and currency-aware plan prices", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  const planValidation = fs.readFileSync(path.join(root, "../server/src/utils/subscriptionPlanAdminValidation.js"), "utf8");
+  assert.match(plansPage, /Subscription plans must use a recurring billing interval/);
+  assert.match(plansPage, /formatPlanPrice\(plan\.price, plan\.currency \|\| "INR", plan\.billingInterval\)/);
+  assert.match(plansPage, /currency: String\(plan\.currency \|\| "INR"\)\.trim\(\)\.toUpperCase\(\)/);
+  assert.match(planValidation, /keepsLegacyOneTimeInterval/);
+  assert.match(planValidation, /Subscription plans must use a recurring billing interval/);
+});

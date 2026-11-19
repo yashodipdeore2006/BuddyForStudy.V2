@@ -1,5 +1,5 @@
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
-const intervals = new Set(["monthly", "quarterly", "yearly", "one_time"]);
+const intervals = new Set(["monthly", "quarterly", "yearly"]);
 
 export function validateSubscriptionPlanAdminInput(body = {}, current = {}) {
   const value = { ...current, ...body };
@@ -20,8 +20,10 @@ export function validateSubscriptionPlanAdminInput(body = {}, current = {}) {
   if (value.currency !== undefined && (typeof value.currency !== "string" || !/^[A-Za-z]{3}$/.test(value.currency.trim()))) {
     errors.push({ field: "currency", message: "Currency must be a three-letter code" });
   }
-  if (!intervals.has(value.billingInterval || "monthly")) {
-    errors.push({ field: "billingInterval", message: "Billing interval is invalid" });
+  const billingInterval = value.billingInterval || "monthly";
+  const keepsLegacyOneTimeInterval = current.billingInterval === "one_time" && billingInterval === "one_time";
+  if (!intervals.has(billingInterval) && !keepsLegacyOneTimeInterval) {
+    errors.push({ field: "billingInterval", message: "Subscription plans must use a recurring billing interval" });
   }
   for (const key of ["isActive", "isPopular"]) {
     if (hasOwn(body, key) && typeof body[key] !== "boolean") errors.push({ field: key, message: `${key} must be a boolean` });

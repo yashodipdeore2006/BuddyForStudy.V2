@@ -132,27 +132,6 @@ function validateOptionalWebPush(config, errors) {
   }
 }
 
-function validateOptionalTwilio(config, errors) {
-  const values = [
-    config.TWILIO_ACCOUNT_SID,
-    config.TWILIO_AUTH_TOKEN,
-    config.TWILIO_VERIFY_SERVICE_SID
-  ];
-  if (!values.some((value) => String(value || "").trim())) return;
-  if (values.some((value) => !String(value || "").trim())) {
-    errors.push("TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID must be configured together");
-  }
-  if (!/^AC[a-fA-F0-9]{32}$/.test(String(config.TWILIO_ACCOUNT_SID || "").trim())) {
-    errors.push("TWILIO_ACCOUNT_SID must be a valid Twilio account SID");
-  }
-  if (String(config.TWILIO_AUTH_TOKEN || "").trim().length < 16 || isPlaceholder(config.TWILIO_AUTH_TOKEN)) {
-    errors.push("TWILIO_AUTH_TOKEN must be a non-placeholder credential");
-  }
-  if (!/^VA[a-fA-F0-9]{32}$/.test(String(config.TWILIO_VERIFY_SERVICE_SID || "").trim())) {
-    errors.push("TWILIO_VERIFY_SERVICE_SID must be a valid Twilio Verify service SID");
-  }
-}
-
 function validateOptionalRedis(value, errors) {
   if (!String(value || "").trim()) return;
   try {
@@ -189,7 +168,6 @@ export function getProductionConfigErrors(config = {}) {
   validateSmtp(config, errors);
   validateOptionalWebPush(config, errors);
   validateOptionalRedis(config.REDIS_URL, errors);
-  validateOptionalTwilio(config, errors);
 
   const paymentsEnabledValue = String(config.PAYMENTS_ENABLED ?? "false").trim().toLowerCase();
   if (!["true", "false"].includes(paymentsEnabledValue)) {

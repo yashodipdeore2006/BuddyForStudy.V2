@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, DownloadCloud, Loader2, MapPin, Phone, Save, ShieldCheck } from "lucide-react";
+import { DownloadCloud, Info, Loader2, MapPin, Phone, Save } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -16,7 +16,6 @@ type AddressFields = {
 type GoogleConfig = {
   enabled?: boolean;
   clientId?: string;
-  phoneVerificationEnabled?: boolean;
 };
 
 type GoogleImportResult = {
@@ -77,12 +76,8 @@ export default function ContactDetailsCard() {
     ...emptyAddress,
     ...(profile?.address || {})
   });
-  const [code, setCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -184,52 +179,11 @@ export default function ContactDetailsCard() {
         })
       });
       await refreshProfile();
-      setOtpSent(false);
-      setCode("");
-      setNotice("Contact details saved. Your phone number remains unverified until you complete OTP verification.");
+      setNotice("Contact details saved. Your phone number is stored as contact information and is not verified by BuddyForStudy.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save contact details.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    setError("");
-    setNotice("");
-    setSendingOtp(true);
-    try {
-      await apiFetch("/api/auth/phone/send-otp", {
-        method: "POST",
-        body: JSON.stringify({ phoneNumber: phoneNumber.trim() })
-      });
-      await refreshProfile();
-      setOtpSent(true);
-      setNotice("Verification code sent. Check your SMS messages.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to send a verification code.");
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    setError("");
-    setNotice("");
-    setVerifying(true);
-    try {
-      await apiFetch("/api/auth/phone/verify-otp", {
-        method: "POST",
-        body: JSON.stringify({ code })
-      });
-      await refreshProfile();
-      setOtpSent(false);
-      setCode("");
-      setNotice("Your mobile number is verified.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to verify this number.");
-    } finally {
-      setVerifying(false);
     }
   };
 
@@ -259,31 +213,12 @@ export default function ContactDetailsCard() {
           <div className="flex items-center gap-2 text-sm font-bold text-slate-800"><Phone className="h-4 w-4 text-slate-500" /> Mobile number</div>
           <label className="block text-sm font-semibold text-slate-700">
             Phone number (international format)
-            <input value={phoneNumber} onChange={(event) => { setPhoneNumber(event.target.value); setOtpSent(false); }} className="input-field mt-1.5" placeholder="+919876543210" autoComplete="tel" />
+            <input value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} className="input-field mt-1.5" placeholder="+919876543210" autoComplete="tel" />
           </label>
-          <div className="flex flex-wrap items-center gap-2">
-            {profile.phone_number_verified && phoneNumber === profile.phone_number ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Verified</span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800"><ShieldCheck className="h-3.5 w-3.5" /> Not verified</span>
-            )}
-            {googleConfig.phoneVerificationEnabled && (
-              <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !phoneNumber.trim() || saving} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
-                {sendingOtp ? "Sending…" : otpSent ? "Resend code" : "Verify with SMS"}
-              </button>
-            )}
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">
+            <Info className="h-3.5 w-3.5" /> Contact detail · Not verified
           </div>
-          {!googleConfig.phoneVerificationEnabled && <p className="text-xs leading-5 text-slate-500">SMS verification is not configured yet. You can save the number, but it will remain unverified.</p>}
-          {otpSent && (
-            <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-              <label className="block text-sm font-semibold text-slate-700">SMS verification code
-                <input value={code} onChange={(event) => setCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 10))} className="input-field mt-1.5" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" />
-              </label>
-              <button type="button" onClick={handleVerifyOtp} disabled={verifying || code.length < 4} className="btn-primary w-full disabled:opacity-50">
-                {verifying ? "Verifying…" : "Confirm phone number"}
-              </button>
-            </div>
-          )}
+          <p className="text-xs leading-5 text-slate-500">BuddyForStudy does not send SMS or verify mobile numbers. You can save a number for contact purposes; it will not be used as proof of identity.</p>
         </div>
 
         <div className="space-y-3">
@@ -312,7 +247,7 @@ export default function ContactDetailsCard() {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
-        <p className="max-w-xl text-xs leading-5 text-slate-500">Google-imported phone numbers are not considered verified. BuddyForStudy marks a number verified only after the SMS provider confirms the OTP.</p>
+        <p className="max-w-xl text-xs leading-5 text-slate-500">Phone numbers imported from Google or entered manually are saved as unverified contact information. No SMS is sent.</p>
         <button type="button" onClick={handleSave} disabled={saving} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? "Saving…" : "Save contact details"}

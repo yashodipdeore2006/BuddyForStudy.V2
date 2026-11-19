@@ -72,17 +72,6 @@ export const googleContactImportSchema = z.object({
   accessToken: z.string().min(20).max(4096)
 });
 
-export const phoneNumberSchema = z.object({
-  phoneNumber: z.string().refine(
-    (value) => value.startsWith("+") && /^[1-9][0-9]{7,14}$/.test(value.slice(1)),
-    "Enter a valid international phone number."
-  )
-});
-
-export const phoneVerificationSchema = z.object({
-  code: z.string().regex(/^[0-9]{4,10}$/, "Enter the verification code sent to your phone.")
-});
-
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: bcryptCompatiblePassword

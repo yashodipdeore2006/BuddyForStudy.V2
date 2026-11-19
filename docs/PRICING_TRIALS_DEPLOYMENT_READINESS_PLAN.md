@@ -145,7 +145,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 6 | Disable paid checkout actions in UI | No Razorpay load/order attempt when disabled; clear status message | DONE |
 | 7 | Harden server payment availability controls | New orders blocked; existing verification, webhooks, sync, and cancellation remain usable | DONE |
 | 8 | Verify default free-plan assignment | Idempotent free access and concurrent assignment tests pass | DONE |
-| 9 | Improve subscription-plan configuration | Validated plan lifecycle, price, interval, features, limits, order, and visibility behaviour | NOT_STARTED |
+| 9 | Improve subscription-plan configuration | Validated plan lifecycle, price, interval, features, limits, order, and visibility behaviour | IN_PROGRESS |
 
 ### Phase 3 — Trial campaign backend
 

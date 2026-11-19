@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
@@ -63,6 +63,32 @@ const emptyForm: PlanForm = {
   },
 };
 
+const createPlanSteps = [
+  { title: "Basics", description: "Name the plan and explain who it is for." },
+  { title: "Price & billing", description: "Set the amount, currency, billing interval and catalogue presentation." },
+  { title: "Features & limits", description: "Choose the included features and monthly usage limits." },
+  { title: "Review", description: "Check what learners will see before creating the plan." }
+] as const;
+
+function slugifyPlanName(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 100);
+}
+
+function formatPlanPrice(price: number, currency: string, interval: string) {
+  const amount = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: currency || "INR",
+    maximumFractionDigits: 2
+  }).format(Number(price || 0));
+  const intervalLabel = interval === "one_time" ? "one time" : interval.replace(/ly$/, "");
+  return amount + (interval === "one_time" ? " · one-time" : " / " + intervalLabel);
+}
+
 export default function AdminPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [availableFeatures, setAvailableFeatures] = useState<FeatureDefinition[]>([]);
@@ -73,6 +99,8 @@ export default function AdminPlans() {
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [activeSection, setActiveSection] = useState<"plans" | "create">("plans");
+  const [createStep, setCreateStep] = useState(0);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan } | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [actionReason, setActionReason] = useState("");
@@ -98,6 +126,52 @@ export default function AdminPlans() {
     void load();
   }, []);
 
+  function startCreatePlan() {
+    setError("");
+    setActionError("");
+    setForm(emptyForm);
+    setSlugManuallyEdited(false);
+    setCreateStep(0);
+    setActiveSection("create");
+  }
+
+  function validateCreateStep(step: number) {
+    if (step === 0) {
+      if (!form.name.trim()) return "Enter a plan name to continue.";
+      if (form.name.trim().length > 100) return "Plan name must be 100 characters or fewer.";
+      if (!form.slug.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
+        return "Enter a valid URL-friendly slug using lowercase letters, numbers and hyphens.";
+      }
+      if (form.description.trim().length > 500) return "Description must be 500 characters or fewer.";
+    }
+    if (step === 1) {
+      if (!Number.isFinite(Number(form.price)) || Number(form.price) < 0) return "Plan price must be zero or greater.";
+      if (!/^[A-Za-z]{3}$/.test(form.currency.trim())) return "Currency must be a three-letter code, such as INR.";
+      if (!["monthly", "quarterly", "yearly", "one_time"].includes(form.billingInterval)) return "Choose a valid billing interval.";
+      if (!Number.isInteger(Number(form.sortOrder))) return "Display order must be a whole number.";
+    }
+    if (step === 2) {
+      const invalidLimit = Object.entries(form.limits).find(([, value]) => !Number.isInteger(Number(value)) || Number(value) < -1);
+      if (invalidLimit) return "Usage limits must be whole numbers. Use 0 to block a feature and -1 for unlimited.";
+    }
+    return "";
+  }
+
+  function continueCreatePlan() {
+    const validationMessage = validateCreateStep(createStep);
+    if (validationMessage) {
+      setError(validationMessage);
+      return;
+    }
+    setError("");
+    setCreateStep((step) => Math.min(step + 1, createPlanSteps.length - 1));
+  }
+
+  function goBackCreatePlan() {
+    setError("");
+    setCreateStep((step) => Math.max(step - 1, 0));
+  }
+
   function openConfirmation(action: { kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan }) {
     if (!permissions.includes("plans.manage")) { setError("You do not have permission to manage subscription plans."); return; }
     setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
@@ -105,27 +179,43 @@ export default function AdminPlans() {
 
   async function create(reason?: string) {
     if (reason === undefined) { openConfirmation({ kind: "create" }); return; }
+    const currency = form.currency.trim().toUpperCase();
     if (!form.name.trim() || !form.slug.trim()) {
-      setError("Plan name and slug are required.");
+      setActionError("Plan name and slug are required.");
+      return;
+    }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
+      setActionError("Use a URL-friendly slug with lowercase letters, numbers and hyphens.");
+      return;
+    }
+    if (!Number.isFinite(form.price) || form.price < 0 || !/^[A-Z]{3}$/.test(currency)) {
+      setActionError("Enter a non-negative price and a valid three-letter currency code.");
       return;
     }
 
+    setSavingPlan("creating");
     try {
       setError("");
       await adminFetch("/api/admin/plans", {
         method: "POST",
         body: JSON.stringify({
           ...form,
+          currency,
           features: form.features,
           limits: form.limits,
           reason,
         }),
       });
       setForm(emptyForm);
+      setSlugManuallyEdited(false);
+      setCreateStep(0);
+      setActiveSection("plans");
       setConfirmAction(null);
       await load();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Unable to create plan");
+    } finally {
+      setSavingPlan(null);
     }
   }
 
@@ -266,7 +356,7 @@ export default function AdminPlans() {
       <AdminPageHeader
         title="Subscription plans"
         description="Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks."
-        actions={<button type="button" className="btn-primary" onClick={() => setActiveSection("create")} disabled={!permissions.includes("plans.manage")}><Plus className="h-4 w-4" /> Create plan</button>}
+        actions={<button type="button" className="btn-primary" onClick={startCreatePlan} disabled={!permissions.includes("plans.manage")}><Plus className="h-4 w-4" /> Create plan</button>}
       />
 
       {confirmAction && <TypedConfirmDialog
@@ -297,124 +387,221 @@ export default function AdminPlans() {
       )}
 
       <div className="mt-6">
-        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={setActiveSection} items={[{ value: "plans" as const, label: `Plans (${plans.length})` }, ...(permissions.includes("plans.manage") ? [{ value: "create" as const, label: "Create plan" }] : [])]} />
+        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={setActiveSection} items={[{ value: "plans" as const, label: `Plans (${plans.length})` }, ...(permissions.includes("plans.manage") ? [{ value: "create" as const, label: "Create plan" }] : [])]} onChange={(value) => { if (value === "create") startCreatePlan(); else setActiveSection("plans"); }} />
       </div>
 
-      {activeSection === "create" && <div className="card mt-4 p-5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Add another plan</p>
-          <h2 className="mt-1 text-xl font-extrabold text-slate-950">Create plan</h2>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <input
-            aria-label="Plan name"
-            className="input-field"
-            placeholder="Plan name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <input
-            aria-label="Plan slug"
-            className="input-field"
-            placeholder="Slug"
-            value={form.slug}
-            onChange={(e) => setForm({ ...form, slug: e.target.value })}
-          />
-          <input
-            aria-label="Plan price"
-            className="input-field"
-            type="number"
-            min="0"
-            placeholder="Price"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-          />
-          <select
-            aria-label="Plan billing interval"
-            className="input-field"
-            value={form.billingInterval}
-            onChange={(e) => setForm({ ...form, billingInterval: e.target.value })}
-          >
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="yearly">Yearly</option>
-            <option value="one_time">One time</option>
-          </select>
-        </div>
-
-        {availableFeatures.length > 0 && (
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Plan features</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Tick the features this new plan should include.
-                </p>
-              </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500">
-                {form.features.length}/{availableFeatures.length} selected
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {availableFeatures.map((feature) => {
-                const checked = form.features.includes(feature.label);
-
-                return (
-                  <label
-                    key={feature.key}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
-                      checked
-                        ? "border-blue-200 bg-blue-50/70"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+      {activeSection === "create" && (
+        <div className="mt-4 space-y-4">
+          <ol aria-label="Plan creation steps" className="grid gap-2 sm:grid-cols-4">
+            {createPlanSteps.map((step, index) => {
+              const complete = index < createStep;
+              const current = index === createStep;
+              return (
+                <li key={step.title}>
+                  <button
+                    type="button"
+                    onClick={() => { if (index < createStep) { setError(""); setCreateStep(index); } }}
+                    disabled={index > createStep}
+                    aria-current={current ? "step" : undefined}
+                    className={`flex h-full w-full items-center gap-3 rounded-xl border p-3 text-left transition ${current ? "border-violet-300 bg-violet-50" : complete ? "border-emerald-200 bg-emerald-50/70" : "border-slate-200 bg-white"} ${index < createStep ? "cursor-pointer" : "cursor-default"}`}
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      checked={checked}
-                      onChange={() => toggleCreateFeature(feature.label)}
-                    />
-                    <span className="text-sm font-semibold text-slate-700">{feature.label}</span>
-                  </label>
-                );
-              })}
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${current ? "bg-violet-700 text-white" : complete ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                      {complete ? <Check className="h-4 w-4" /> : index + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-900">{step.title}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">{current ? "Current step" : complete ? "Completed" : "Next"}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <section className="card p-5 sm:p-6">
+            <div className="border-b border-slate-100 pb-4">
+              <p className="text-xs font-bold uppercase tracking-[.14em] text-violet-700">Create subscription plan · Step {createStep + 1} of {createPlanSteps.length}</p>
+              <h2 className="mt-1 text-xl font-extrabold text-slate-950">{createPlanSteps[createStep].title}</h2>
+              <p className="mt-1 text-sm text-slate-500">{createPlanSteps[createStep].description}</p>
             </div>
-          </div>
-        )}
 
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">AI usage limits / month</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["ai_course_builds_per_month", "AI course builds"],
-              ["advanced_ai_questions_per_month", "Advanced AI questions"],
-              ["advanced_ai_insights_per_month", "Advanced AI summaries"],
-              ["ai_quiz_generations_per_month", "AI quiz generations"],
-              ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
-              ["ai_curated_courses_per_month", "AI-curated courses"],
-            ].map(([key, label]) => (
-              <label key={key} className="block text-xs font-semibold text-slate-500">
-                {label}
-                <input
-                  className="input-field mt-1"
-                  type="number"
-                  min="-1"
-                  value={form.limits[key] ?? -1}
-                  onChange={(e) => setForm({ ...form, limits: { ...form.limits, [key]: Number(e.target.value) } })}
-                />
-              </label>
-            ))}
-          </div>
-          <p className="mt-2 text-[10px] text-slate-400">0 = blocked by quota; -1 = unlimited.</p>
+            {createStep === 0 && (
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Plan name
+                  <input
+                    aria-label="Plan name"
+                    className="input-field mt-1.5"
+                    maxLength={100}
+                    placeholder="e.g. Pro"
+                    value={form.name}
+                    onChange={(event) => {
+                      const name = event.target.value;
+                      setForm((current) => ({
+                        ...current,
+                        name,
+                        slug: slugManuallyEdited ? current.slug : slugifyPlanName(name)
+                      }));
+                    }}
+                  />
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Plan slug
+                  <input
+                    aria-label="Plan slug"
+                    className="input-field mt-1.5"
+                    maxLength={100}
+                    placeholder="e.g. pro"
+                    value={form.slug}
+                    onChange={(event) => {
+                      setSlugManuallyEdited(true);
+                      setForm((current) => ({ ...current, slug: event.target.value.toLowerCase().trim().replace(/\\s+/g, "-") }));
+                    }}
+                  />
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Generated from the plan name. You can edit it before creating the plan.</span>
+                </label>
+                <label className="block text-sm font-semibold text-slate-700 md:col-span-2">
+                  Learner-facing description
+                  <textarea
+                    aria-label="Plan description"
+                    className="input-field mt-1.5 min-h-24"
+                    maxLength={500}
+                    placeholder="Describe who this plan is for and what it helps them achieve."
+                    value={form.description}
+                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                  />
+                </label>
+              </div>
+            )}
+
+            {createStep === 1 && (
+              <div className="mt-5 space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Price
+                    <input aria-label="Plan price" className="input-field mt-1.5" type="number" min="0" step="0.01" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} />
+                    <span className="mt-1 block text-xs font-normal text-slate-500">Use 0 for a free plan.</span>
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Currency
+                    <input aria-label="Plan currency" className="input-field mt-1.5 uppercase" maxLength={3} value={form.currency} onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} placeholder="INR" />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Billing interval
+                    <select aria-label="Plan billing interval" className="input-field mt-1.5" value={form.billingInterval} onChange={(event) => setForm((current) => ({ ...current, billingInterval: event.target.value }))}>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                      <option value="one_time">One time</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Display order
+                    <input aria-label="Plan display order" className="input-field mt-1.5" type="number" step="1" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
+                    <span className="mt-1 block text-xs font-normal text-slate-500">Lower numbers appear first.</span>
+                  </label>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.isActive} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                    <span><span className="block text-sm font-semibold text-slate-800">Show this plan to learners</span><span className="mt-1 block text-xs font-normal text-slate-500">Active plans appear in the public plan catalogue. Payment availability is controlled separately.</span></span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.isPopular} onChange={(event) => setForm((current) => ({ ...current, isPopular: event.target.checked }))} />
+                    <span><span className="block text-sm font-semibold text-slate-800">Mark as popular</span><span className="mt-1 block text-xs font-normal text-slate-500">Highlights this plan on the Pricing page. Use this sparingly.</span></span>
+                  </label>
+                </div>
+                <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Payment switch: disabling payments hides checkout actions, not the plan catalogue. Learners can still review the plan and its price.</p>
+              </div>
+            )}
+
+            {createStep === 2 && (
+              <div className="mt-5 space-y-5">
+                {availableFeatures.length > 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div><h3 className="text-sm font-bold text-slate-900">Included features</h3><p className="mt-1 text-xs text-slate-500">Choose exactly which platform features this plan unlocks.</p></div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600">{form.features.length} of {availableFeatures.length} selected</span>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      {availableFeatures.map((feature) => {
+                        const checked = form.features.includes(feature.label);
+                        return (
+                          <label key={feature.key} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${checked ? "border-violet-200 bg-violet-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+                            <input type="checkbox" className="mt-0.5 h-4 w-4" checked={checked} onChange={() => toggleCreateFeature(feature.label)} />
+                            <span className="text-sm font-semibold text-slate-700">{feature.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No subscription feature definitions were returned. You can continue, but review the platform configuration before publishing this plan.</p>}
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div><h3 className="text-sm font-bold text-slate-900">Monthly usage limits</h3><p className="mt-1 text-xs text-slate-500">Set how much of each metered feature the learner can use each month.</p></div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {[
+                      ["ai_course_builds_per_month", "AI course builds"],
+                      ["advanced_ai_questions_per_month", "Advanced AI questions"],
+                      ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+                      ["ai_quiz_generations_per_month", "AI quiz generations"],
+                      ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+                      ["ai_curated_courses_per_month", "AI-curated courses"]
+                    ].map(([key, label]) => (
+                      <label key={key} className="block text-sm font-semibold text-slate-700">
+                        {label}
+                        <input className="input-field mt-1.5" type="number" min="-1" step="1" value={form.limits[key] ?? -1} onChange={(event) => setForm((current) => ({ ...current, limits: { ...current.limits, [key]: Number(event.target.value) } }))} />
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">0 = feature blocked · -1 = unlimited · positive values = allowed uses per month.</p>
+                </div>
+              </div>
+            )}
+
+            {createStep === 3 && (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Learner-facing plan preview</p>
+                      <h3 className="mt-1 text-2xl font-extrabold text-slate-950">{form.name || "Unnamed plan"}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{form.description || "No public description added."}</p>
+                    </div>
+                    <div className="text-right"><p className="text-xl font-extrabold text-slate-950">{formatPlanPrice(form.price, form.currency, form.billingInterval)}</p><p className="mt-1 text-xs text-slate-500">{form.price === 0 ? "Free plan" : "Paid plan"}</p></div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${form.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{form.isActive ? "Visible to learners" : "Hidden from learners"}</span>
+                    {form.isPopular && <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">Popular plan</span>}
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">Display order {form.sortOrder}</span>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-bold text-slate-900">Included features · {form.features.length}</h3>{form.features.length ? <ul className="mt-3 space-y-2 text-sm text-slate-600">{form.features.map((feature) => <li key={feature} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{feature}</li>)}</ul> : <p className="mt-2 text-sm text-slate-500">No feature entitlements selected.</p>}</div>
+                  <div className="rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-bold text-slate-900">Usage limits</h3><ul className="mt-3 space-y-2 text-sm text-slate-600">{Object.entries(form.limits).map(([key, value]) => <li key={key} className="flex justify-between gap-3"><span>{key.replace(/_per_month$/, "").replace(/_/g, " ")}</span><strong>{Number(value) === -1 ? "Unlimited" : Number(value) === 0 ? "Blocked" : Number(value) + " / month"}</strong></li>)}</ul></div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Creating a plan does not enable payments globally or create a payment-provider subscription. The global payment switch still controls whether new checkout can start.
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+              <button type="button" className="btn-secondary" onClick={createStep === 0 ? () => setActiveSection("plans") : goBackCreatePlan}>
+                <ChevronLeft className="h-4 w-4" /> {createStep === 0 ? "Cancel" : "Back"}
+              </button>
+              {createStep < createPlanSteps.length - 1 ? (
+                <button type="button" className="btn-primary" onClick={continueCreatePlan}>
+                  Continue <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button type="button" className="btn-primary" onClick={() => void create()} disabled={!permissions.includes("plans.manage") || Boolean(savingPlan)}>
+                  <Plus className="h-4 w-4" /> Create plan
+                </button>
+              )}
+            </div>
+          </section>
         </div>
-
-        <button className="btn-primary mt-4" onClick={() => void create()} disabled={!permissions.includes("plans.manage")}>
-          <Plus className="h-4 w-4" />
-          Create Plan
-        </button>
-      </div>}
+      )}
 
       {activeSection === "plans" && <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (

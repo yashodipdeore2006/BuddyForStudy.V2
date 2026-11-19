@@ -365,3 +365,21 @@ test("Build with AI review controls pass edited learner profile fields to roadma
   assert.match(profilePayload, /targetRole: selectedRole/);
   assert.match(profilePayload, /targetCompany: selectedCompany/);
 });
+
+
+test("subscription plan creation is a guided, validated flow with a learner-facing review", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  assert.match(plansPage, /const createPlanSteps = \[/);
+  assert.match(plansPage, /title: "Basics"/);
+  assert.match(plansPage, /title: "Price & billing"/);
+  assert.match(plansPage, /title: "Features & limits"/);
+  assert.match(plansPage, /title: "Review"/);
+  assert.match(plansPage, /slugifyPlanName/);
+  assert.match(plansPage, /Learner-facing description/);
+  assert.match(plansPage, /Plan currency/);
+  assert.match(plansPage, /Show this plan to learners/);
+  assert.match(plansPage, /Mark as popular/);
+  assert.match(plansPage, /Learner-facing plan preview/);
+  assert.match(plansPage, /continueCreatePlan/);
+  assert.match(plansPage, /Create plan does not enable payments globally/);
+});

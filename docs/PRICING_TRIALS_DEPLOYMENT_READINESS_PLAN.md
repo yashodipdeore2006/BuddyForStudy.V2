@@ -145,7 +145,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 6 | Disable paid checkout actions in UI | No Razorpay load/order attempt when disabled; clear status message | DONE |
 | 7 | Harden server payment availability controls | New orders blocked; existing verification, webhooks, sync, and cancellation remain usable | DONE |
 | 8 | Verify default free-plan assignment | Idempotent free access and concurrent assignment tests pass | DONE |
-| 9 | Improve subscription-plan configuration | Validated plan lifecycle, price, interval, features, limits, order, and visibility behaviour | IN_PROGRESS |
+| 9 | Improve subscription-plan configuration | Validated plan lifecycle, price, interval, features, limits, order, and visibility behaviour | DONE |
 
 ### Phase 3 — Trial campaign backend
 
@@ -296,3 +296,20 @@ This is the implemented lifecycle boundary. Regression coverage is in `server/te
 | 8 | Free-plan assignment is extracted to an idempotent service, preserves existing subscriptions, recovers duplicate-key races, and fails without inventing premium access if no free plan exists. | `server/test/freePlanAssignment.test.js`; full backend test suite and production config preflight passed. |
 
 **Limit:** These results verify repository CI, not live Razorpay credentials, webhook delivery, production secrets, DNS, backups, or staging provider behaviour. Keep those as deployment evidence gates in Tasks 29–30.
+
+
+## 10. Execution evidence — Task 9
+
+**Verification date:** 2026-11-19  
+**Implementation candidate:** `15d8758e90f32d08d56227e038934832d715f185` on `buddy-for-study-v2.2`  
+**CI run:** [BuddyForStudy CI #44526170528](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44526170528) — backend, frontend, browser navigation smoke tests, and Production release gate completed successfully.
+
+| Area | Verified behaviour | Evidence |
+|---|---|---|
+| Plan creation | Guided wizard captures name, URL slug, learner-facing description, price, currency, recurring billing interval, active/public visibility, popular status, feature entitlements, usage limits, and a learner-facing review before submission. | `client/src/pages/admin/AdminPlans.tsx`; frontend admin-plan checks in `client/tests/courseNav.test.cjs`. |
+| Plan lifecycle and visibility | Admin catalogue includes active and inactive plans in display order. Public catalogue includes active plans only and remains independent of the payment switch. Deactivation prevents new public selection/default assignment but does not itself revoke an existing stored subscription's plan entitlement. | `server/src/controllers/adminPro.controller.js`, `server/src/routes/billing.routes.js`, `server/src/services/subscriptionEntitlement.service.js`; lifecycle regression in `server/test/subscriptionPlanAdminValidation.test.js`. |
+| Billing terms | New subscription plans use monthly, quarterly, or yearly recurring intervals. Legacy one-time records can still be edited without rewriting their historical interval. Provider-linked/provider-history price, currency, and interval terms cannot be changed in place. | `server/src/utils/subscriptionPlanAdminValidation.js`, `server/src/controllers/adminPro.controller.js`, `server/test/subscriptionPlanAdminValidation.test.js`. |
+| Validation | Price, currency format, description type/length, interval, active/popular flags, trial days, sort order, configured feature labels, duplicate features, usage-limit key shape, and integer limit values (minimum `-1`) are validated on the server. Limit normalization no longer silently truncates invalid fractions. | Expanded `server/test/subscriptionPlanAdminValidation.test.js`; backend suite: **1,031 passed, 0 failed**. |
+| Frontend and browser | Admin wizard/visibility/order assertions, lint, typecheck, unit tests, deployment config tests, production build, and browser navigation smoke tests passed. | Frontend unit test runs: **56 + 7 passed**; Playwright browser suite: **119 passed**. |
+
+**Task 9 disposition:** complete for the V2.2 repository candidate. CI validates the repository code only; live provider credentials, database contents, staging behaviour, and production deployment remain in Tasks 29–30.

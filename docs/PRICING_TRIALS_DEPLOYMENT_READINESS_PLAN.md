@@ -216,3 +216,65 @@ The older production-readiness checklist and admin master specification remain h
 6. Do not mark staging/provider tasks complete without access to and evidence from the actual environment.
 7. Do not deploy production or merge to `main` as part of this programme without explicit approval.
 8. A green CI status means code checks passed; it does not independently certify live production readiness.
+
+
+## 8. Current V2.2 architecture map and verified gaps
+
+This map was checked against candidate `ee972d68b70ba02688488c57a51e92b91ffd453f`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
+
+### 8.1 Public plan and learner billing path
+
+| Layer | Current implementation | Finding |
+|---|---|---|
+| Plan model | `server/src/models/SubscriptionPlan.js` | Stores name, slug, description, price, currency, interval, features, limits, active/popular flags, trialDays, sortOrder, provider plan ID. No separate campaign entity exists in this model. |
+| Public catalogue API | `server/src/routes/billing.routes.js` — `GET /api/billing/plans` | Returns active plans but filters to zero-price/free plans when `paymentsEnabled=false`. This contradicts the confirmed display requirement. |
+| Learner plan page | `client/src/pages/Pricing.tsx` | Reads the payment flag and also filters paid plans on the client. Paid cards can show “Coming soon” but are currently removed from the displayed list in the disabled state. |
+| Learner billing | `GET /api/billing/me`, `/entitlements`, `/payments`, `/trial` and `client/src/pages/Billing.tsx` | Existing subscription, entitlement, transaction, and active-trial surfaces exist. |
+| Default entitlement | `server/src/services/subscriptionEntitlement.service.js` and `GET /api/billing/me` | There is a free-plan lookup and a race-safe unique-user subscription assignment path. Must be regression-tested under the final changes. |
+
+### 8.2 Admin pricing path
+
+| Work area | Current implementation | Intended boundary |
+|---|---|---|
+| Subscription Plans | `client/src/pages/admin/AdminPlans.tsx`, `server/src/models/SubscriptionPlan.js`, existing admin plan APIs | Manage platform membership plans and entitlements. |
+| Course Pricing Studio | `client/src/pages/admin/AdminPricingStudio.tsx`, `server/src/controllers/adminPricing.controller.js`, `server/src/routes/adminPricing.routes.js` | Manage individual course pricing, bulk edits, previews, rules, recommendations, history, and rollback. |
+| Admin navigation | `client/src/pages/admin/AdminLayout.tsx` | Currently lists both work areas in Finance & Governance; preserve their distinct meaning while making the group easier to scan. |
+| Authorization | `plans.read/manage`, `pricing.manage`, admin middleware and per-route permission checks | UI navigation is not security; backend permission checks must remain in place. |
+
+### 8.3 Existing trial path and missing self-serve campaign path
+
+| Layer | Current implementation | Finding |
+|---|---|---|
+| Grant record | `server/src/models/TrialGrant.js` | Records learner, entitlement plan, campaignName, reason, actor, start/end, status, conversion state, provider reference, and idempotency key. Unique user/campaignName and idempotency protections exist. |
+| Admin grant flow | `client/src/pages/admin/AdminTrialCampaigns.tsx`, `server/src/controllers/adminTrials.controller.js`, `server/src/routes/adminTrials.routes.js` | Supports choosing a learner or filtered group, previewing eligibility, granting, and viewing recent grants. |
+| Learner trial status | `GET /api/billing/trial` in `server/src/routes/billing.routes.js` | Returns a learner's current active TrialGrant and optional conversion plan. |
+| Learner trial UI | `client/src/pages/Billing.tsx` and `client/src/pages/Pricing.tsx` | Displays an active trial and, when configured, a paid conversion offer with explicit consent. |
+| Campaign configuration | No `TrialCampaign` model or public campaign CRUD/claim route exists in the audited tree | Admin grants are not the same as reusable, publishable self-serve campaigns. |
+| Self-serve offer | No authenticated eligible-offer endpoint or trial-claim popup exists in the audited tree | Must be implemented without allowing browser-only eligibility or duplicate claim decisions. |
+
+### 8.4 Payment route boundary
+
+Current wiring in `server/src/server.js`:
+
+- `/api/payments` is protected by `paymentLimiter` and `requirePaymentsEnabled` at the router mount.
+- The mounted router contains both order creation and verification endpoints: `POST /course/order`, `POST /course/verify`, and `POST /subscription/order`.
+- `/api/webhooks` is also protected by `requirePaymentsEnabled`.
+- Billing subscription sync and cancellation are separate routes under `/api/billing`.
+
+This protection is too broad for the required lifecycle. The revised design should guard only new order-creation actions. It must allow verification of an already-created order, signed provider webhooks, reconciliation/sync, and subscription cancellation. The exact route-level guard and regression tests are part of Task 7.
+
+### 8.5 Deployment topology and external evidence
+
+- `render.yaml` and `docs/DEPLOYMENT.md` target the `buddy-for-study-v2.2` release branch and include a Render static frontend plus a Node API configured for inline background execution.
+- The documented deployment flow includes backend production-config preflight and deployment verification scripts.
+- `docs/ENVIRONMENT_VARIABLES.md` distinguishes public Vite settings from backend secrets and records required provider settings.
+- The repository cannot prove the current deployment's actual secret-manager values, DNS/TLS state, Google Console consent verification, SMTP/AI/YouTube provider connectivity, database backup/restore status, monitoring, or rollback rehearsal. Those remain environment-evidence gates in Task 29–30.
+
+### 8.6 Prior-work carry-forward map
+
+- Production readiness: the earlier 239-item checklist records unresolved main branch protection/release controls, account data deletion and retention, incomplete plan-change/grace-period lifecycle, live staging/provider verification, backup/restore, worker supervision, monitoring, and rollback evidence. Revalidate the relevant parts on the current candidate; do not copy old DONE statuses forward as current evidence.
+- Admin master specification: unfinished user security, course governance, AI operations, finance, communications, worker, data-rights, and accessibility items remain in `docs/BUDDYFORSTUDY_ADMIN_MASTER_SPEC.md`. This focused programme includes only release-critical work and the requested pricing/trial UX.
+- Build With AI: prior requested-duration accuracy, content-language matching, resource fallback, API quota handling, and account-level rate limiting must be included in final regression.
+- Google contact import: the previous implementation is retained; Google People API scope/consent, privacy disclosure, and manual fallback need live configuration checks. Phone numbers stay unverified and no paid SMS verification is part of this programme.
+
+**Task 3 disposition:** architecture and gaps mapped; proceed to Task 4. Do not mark any external deployment task complete from this source review alone.

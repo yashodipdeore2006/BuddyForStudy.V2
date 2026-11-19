@@ -151,7 +151,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | NOT_STARTED |
+| 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | IN_PROGRESS |
 | 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | NOT_STARTED |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | NOT_STARTED |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | NOT_STARTED |
@@ -313,3 +313,16 @@ This is the implemented lifecycle boundary. Regression coverage is in `server/te
 | Frontend and browser | Admin wizard/visibility/order assertions, lint, typecheck, unit tests, deployment config tests, production build, and browser navigation smoke tests passed. | Frontend unit test runs: **56 + 7 passed**; Playwright browser suite: **119 passed**. |
 
 **Task 9 disposition:** complete for the V2.2 repository candidate. CI validates the repository code only; live provider credentials, database contents, staging behaviour, and production deployment remain in Tasks 29–30.
+
+
+## 11. Task 10 implementation candidate — CI pending
+
+The self-serve campaign collection is designed independently from administrator-issued `TrialGrant` records. The schema, model-level tests, and deployment notes are now present:
+
+- `server/src/models/TrialCampaign.js`
+- `server/test/trialCampaignModel.test.js`
+- `docs/TRIAL_CAMPAIGN_DATA_MODEL.md`
+
+The model defines draft/published/paused/ended lifecycle states, bounded trial duration and claim capacity, learner eligibility defaults, consent-only conversion configuration, lifecycle actor/timestamp audit fields, strict unknown-field rejection, and named discovery/admin indexes. The design note specifies claim-time atomic capacity enforcement, a stable campaign/learner claim ledger for Task 14, and a non-destructive new-collection rollout.
+
+**Disposition:** implementation candidate prepared; Task 10 remains `IN_PROGRESS` until the exact branch candidate passes backend CI and its release gate.

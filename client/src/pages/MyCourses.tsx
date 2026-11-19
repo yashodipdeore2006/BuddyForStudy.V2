@@ -148,6 +148,8 @@ function CourseLearningCard({
   const effectivePrice = getEffectiveCoursePrice(course.pricing);
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
   const courseAccess = enrollment.courseAccess;
+  const includedInTrial = course.pricing?.mode === "paid" && courseAccess?.source === "trial" &&
+    (courseAccess.status === "TRIAL_INCLUDED" || courseAccess.status === "COMPLETED");
   const includedInPlan = courseAccess?.source === "subscription" &&
     (courseAccess.status === "PLAN_INCLUDED" || courseAccess.status === "COMPLETED");
   const individuallyPurchased = courseAccess?.source === "individual" &&
@@ -256,15 +258,17 @@ function CourseLearningCard({
       {shareNotice && <p className="bfs-course-card__status" role="status">{shareNotice}</p>}
 
       <div className="bfs-course-card__action-row">
-        <span className={"bfs-course-card__price" + ((isFree || includedInPlan || individuallyPurchased) ? " bfs-course-card__price--free" : "") + (includedInPlan ? " bfs-course-card__price--included" : "")}>
-          {includedInPlan
-            ? "Included in " + (courseAccess?.planName || "your plan")
+        <span className={"bfs-course-card__price" + ((isFree || includedInPlan || includedInTrial || individuallyPurchased) ? " bfs-course-card__price--free" : "") + ((includedInPlan || includedInTrial) ? " bfs-course-card__price--included" : "")}>
+          {includedInTrial
+            ? "Included in your trial"
+            : includedInPlan
+              ? "Included in " + (courseAccess?.planName || "your plan")
             : individuallyPurchased
               ? "Purchased"
               : courseAccess?.status === "ACCESS_REVOKED"
                 ? "Access revoked"
                 : effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
-          {includedInPlan && effectivePrice !== null && effectivePrice > 0 && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}</del>}
+          {(includedInPlan || includedInTrial) && effectivePrice !== null && effectivePrice > 0 && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}</del>}
           {!includedInPlan && !individuallyPurchased && effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
           {courseAccess?.status === "ACCESS_EXPIRED" && <span className="bfs-course-card__access-note">Plan access expired</span>}
         </span>

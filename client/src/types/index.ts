@@ -7,6 +7,7 @@ export type CourseAccessStatus =
   | 'FREE'
   | 'PAID'
   | 'PLAN_INCLUDED'
+  | 'TRIAL_INCLUDED'
   | 'PURCHASED'
   | 'ENROLLED'
   | 'COMPLETED'
@@ -16,10 +17,11 @@ export type CourseAccessStatus =
 
 export interface CourseAccessSummary {
   status: CourseAccessStatus;
-  source: 'none' | 'subscription' | 'individual' | 'admin' | 'self';
+  source: 'none' | 'subscription' | 'trial' | 'individual' | 'admin' | 'self';
   isEnrolled: boolean;
   isCompleted: boolean;
   planName: string | null;
+  trialEndsAt?: string | null;
 }
 
 export interface Profile {

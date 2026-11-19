@@ -24,32 +24,43 @@ export function isSubscriptionPeriodCurrent(subscription, now = Date.now()) {
   return Number.isFinite(end) && end > Number(now);
 }
 
-export async function getActivePlanForUser(userId) {
+export async function getActiveSubscriptionForUser(userId) {
   const subscription = await UserSubscription.findOne({
     user: userId,
     status: { $in: ["trialing", "active", "past_due"] }
   }).populate("plan").lean();
 
-  if (subscription?.plan && isSubscriptionPeriodCurrent(subscription)) {
-    return subscription.plan;
-  }
+  return subscription?.plan && isSubscriptionPeriodCurrent(subscription)
+    ? subscription
+    : null;
+}
 
+async function getFreePlan() {
   return SubscriptionPlan.findOne({
     isActive: true,
     $or: [{ slug: "free" }, { price: 0 }]
   }).sort({ sortOrder: 1, createdAt: 1 }).lean();
 }
 
+export async function getActivePlanForUser(userId) {
+  const subscription = await getActiveSubscriptionForUser(userId);
+  return subscription?.plan || getFreePlan();
+}
+
 export async function getEntitlement(userId, feature) {
   const definition = resolveFeature(feature);
-  if (!definition) return { allowed: false, feature: null, plan: null, limits: {} };
+  if (!definition) return { allowed: false, feature: null, plan: null, limits: {}, isTrial: false, trialEndsAt: null };
 
-  const override = await UserFeatureOverride.findOne({
-    user: userId,
-    featureKey: definition.key,
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
-  }).lean();
-  const plan = await getActivePlanForUser(userId);
+  const [override, subscription] = await Promise.all([
+    UserFeatureOverride.findOne({
+      user: userId,
+      featureKey: definition.key,
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
+    }).lean(),
+    getActiveSubscriptionForUser(userId)
+  ]);
+  const plan = subscription?.plan || await getFreePlan();
+
   if (override) {
     return {
       allowed: override.allowed,
@@ -60,18 +71,24 @@ export async function getEntitlement(userId, feature) {
         allowed: override.allowed,
         expiresAt: override.expiresAt || null,
         reason: override.reason
-      }
+      },
+      isTrial: false,
+      trialEndsAt: null
     };
   }
-  if (!plan) return { allowed: false, feature: definition, plan: null, limits: {} };
+  if (!plan) return { allowed: false, feature: definition, plan: null, limits: {}, override: null, isTrial: false, trialEndsAt: null };
 
   const features = normalizeSubscriptionFeatures(plan.features || []);
+  const allowed = features.includes(definition.label);
+  const isTrial = Boolean(allowed && subscription?.status === "trialing");
   return {
-    allowed: features.includes(definition.label),
+    allowed,
     feature: definition,
     plan,
     limits: plan.limits || {},
-    override: null
+    override: null,
+    isTrial,
+    trialEndsAt: isTrial ? subscription.currentPeriodEnd || null : null
   };
 }
 
@@ -138,6 +155,8 @@ export function resolveCourseCardAccess({
   planEntitled = false,
   planName = null,
   planOverride = false,
+  isTrial = false,
+  trialEndsAt = null,
   hasIndividualPayment = false
 }) {
   const pricingMode = course?.pricing?.mode;
@@ -155,8 +174,11 @@ export function resolveCourseCardAccess({
 
   let source = "none";
   if (isPaidCourse && hasIndividualPayment) source = "individual";
+  else if (isPaidCourse && planEntitled && isTrial) source = "trial";
   else if (isPaidCourse && planEntitled) source = "subscription";
-  else if (enrollmentAllowed && ["subscription", "admin", "self"].includes(enrollment.accessSource)) source = enrollment.accessSource;
+  else if (enrollmentAllowed && ["subscription", "admin", "self"].includes(enrollment.accessSource)) {
+    source = enrollment.accessSource === "subscription" && isTrial ? "trial" : enrollment.accessSource;
+  }
 
   const status = enrollment?.revokedBy
     ? "ACCESS_REVOKED"
@@ -166,10 +188,12 @@ export function resolveCourseCardAccess({
         ? "COMPLETED"
         : isPaidCourse && hasIndividualPayment
           ? "PURCHASED"
-          : isPaidCourse && planEntitled
-            ? "PLAN_INCLUDED"
-            : enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment
-              ? "ACCESS_EXPIRED"
+          : isPaidCourse && planEntitled && isTrial
+            ? "TRIAL_INCLUDED"
+            : isPaidCourse && planEntitled
+              ? "PLAN_INCLUDED"
+              : enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment
+                ? "ACCESS_EXPIRED"
               : enrollmentAllowed
                 ? "ENROLLED"
                 : isFreeCourse ? "FREE" : "PAID";
@@ -179,7 +203,8 @@ export function resolveCourseCardAccess({
     source,
     isEnrolled: Boolean(enrollmentAllowed),
     isCompleted,
-    planName: planEntitled && !planOverride ? (String(planName || "").trim() || null) : null
+    planName: planEntitled && !planOverride && !isTrial ? (String(planName || "").trim() || null) : null,
+    trialEndsAt: isTrial && trialEndsAt ? new Date(trialEndsAt).toISOString() : null
   };
 }
 

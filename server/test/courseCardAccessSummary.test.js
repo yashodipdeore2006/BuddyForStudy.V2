@@ -14,6 +14,28 @@ test("paid course covered by an active plan is marked as included", () => {
   assert.equal(access.isEnrolled, false);
 });
 
+test("a paid course covered by an active trial is marked as trial-included", () => {
+  const access = resolveCourseCardAccess({
+    course: paidCourse, userId, planEntitled: true, isTrial: true,
+    trialEndsAt: "2026-12-01T00:00:00.000Z"
+  });
+  assert.equal(access.status, "TRIAL_INCLUDED");
+  assert.equal(access.source, "trial");
+  assert.equal(access.planName, null);
+  assert.equal(access.trialEndsAt, "2026-12-01T00:00:00.000Z");
+  assert.equal(access.isEnrolled, false);
+});
+
+test("a completed paid course covered by a trial keeps the trial source", () => {
+  const access = resolveCourseCardAccess({
+    course: paidCourse, userId, planEntitled: true, isTrial: true,
+    enrollment: { status: "completed", accessSource: "subscription" }
+  });
+  assert.equal(access.status, "COMPLETED");
+  assert.equal(access.source, "trial");
+  assert.equal(access.isCompleted, true);
+});
+
 test("paid course without plan coverage or a verified payment remains paid", () => {
   const access = resolveCourseCardAccess({ course: paidCourse, userId });
   assert.equal(access.status, "PAID");

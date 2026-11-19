@@ -104,12 +104,16 @@ function CourseCardContent({
 
   const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id), courseStateRetry);
   const cardAccess = session?.user?.id && !courseState.loading ? courseState.access : null;
+  const includedInTrial = course.pricing?.mode === "paid" && cardAccess?.source === "trial" &&
+    (cardAccess.status === "TRIAL_INCLUDED" || cardAccess.status === "COMPLETED");
   const includedInPlan = cardAccess?.source === "subscription" &&
     (cardAccess.status === "PLAN_INCLUDED" || cardAccess.status === "COMPLETED");
   const individuallyPurchased = cardAccess?.source === "individual" &&
     (cardAccess.status === "PURCHASED" || cardAccess.status === "COMPLETED");
-  const accessPriceLabel = includedInPlan
-    ? "Included in " + (cardAccess?.planName || "your plan")
+  const accessPriceLabel = includedInTrial
+    ? "Included in your trial"
+    : includedInPlan
+      ? "Included in " + (cardAccess?.planName || "your plan")
     : individuallyPurchased
       ? "Purchased"
       : cardAccess?.status === "ENROLLED"
@@ -352,13 +356,13 @@ function CourseCardContent({
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
-        <span className={"bfs-course-card__price" + ((isFree || (accessPriceLabel && accessPriceLabel !== "Access revoked")) ? " bfs-course-card__price--free" : "") + (includedInPlan ? " bfs-course-card__price--included" : "")}>
+        <span className={"bfs-course-card__price" + ((isFree || (accessPriceLabel && accessPriceLabel !== "Access revoked")) ? " bfs-course-card__price--free" : "") + ((includedInPlan || includedInTrial) ? " bfs-course-card__price--included" : "")}>
           {session?.user?.id && courseState.loading
             ? "Checking access…"
             : accessPriceLabel
               ? <>
                   <span>{accessPriceLabel}</span>
-                  {includedInPlan && effectivePrice !== null && effectivePrice > 0 && <del>{formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}</del>}
+                  {(includedInPlan || includedInTrial) && effectivePrice !== null && effectivePrice > 0 && <del>{formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}</del>}
                 </>
               : effectivePrice === null ? "Price unavailable" : isFree ? "Free" : formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}
           {!accessPriceLabel && effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{formatCurrencyAmount(crossedOutPrice, course.pricing?.currency || "INR")}</del>}

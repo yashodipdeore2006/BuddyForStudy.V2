@@ -17,7 +17,7 @@ import { AuditLog } from "../src/models/AuditLog.js";
 import { AuditOutbox } from "../src/models/AuditOutbox.js";
 
 const canRun = Boolean(process.env.MONGO_URI);
-const dbName = \`buddyforstudy_trial_lifecycle_\${process.pid}_\${Date.now()}\`;
+const dbName = `buddyforstudy_trial_lifecycle_${process.pid}_${Date.now()}`;
 
 before(async () => {
   if (!canRun) return;
@@ -60,7 +60,7 @@ async function grantTrialToLearner({ learner, admin, plan, nonce }) {
   const req = {
     body: {
       planId: String(plan._id),
-      campaignName: \`Lifecycle integration \${nonce.slice(0, 8)}\`,
+      campaignName: `Lifecycle integration ${nonce.slice(0, 8)}`,
       reason: "Automated trial lifecycle integration test",
       trialDays: 7,
       filters: {
@@ -76,7 +76,7 @@ async function grantTrialToLearner({ learner, admin, plan, nonce }) {
         priorTrial: "never"
       },
       confirm: true,
-      idempotencyKey: \`trial-lifecycle-\${nonce}\`
+      idempotencyKey: `trial-lifecycle-${nonce}`
     },
     user: { user: { _id: admin._id } },
     ip: "127.0.0.1",
@@ -97,7 +97,7 @@ test("trial grant lifecycle: trial access expires after maintenance and an indiv
 
   const learner = await User.create({
     name: "Trial Lifecycle Learner",
-    email: \`trial-lifecycle-\${nonce}@example.test\`,
+    email: `trial-lifecycle-${nonce}@example.test`,
     role: "user",
     isActive: true,
     emailVerified: true,
@@ -105,7 +105,7 @@ test("trial grant lifecycle: trial access expires after maintenance and an indiv
   });
   const admin = await User.create({
     name: "Trial Lifecycle Admin",
-    email: \`trial-admin-\${nonce}@example.test\`,
+    email: `trial-admin-${nonce}@example.test`,
     role: "admin",
     isActive: true,
     emailVerified: true
@@ -122,7 +122,7 @@ test("trial grant lifecycle: trial access expires after maintenance and an indiv
   });
   const trialPlan = await SubscriptionPlan.create({
     name: "Lifecycle Pro Trial",
-    slug: \`lifecycle-pro-trial-\${nonce}\`,
+    slug: `lifecycle-pro-trial-${nonce}`,
     price: 299,
     currency: "INR",
     billingInterval: "monthly",
@@ -132,7 +132,7 @@ test("trial grant lifecycle: trial access expires after maintenance and an indiv
   });
   const course = await Course.create({
     title: "Trial Lifecycle Test Course",
-    slug: \`trial-lifecycle-course-\${nonce}\`,
+    slug: `trial-lifecycle-course-${nonce}`,
     description: "A paid course used only by the isolated lifecycle integration test.",
     category: "Testing",
     level: "Beginner",
@@ -206,8 +206,8 @@ test("trial grant lifecycle: trial access expires after maintenance and an indiv
     amount: 299,
     currency: "INR",
     provider: "razorpay",
-    providerPaymentId: \`pay_test_\${nonce}\`,
-    providerOrderId: \`order_test_\${nonce}\`,
+    providerPaymentId: `pay_test_${nonce}`,
+    providerOrderId: `order_test_${nonce}`,
     status: "paid",
     paidAt: new Date()
   });

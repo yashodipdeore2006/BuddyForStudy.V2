@@ -59,7 +59,16 @@ export async function getEntitlement(userId, feature) {
     }).lean(),
     getActiveSubscriptionForUser(userId)
   ]);
-  const plan = subscription?.plan || await getFreePlan();
+  const [plan, expiredTrialSubscription] = await Promise.all([
+    subscription?.plan ? Promise.resolve(subscription.plan) : getFreePlan(),
+    !subscription && !override
+      ? UserSubscription.findOne({
+          user: userId,
+          status: "trialing",
+          currentPeriodEnd: { $ne: null, $lte: new Date() }
+        }).populate("plan").sort({ currentPeriodEnd: -1 }).lean()
+      : Promise.resolve(null)
+  ]);
 
   if (override) {
     return {
@@ -73,14 +82,29 @@ export async function getEntitlement(userId, feature) {
         reason: override.reason
       },
       isTrial: false,
-      trialEndsAt: null
+      trialEndsAt: null,
+      trialExpired: false
     };
   }
-  if (!plan) return { allowed: false, feature: definition, plan: null, limits: {}, override: null, isTrial: false, trialEndsAt: null };
+  if (!plan) {
+    const expiredFeatures = normalizeSubscriptionFeatures(expiredTrialSubscription?.plan?.features || []);
+    return {
+      allowed: false,
+      feature: definition,
+      plan: null,
+      limits: {},
+      override: null,
+      isTrial: false,
+      trialEndsAt: null,
+      trialExpired: expiredFeatures.includes(definition.label)
+    };
+  }
 
   const features = normalizeSubscriptionFeatures(plan.features || []);
   const allowed = features.includes(definition.label);
   const isTrial = Boolean(allowed && subscription?.status === "trialing");
+  const expiredTrialFeatures = normalizeSubscriptionFeatures(expiredTrialSubscription?.plan?.features || []);
+  const trialExpired = Boolean(!allowed && expiredTrialFeatures.includes(definition.label));
   return {
     allowed,
     feature: definition,
@@ -88,7 +112,8 @@ export async function getEntitlement(userId, feature) {
     limits: plan.limits || {},
     override: null,
     isTrial,
-    trialEndsAt: isTrial ? subscription.currentPeriodEnd || null : null
+    trialEndsAt: isTrial ? subscription.currentPeriodEnd || null : null,
+    trialExpired
   };
 }
 
@@ -157,6 +182,7 @@ export function resolveCourseCardAccess({
   planOverride = false,
   isTrial = false,
   trialEndsAt = null,
+  trialExpired = false,
   hasIndividualPayment = false
 }) {
   const pricingMode = course?.pricing?.mode;
@@ -196,7 +222,9 @@ export function resolveCourseCardAccess({
                 ? "ACCESS_EXPIRED"
               : enrollmentAllowed
                 ? "ENROLLED"
-                : isFreeCourse ? "FREE" : "PAID";
+                : isPaidCourse && trialExpired
+                  ? "ACCESS_EXPIRED"
+                  : isFreeCourse ? "FREE" : "PAID";
 
   return {
     status,

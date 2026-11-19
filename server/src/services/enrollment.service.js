@@ -278,6 +278,7 @@ export async function getMine(userId) {
       planOverride: Boolean(publishedCourseEntitlement?.override),
       isTrial: Boolean(publishedCourseEntitlement?.isTrial),
       trialEndsAt: publishedCourseEntitlement?.trialEndsAt || null,
+      trialExpired: Boolean(publishedCourseEntitlement?.trialExpired),
       hasIndividualPayment: individuallyPurchasedCourseIds.has(courseId)
     });
     const progress = progressByCourse.get(courseId) || null;
@@ -448,6 +449,7 @@ export async function getCourseAccessForUser(userId, courseId) {
     planOverride: Boolean(entitlement?.override),
     isTrial: Boolean(entitlement?.isTrial),
     trialEndsAt: entitlement?.trialEndsAt || null,
+    trialExpired: Boolean(entitlement?.trialExpired),
     hasIndividualPayment: Boolean(payment)
   });
   return {

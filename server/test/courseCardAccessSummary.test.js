@@ -36,6 +36,23 @@ test("a completed paid course covered by a trial keeps the trial source", () => 
   assert.equal(access.isCompleted, true);
 });
 
+test("a paid course previously covered by an expired trial shows the expired-access state", () => {
+  const access = resolveCourseCardAccess({
+    course: paidCourse, userId, trialExpired: true
+  });
+  assert.equal(access.status, "ACCESS_EXPIRED");
+  assert.equal(access.source, "none");
+  assert.equal(access.isEnrolled, false);
+});
+
+test("a verified purchase still takes precedence after a trial expires", () => {
+  const access = resolveCourseCardAccess({
+    course: paidCourse, userId, trialExpired: true, hasIndividualPayment: true
+  });
+  assert.equal(access.status, "PURCHASED");
+  assert.equal(access.source, "individual");
+});
+
 test("paid course without plan coverage or a verified payment remains paid", () => {
   const access = resolveCourseCardAccess({ course: paidCourse, userId });
   assert.equal(access.status, "PAID");

@@ -152,7 +152,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | DONE |
-| 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | NOT_STARTED |
+| 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | IN_PROGRESS |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | NOT_STARTED |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | NOT_STARTED |
 | 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | NOT_STARTED |

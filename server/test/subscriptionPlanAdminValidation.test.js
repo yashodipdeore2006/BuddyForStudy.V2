@@ -7,7 +7,7 @@ test("subscription plan validation accepts valid plan metadata", () => {
   assert.deepEqual(validateSubscriptionPlanAdminInput({
     name: "Pro", slug: "pro", price: 199, currency: "INR",
     billingInterval: "monthly", trialDays: 7, sortOrder: 2, isActive: true,
-    features: ["AI roadmaps"], limits: { ai_course_builds_per_month: 5 }
+    features: ["Build with AI"], limits: { ai_course_builds_per_month: 5 }
   }), { valid: true, errors: [] });
 });
 

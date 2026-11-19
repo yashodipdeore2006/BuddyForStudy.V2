@@ -5,6 +5,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { getTrialCampaignPresets } from "../config/trialCampaignPresets.js";
 import {
   TRIAL_CAMPAIGN_STATUSES,
   trialCampaignCreateSchema,
@@ -110,6 +111,13 @@ async function validatePlanReferences({ trialPlanId, conversionMode, conversionP
 
 function campaignDateWindowIsValid(startsAt, endsAt) {
   return !endsAt || new Date(endsAt).getTime() > new Date(startsAt || Date.now()).getTime();
+}
+
+export function listCampaignPresets(_req, res) {
+  return success(res, {
+    presets: getTrialCampaignPresets(),
+    valuesEditable: true
+  }, "Quick-trial presets ready. Campaign values remain editable before creation.");
 }
 
 export async function listCampaigns(req, res, next) {

@@ -37,6 +37,7 @@ test("self-serve campaign management exposes list, detail, create, update and li
   const routes = getRoutes();
   const expected = [
     ["get", "/campaigns"],
+    ["get", "/campaigns/presets"],
     ["get", "/campaigns/:campaignId"],
     ["post", "/campaigns"],
     ["put", "/campaigns/:campaignId"],
@@ -51,7 +52,11 @@ test("self-serve campaign management exposes list, detail, create, update and li
 
 test("every trial campaign route has exactly one trials.manage permission gate", () => {
   const campaignRoutes = getRoutes().filter((route) => route.path.startsWith("/campaigns"));
-  assert.equal(campaignRoutes.length, 7);
+  assert.equal(campaignRoutes.length, 8);
+  const presetIndex = campaignRoutes.findIndex((route) => route.path === "/campaigns/presets");
+  const detailIndex = campaignRoutes.findIndex((route) => route.path === "/campaigns/:campaignId");
+  assert.ok(presetIndex >= 0 && detailIndex >= 0 && presetIndex < detailIndex,
+    "static preset route must be registered before the campaignId route");
   for (const route of campaignRoutes) {
     assert.equal(route.permissionHandlers.length, 1, route.path);
     const middleware = route.permissionHandlers[0];

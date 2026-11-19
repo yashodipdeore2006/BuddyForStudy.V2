@@ -116,3 +116,13 @@ test("campaign update accepts partial fields but preserves strict date and conve
     conversionPlanId
   }).success, false);
 });
+
+
+test("a selected quick-trial preset can be edited before normal campaign creation", () => {
+  const trialDays = 10;
+  const maxClaims = 240;
+  const result = trialCampaignCreateSchema.safeParse(validCampaign({ trialDays, maxClaims }));
+  assert.equal(result.success, true);
+  assert.equal(result.data.trialDays, trialDays);
+  assert.equal(result.data.maxClaims, maxClaims);
+});

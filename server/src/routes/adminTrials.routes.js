@@ -8,6 +8,8 @@ router.use(authMiddleware, adminMiddleware);
 
 // Self-serve campaign configuration is separate from administrator-issued grants.
 router.get("/campaigns", adminPermissionMiddleware("trials.manage"), campaignController.listCampaigns);
+// Static preset path must precede /:campaignId to avoid treating "presets" as an ObjectId.
+router.get("/campaigns/presets", adminPermissionMiddleware("trials.manage"), campaignController.listCampaignPresets);
 router.get("/campaigns/:campaignId", adminPermissionMiddleware("trials.manage"), campaignController.getCampaign);
 router.post("/campaigns", adminPermissionMiddleware("trials.manage"), campaignController.createCampaign);
 router.put("/campaigns/:campaignId", adminPermissionMiddleware("trials.manage"), campaignController.updateCampaign);

@@ -151,7 +151,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | IN_PROGRESS |
+| 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | DONE |
 | 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | NOT_STARTED |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | NOT_STARTED |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | NOT_STARTED |
@@ -315,7 +315,7 @@ This is the implemented lifecycle boundary. Regression coverage is in `server/te
 **Task 9 disposition:** complete for the V2.2 repository candidate. CI validates the repository code only; live provider credentials, database contents, staging behaviour, and production deployment remain in Tasks 29–30.
 
 
-## 11. Task 10 implementation candidate — CI pending
+## 11. Task 10 implementation candidate — verified
 
 The self-serve campaign collection is designed independently from administrator-issued `TrialGrant` records. The schema, model-level tests, and deployment notes are now present:
 
@@ -325,4 +325,9 @@ The self-serve campaign collection is designed independently from administrator-
 
 The model defines draft/published/paused/ended lifecycle states, bounded trial duration and claim capacity, learner eligibility defaults, consent-only conversion configuration, lifecycle actor/timestamp audit fields, strict unknown-field rejection, and named discovery/admin indexes. The design note specifies claim-time atomic capacity enforcement, a stable campaign/learner claim ledger for Task 14, and a non-destructive new-collection rollout.
 
-**Disposition:** implementation candidate prepared; Task 10 remains `IN_PROGRESS` until the exact branch candidate passes backend CI and its release gate.
+**Implementation candidate:** `430e946e356effed5a6626b277e58b8c2224d321` on `buddy-for-study-v2.2`  
+**CI run:** [BuddyForStudy CI #44539175264](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44539175264) — backend, frontend, browser navigation smoke tests, and Production release gate completed successfully.
+
+**Verification evidence:** 7 new TrialCampaign model tests passed. Full backend test suite: **1,038 passed, 0 failed, 0 skipped**. Backend lint, production-config preflight, and server syntax checks passed. Frontend lint, typecheck, unit tests, deployment-config checks, production build, and Playwright browser navigation smoke tests passed.
+
+**Task 10 disposition:** complete for this V2.2 repository candidate. Live MongoDB index initialization and environment backup/rollback evidence remain deployment gates in Tasks 29–30.

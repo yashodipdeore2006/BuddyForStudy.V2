@@ -216,7 +216,7 @@ export function evaluateTrialCampaignAudience({
  * This is deliberately a read-only operation; claim-time writes and concurrency
  * control are handled by Task 14.
  */
-export async function getTrialCampaignEligibilityForUser({ campaign, userId, now = new Date() } = {}, dependencies = {}) {
+export async function getTrialCampaignEligibilityForUser({ campaign, userId, now = new Date(), hasExistingCampaignClaim = false } = {}, dependencies = {}) {
   if (!userId) {
     return evaluateTrialCampaignEligibility({
       campaign,
@@ -240,6 +240,7 @@ export async function getTrialCampaignEligibilityForUser({ campaign, userId, now
     learner,
     activeSubscription: subscription,
     hasPreviousTrial: Boolean(previousTrial),
+    hasExistingCampaignClaim,
     now
   });
 }

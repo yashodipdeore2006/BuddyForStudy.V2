@@ -154,7 +154,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | DONE |
 | 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | DONE |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | IN_PROGRESS |
-| 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | NOT_STARTED |
+| 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | IN_PROGRESS |
 | 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | NOT_STARTED |
 | 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | NOT_STARTED |
 
@@ -367,3 +367,19 @@ Implemented on `buddy-for-study-v2.2`:
 - Added `client/tests/adminTrialCampaigns.test.mjs` and included it in `npm run test:unit`.
 
 **Verification state:** implementation and regression coverage committed; branch CI is the required verification gate. Task 12 remains in progress until the exact commit's frontend, backend, and production release-gate checks are confirmed green. No staging or production deployment has been performed.
+
+
+## 14. Task 13 implementation candidate — deterministic eligibility engine
+
+**Scope:** Add a read-only, reusable eligibility service for self-serve trial campaigns. Claim mutation, capacity reservation, campaign claim ledger, and subscription creation remain in Tasks 14–15.
+
+Implemented on `buddy-for-study-v2.2`:
+
+- `server/src/services/trialCampaignEligibility.service.js` provides a pure deterministic evaluator, an audience evaluator, a current-subscription period check, and a database-backed learner evaluator.
+- The engine checks campaign publication/window/capacity/configuration, active trial-plan availability when populated, learner role isolation, configured active-account and email-verification rules, current subscription status/period, prior administrator-issued trial history, and an already-claimed campaign fact when supplied by the later claim ledger.
+- Results use stable reason codes and human-readable messages in a fixed order. Audience evaluation preserves input order and returns eligible/skipped records plus skipped counts by reason code.
+- Database-backed evaluation reloads role, active state, email verification, subscription status/period, and TrialGrant history from MongoDB. It does not trust learner-supplied eligibility flags.
+- Missing required eligibility facts fail closed. Malformed subscription period data is treated as active so it cannot accidentally authorize a new trial.
+- Added `server/test/trialCampaignEligibility.service.test.js` with deterministic unit and injected-model tests.
+
+**Verification state:** Task 13 implementation and regression tests committed. Branch CI is the verification gate; Task 13 remains in progress until backend, frontend, and production release-gate checks pass on the exact candidate. The new campaign claim ledger and atomic capacity/entitlement writes remain explicitly assigned to Tasks 14–15.

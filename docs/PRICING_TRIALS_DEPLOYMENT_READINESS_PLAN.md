@@ -335,18 +335,35 @@ The model defines draft/published/paused/ended lifecycle states, bounded trial d
 
 ## 12. Task 11 implementation and verification — complete
 
-Implemented on \`buddy-for-study-v2.2\`:
+Implemented on `buddy-for-study-v2.2`:
 
-- \`server/src/utils/trialCampaignAdminValidation.js\` — strict create/update schemas, bounded fields, date-window checks, eligibility validation, and explicit consent-only conversion configuration.
-- \`server/src/controllers/adminTrialCampaigns.controller.js\` — paginated list/search, detail, create, update, publish, pause, disable, active-plan reference validation, conditional lifecycle writes, and audit events.
-- \`server/src/routes/adminTrials.routes.js\` — seven protected self-serve campaign endpoints under \`/api/admin/trials/campaigns\`, each using the existing \`trials.manage\` permission.
-- \`server/test/trialCampaignAdminRoutes.test.js\`, \`server/test/trialCampaignAdminControllerSafety.test.js\`, and \`server/test/trialCampaignAdminValidation.test.js\` — route/permission, lifecycle safety, and request-validation coverage.
+- `server/src/utils/trialCampaignAdminValidation.js` — strict create/update schemas, bounded fields, date-window checks, eligibility validation, and explicit consent-only conversion configuration.
+- `server/src/controllers/adminTrialCampaigns.controller.js` — paginated list/search, detail, create, update, publish, pause, disable, active-plan reference validation, conditional lifecycle writes, and audit events.
+- `server/src/routes/adminTrials.routes.js` — seven protected self-serve campaign endpoints under `/api/admin/trials/campaigns`, each using the existing `trials.manage` permission.
+- `server/test/trialCampaignAdminRoutes.test.js`, `server/test/trialCampaignAdminControllerSafety.test.js`, and `server/test/trialCampaignAdminValidation.test.js` — route/permission, lifecycle safety, and request-validation coverage.
 
-The existing administrator-issued \`TrialGrant\` routes (\`/grants\`, \`/preview\`, \`/grant\`) remain registered and unchanged. Campaign creation always starts in draft. Only draft or paused campaigns with no learner claims may be edited. Publish/pause/disable use conditional state transitions. Disabling a campaign stops new offers and does not revoke or rewrite existing learner entitlements. An optional paid conversion plan is configuration only and requires a separate learner-consent flow in later tasks.
+The existing administrator-issued `TrialGrant` routes (`/grants`, `/preview`, `/grant`) remain registered and unchanged. Campaign creation always starts in draft. Only draft or paused campaigns with no learner claims may be edited. Publish/pause/disable use conditional state transitions. Disabling a campaign stops new offers and does not revoke or rewrite existing learner entitlements. An optional paid conversion plan is configuration only and requires a separate learner-consent flow in later tasks.
 
-**Implementation candidate:** \`fd45cd939aa29c8929a53e2ba97a15f60ae310b1\`  
+**Implementation candidate:** `fd45cd939aa29c8929a53e2ba97a15f60ae310b1`  
 **CI run:** [BuddyForStudy CI #44584056449](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44584056449) — backend, frontend, and Production release gate all completed successfully.
 
 **Verification:** backend lint, production-config preflight, full backend test suite, AI selector comparison, server JavaScript syntax checks; frontend lint, typecheck, unit tests, Vercel deployment-config tests, production build, Playwright browser navigation smoke tests; and the Production release gate all passed on the exact implementation candidate.
 
 **Task 11 disposition:** complete for the V2.2 repository candidate. This verifies repository CI only; no staging campaign CRUD or real MongoDB-backed administrator walkthrough has been performed. External-environment verification remains in Tasks 29–30.
+
+
+## 13. Task 12 implementation candidate — frontend integration
+
+**Scope:** Integrate the existing quick-trial preset API into the administrator trial page without changing the administrator-issued manual grant workflow.
+
+Implemented on `buddy-for-study-v2.2`:
+
+- `client/src/pages/admin/AdminTrialCampaigns.tsx` now loads the editable preset catalogue and existing self-serve campaigns through the protected campaign endpoints.
+- Administrators can start from the 7-day, 14-day, or 30-day preset and edit internal name/reason, learner-facing offer title/description, active trial plan, duration, start/end window, claim capacity, all four eligibility rules, and an optional consent-required recurring paid conversion offer.
+- The page validates required fields, duration/capacity bounds, date windows, and distinct conversion-plan selection before sending the request. The server remains authoritative for plan references and campaign validation.
+- Saving calls `POST /api/admin/trials/campaigns` only. The UI explicitly reports that the result is a draft and does not publish it or create a payment.
+- Existing drafts and published campaigns are listed with separate publish, pause, and disable actions. Disable messaging explains that existing learner claims remain unchanged.
+- The existing one-learner/group manual preview and grant workflow and recent grant history are retained separately.
+- Added `client/tests/adminTrialCampaigns.test.mjs` and included it in `npm run test:unit`.
+
+**Verification state:** implementation and regression coverage committed; branch CI is the required verification gate. Task 12 remains in progress until the exact commit's frontend, backend, and production release-gate checks are confirmed green. No staging or production deployment has been performed.

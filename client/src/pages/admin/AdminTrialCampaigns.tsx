@@ -1,11 +1,75 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCcw, Users, ShieldCheck, UserRound, SlidersHorizontal, CheckCircle2 } from "lucide-react";
+import { RefreshCcw, Users, ShieldCheck, UserRound, SlidersHorizontal, CheckCircle2, Sparkles, Rocket, PauseCircle, Ban } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 
 type Plan = { _id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean };
 type AudienceUser = { id: string; name: string; email: string; createdAt?: string; authProvider?: string; emailVerified?: boolean; reason?: string };
 type Grant = { _id: string; user?: { name?: string; email?: string }; plan?: { name?: string }; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string }; campaignName: string; status: string; startsAt: string; endsAt: string; conversionConsentStatus: string; reason: string };
+
+type CampaignEligibility = {
+  requireActiveAccount: boolean;
+  requireVerifiedEmail: boolean;
+  requireNoActiveSubscription: boolean;
+  requireNoPreviousTrial: boolean;
+};
+type CampaignPreset = {
+  id: string;
+  label: string;
+  description: string;
+  trialDays: number;
+  maxClaims: number;
+  eligibility: CampaignEligibility;
+  conversionMode: "none" | "consent_required";
+  conversionPlanId: string | null;
+};
+type TrialCampaign = {
+  _id: string;
+  internalName: string;
+  offerTitle: string;
+  trialPlan?: { name?: string } | null;
+  trialDays: number;
+  status: "draft" | "published" | "paused" | "ended";
+  startsAt: string;
+  endsAt?: string | null;
+  maxClaims: number;
+  claimedCount: number;
+};
+type CampaignForm = {
+  presetId: string;
+  internalName: string;
+  internalReason: string;
+  offerTitle: string;
+  offerDescription: string;
+  trialPlanId: string;
+  trialDays: number;
+  maxClaims: number;
+  startsAt: string;
+  endsAt: string;
+  eligibility: CampaignEligibility;
+  conversionMode: "none" | "consent_required";
+  conversionPlanId: string;
+};
+const initialCampaignForm: CampaignForm = {
+  presetId: "7_days",
+  internalName: "Quick-trial welcome campaign",
+  internalReason: "Initial configuration of a reusable learner trial offer.",
+  offerTitle: "Explore premium learning",
+  offerDescription: "Give eligible learners time to explore premium learning resources and build a study habit. Claiming this trial does not initiate a payment or automatic renewal.",
+  trialPlanId: "",
+  trialDays: 7,
+  maxClaims: 100,
+  startsAt: "",
+  endsAt: "",
+  eligibility: {
+    requireActiveAccount: true,
+    requireVerifiedEmail: true,
+    requireNoActiveSubscription: true,
+    requireNoPreviousTrial: true
+  },
+  conversionMode: "none",
+  conversionPlanId: ""
+};
 const initialFilters = { q: "", emailExact: "", status: "active", role: "user", createdAfter: "", createdBefore: "", registeredAfter: "", registeredBefore: "", authProvider: "any", emailVerified: "yes", planId: "", expiresWithinDays: "", courseId: "", enrollmentStatus: "", progressMin: "", progressMax: "", inactiveDays: "", totalSpendMin: "", courseCountMin: "", planSegment: "", courseSegment: "", phoneVerified: "any", marketingConsent: "any", profileSetup: "any", city: "", learningGoal: "", priorTrial: "never", subscriptionStatus: "none" };
 type Filters = typeof initialFilters;
 const date = (value?: string) => value ? new Date(value).toLocaleString("en-IN") : "—";
@@ -27,6 +91,152 @@ export default function AdminTrialCampaigns() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [confirmGrant, setConfirmGrant] = useState(false);
+
+  const [presets, setPresets] = useState<CampaignPreset[]>([]);
+  const [campaigns, setCampaigns] = useState<TrialCampaign[]>([]);
+  const [campaignForm, setCampaignForm] = useState<CampaignForm>(initialCampaignForm);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignSaving, setCampaignSaving] = useState(false);
+  const [campaignActionId, setCampaignActionId] = useState("");
+  const [campaignError, setCampaignError] = useState("");
+  const [campaignMessage, setCampaignMessage] = useState("");
+
+
+  const refreshCampaigns = useCallback(async () => {
+    const data = await adminFetch("/api/admin/trials/campaigns?limit=25");
+    setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+  }, []);
+
+  const loadCampaignWorkspace = useCallback(async () => {
+    setCampaignLoading(true);
+    setCampaignError("");
+    try {
+      const presetData = await adminFetch("/api/admin/trials/campaigns/presets");
+      if (!Array.isArray(presetData.presets) || presetData.valuesEditable !== true) {
+        throw new Error("The quick-trial preset catalogue is unavailable or read-only.");
+      }
+      setPresets(presetData.presets);
+      await refreshCampaigns();
+    } catch (e) {
+      setCampaignError(e instanceof Error ? e.message : "Unable to load self-serve trial campaigns.");
+    } finally {
+      setCampaignLoading(false);
+    }
+  }, [refreshCampaigns]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadCampaignWorkspace(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadCampaignWorkspace]);
+
+  function applyCampaignPreset(presetId: string) {
+    const preset = presets.find(item => item.id === presetId);
+    if (!preset) return;
+    setCampaignForm(current => ({
+      ...current,
+      presetId: preset.id,
+      trialDays: preset.trialDays,
+      maxClaims: preset.maxClaims,
+      eligibility: { ...preset.eligibility },
+      conversionMode: preset.conversionMode,
+      conversionPlanId: preset.conversionPlanId || ""
+    }));
+    setCampaignMessage("");
+    setCampaignError("");
+  }
+
+  async function createSelfServeCampaign() {
+    setCampaignError("");
+    setCampaignMessage("");
+    const form = campaignForm;
+    if (form.internalName.trim().length < 3 || form.internalReason.trim().length < 10
+      || form.offerTitle.trim().length < 3 || form.offerDescription.trim().length < 10) {
+      setCampaignError("Complete the campaign name, internal reason, offer title and description.");
+      return;
+    }
+    if (!form.trialPlanId) {
+      setCampaignError("Select an active trial entitlement plan before saving the campaign.");
+      return;
+    }
+    if (!Number.isInteger(form.trialDays) || form.trialDays < 1 || form.trialDays > 30
+      || !Number.isInteger(form.maxClaims) || form.maxClaims < 1 || form.maxClaims > 1000000) {
+      setCampaignError("Trial duration must be 1–30 whole days and maximum claims must be a whole number from 1 to 1,000,000.");
+      return;
+    }
+    if (form.conversionMode === "consent_required" && (!form.conversionPlanId || form.conversionPlanId === form.trialPlanId)) {
+      setCampaignError("Choose a different active recurring paid plan for the consent-required conversion offer.");
+      return;
+    }
+    const startTime = form.startsAt ? new Date(form.startsAt).getTime() : Date.now();
+    const endTime = form.endsAt ? new Date(form.endsAt).getTime() : null;
+    if (!Number.isFinite(startTime) || (endTime !== null && (!Number.isFinite(endTime) || endTime <= startTime))) {
+      setCampaignError("The campaign end date must be later than its start date.");
+      return;
+    }
+
+    setCampaignSaving(true);
+    try {
+      const body = {
+        internalName: form.internalName.trim(),
+        internalReason: form.internalReason.trim(),
+        offerTitle: form.offerTitle.trim(),
+        offerDescription: form.offerDescription.trim(),
+        trialPlanId: form.trialPlanId,
+        trialDays: form.trialDays,
+        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
+        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        maxClaims: form.maxClaims,
+        eligibility: { ...form.eligibility },
+        conversionMode: form.conversionMode,
+        conversionPlanId: form.conversionMode === "consent_required" ? form.conversionPlanId : null
+      };
+      const result = await adminFetch("/api/admin/trials/campaigns", {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      const createdName = result.campaign?.internalName || form.internalName;
+      setCampaignMessage(createdName + " was saved as a draft. It is not live until you publish it.");
+      await refreshCampaigns();
+    } catch (e) {
+      setCampaignError(e instanceof Error ? e.message : "Unable to create the trial campaign.");
+    } finally {
+      setCampaignSaving(false);
+    }
+  }
+
+  async function runCampaignLifecycleAction(campaignId: string, action: "publish" | "pause" | "disable") {
+    if (action === "disable" && !window.confirm("Disable this campaign? Existing learner claims and entitlements will remain unchanged.")) return;
+    setCampaignError("");
+    setCampaignMessage("");
+    setCampaignActionId(campaignId);
+    try {
+      await adminFetch("/api/admin/trials/campaigns/" + encodeURIComponent(campaignId) + "/" + action, {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      const resultMessage = action === "publish"
+        ? "Campaign published. Eligible learners can now discover it when the campaign is in its active window."
+        : action === "pause"
+          ? "Campaign paused. New offers are stopped while existing learner claims remain unchanged."
+          : "Campaign disabled. Existing learner claims and entitlements remain unchanged.";
+      setCampaignMessage(resultMessage);
+      await refreshCampaigns();
+    } catch (e) {
+      setCampaignError(e instanceof Error ? e.message : "Unable to update the campaign lifecycle.");
+    } finally {
+      setCampaignActionId("");
+    }
+  }
+
+  const campaignFormValid = Boolean(campaignForm.trialPlanId)
+    && campaignForm.internalName.trim().length >= 3
+    && campaignForm.internalReason.trim().length >= 10
+    && campaignForm.offerTitle.trim().length >= 3
+    && campaignForm.offerDescription.trim().length >= 10
+    && Number.isInteger(campaignForm.trialDays) && campaignForm.trialDays >= 1 && campaignForm.trialDays <= 30
+    && Number.isInteger(campaignForm.maxClaims) && campaignForm.maxClaims >= 1 && campaignForm.maxClaims <= 1000000
+    && (campaignForm.conversionMode === "none" || (Boolean(campaignForm.conversionPlanId) && campaignForm.conversionPlanId !== campaignForm.trialPlanId))
+    && (!campaignForm.endsAt || new Date(campaignForm.endsAt).getTime() > new Date(campaignForm.startsAt || Date.now()).getTime());
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -90,9 +300,129 @@ export default function AdminTrialCampaigns() {
   const selectField = (label: string, key: keyof Filters, options: Array<[string,string]>) => <label className={labelClass}>{label}<select className={selectClass} value={filters[key] as string} onChange={e => changeFilter(key, e.target.value as never)}>{options.map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select></label>;
 
   return <div className="mx-auto max-w-6xl pb-12">
-    <AdminPageHeader eyebrow="Learner access" title="Grant a free trial" description="Choose a learner or audience, select the plan and duration, then review before granting access." actions={<button className="btn-secondary" type="button" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>} />
+    <AdminPageHeader eyebrow="Learner access" title="Trial campaigns & learner grants" description="Create reusable self-serve offers or issue a reviewed trial grant to a specific learner or group." actions={<button className="btn-secondary" type="button" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>} />
     {error && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {message && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
+
+
+    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+        <div>
+          <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-violet-700" /><h2 className="font-bold text-slate-900">Self-serve quick-trial campaigns</h2></div>
+          <p className="mt-1 text-sm text-slate-500">Create a reusable learner offer from a 7, 14 or 30-day preset. Review and edit every value before saving.</p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void loadCampaignWorkspace()} disabled={campaignLoading || campaignSaving}>
+          <RefreshCcw className={campaignLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh campaigns
+        </button>
+      </div>
+      {campaignError && <div role="alert" className="mx-5 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:mx-6">{campaignError}</div>}
+      {campaignMessage && <div role="status" className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-6">{campaignMessage}</div>}
+      <div className="p-5 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div><h3 className="text-sm font-bold text-slate-900">1. Choose a starting preset</h3><p className="text-xs text-slate-500">Preset values are editable and do not publish a campaign.</p></div>
+          {campaignLoading && <span className="text-xs text-slate-500">Loading preset catalogue…</span>}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {presets.map(preset => <button
+            key={preset.id}
+            type="button"
+            onClick={() => applyCampaignPreset(preset.id)}
+            aria-pressed={campaignForm.presetId === preset.id}
+            className={"rounded-xl border p-4 text-left transition " + (campaignForm.presetId === preset.id ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-slate-300")}
+          >
+            <span className="block text-lg font-bold text-slate-900">{preset.label}</span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">{preset.description}</span>
+            <span className="mt-3 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-violet-700">{preset.maxClaims.toLocaleString("en-IN")} default claims</span>
+          </button>)}
+          {!campaignLoading && !presets.length && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-3">No quick-trial presets are available. Refresh or check the administrator trial permission.</p>}
+        </div>
+        <div className="mt-6"><h3 className="text-sm font-bold text-slate-900">2. Edit campaign settings</h3><p className="mt-1 text-xs text-slate-500">The selected preset only fills starting values. These settings are submitted to the server for validation.</p></div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>Internal campaign name
+            <input className={inputClass} value={campaignForm.internalName} minLength={3} maxLength={120} onChange={e => setCampaignForm(current => ({ ...current, internalName: e.target.value }))} placeholder="e.g. November learner welcome" />
+          </label>
+          <label className={labelClass}>Trial entitlement plan
+            <select className={inputClass} value={campaignForm.trialPlanId} onChange={e => setCampaignForm(current => ({ ...current, trialPlanId: e.target.value }))}>
+              <option value="">Select an active plan…</option>
+              {plans.map(plan => <option key={plan._id} value={plan._id}>{plan.name} · {plan.price === 0 ? "Free" : plan.currency + " " + plan.price + "/" + plan.billingInterval}</option>)}
+            </select>
+            <span className="mt-1 block font-normal text-slate-500">Only active plans are listed. The server revalidates the selected plan when saving and publishing.</span>
+          </label>
+          <label className={labelClass}>Learner-facing offer title
+            <input className={inputClass} value={campaignForm.offerTitle} minLength={3} maxLength={120} onChange={e => setCampaignForm(current => ({ ...current, offerTitle: e.target.value }))} />
+          </label>
+          <label className={labelClass}>Trial duration (days)
+            <input className={inputClass} type="number" min={1} max={30} step={1} value={campaignForm.trialDays} onChange={e => setCampaignForm(current => ({ ...current, trialDays: Number(e.target.value) }))} />
+          </label>
+          <label className={labelClass}>Maximum total claims
+            <input className={inputClass} type="number" min={1} max={1000000} step={1} value={campaignForm.maxClaims} onChange={e => setCampaignForm(current => ({ ...current, maxClaims: Number(e.target.value) }))} />
+            <span className="mt-1 block font-normal text-slate-500">The server enforces this capacity at claim time.</span>
+          </label>
+          <label className={labelClass}>Internal reason
+            <input className={inputClass} value={campaignForm.internalReason} minLength={10} maxLength={500} onChange={e => setCampaignForm(current => ({ ...current, internalReason: e.target.value }))} />
+          </label>
+          <label className={labelClass + " sm:col-span-2"}>Learner-facing offer description
+            <textarea className={inputClass} rows={3} minLength={10} maxLength={1000} value={campaignForm.offerDescription} onChange={e => setCampaignForm(current => ({ ...current, offerDescription: e.target.value }))} />
+          </label>
+          <label className={labelClass}>Campaign starts at (optional)
+            <input className={inputClass} type="datetime-local" value={campaignForm.startsAt} onChange={e => setCampaignForm(current => ({ ...current, startsAt: e.target.value }))} />
+            <span className="mt-1 block font-normal text-slate-500">Leave blank to start from the time the campaign is created.</span>
+          </label>
+          <label className={labelClass}>Campaign ends at (optional)
+            <input className={inputClass} type="datetime-local" value={campaignForm.endsAt} onChange={e => setCampaignForm(current => ({ ...current, endsAt: e.target.value }))} />
+            <span className="mt-1 block font-normal text-slate-500">Leave blank for no scheduled end date.</span>
+          </label>
+          <label className={labelClass}>Conversion offer
+            <select className={inputClass} value={campaignForm.conversionMode} onChange={e => setCampaignForm(current => ({ ...current, conversionMode: e.target.value as CampaignForm["conversionMode"], conversionPlanId: e.target.value === "none" ? "" : current.conversionPlanId }))}>
+              <option value="none">No conversion offer</option>
+              <option value="consent_required">Offer a paid plan after explicit consent</option>
+            </select>
+            <span className="mt-1 block font-normal text-slate-500">A conversion offer never creates an order or authorizes autopay by itself.</span>
+          </label>
+          {campaignForm.conversionMode === "consent_required" && <label className={labelClass}>Recurring paid conversion plan
+            <select className={inputClass} value={campaignForm.conversionPlanId} onChange={e => setCampaignForm(current => ({ ...current, conversionPlanId: e.target.value }))}>
+              <option value="">Select a recurring paid plan…</option>
+              {plans.filter(plan => plan.price > 0 && ["monthly", "quarterly", "yearly"].includes(plan.billingInterval)).map(plan => <option key={plan._id} value={plan._id}>{plan.name} · {plan.currency} {plan.price}/{plan.billingInterval}</option>)}
+            </select>
+          </label>}
+        </div>
+        <div className="mt-6 rounded-xl border border-slate-200 p-4">
+          <h3 className="text-sm font-bold text-slate-900">3. Learner eligibility rules</h3>
+          <p className="mt-1 text-xs text-slate-500">The server will re-check eligibility when a learner claims the campaign.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireActiveAccount} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireActiveAccount: e.target.checked } }))} /><span>Require an active learner account</span></label>
+            <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireVerifiedEmail} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireVerifiedEmail: e.target.checked } }))} /><span>Require a verified email address</span></label>
+            <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireNoActiveSubscription} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireNoActiveSubscription: e.target.checked } }))} /><span>Require no active subscription</span></label>
+            <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireNoPreviousTrial} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireNoPreviousTrial: e.target.checked } }))} /><span>Require no previous trial</span></label>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">Saving creates a draft only. It does not expose the offer to learners or initiate a payment.</p>
+          <button type="button" className="btn-primary justify-center" onClick={() => void createSelfServeCampaign()} disabled={!campaignFormValid || campaignSaving || campaignLoading || !presets.length}>
+            <ShieldCheck className="h-4 w-4" />{campaignSaving ? "Saving draft…" : "Save campaign as draft"}
+          </button>
+        </div>
+        <div className="mt-8 border-t border-slate-100 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900">Existing self-serve campaigns</h3><p className="mt-1 text-xs text-slate-500">Publish, pause or disable a campaign separately from draft creation.</p></div><span className="text-xs text-slate-500">{campaigns.length} shown</span></div>
+          {campaignLoading && <p className="mt-4 text-sm text-slate-500">Loading campaigns…</p>}
+          {!campaignLoading && !campaigns.length && <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No self-serve campaigns have been created yet.</p>}
+          {!campaignLoading && campaigns.length > 0 && <div className="mt-4 space-y-3">
+            {campaigns.map(campaign => <div key={campaign._id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-900">{campaign.internalName}</p><span className={"rounded-full px-2.5 py-1 text-xs font-semibold " + (campaign.status === "published" ? "bg-emerald-50 text-emerald-700" : campaign.status === "ended" ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700")}>{campaign.status}</span></div>
+                <p className="mt-1 text-sm text-slate-600">{campaign.offerTitle} · {campaign.trialPlan?.name || "Trial plan"} · {campaign.trialDays} days</p>
+                <p className="mt-1 text-xs text-slate-500">{campaign.claimedCount || 0} of {campaign.maxClaims} claims · Starts {date(campaign.startsAt)}{campaign.endsAt ? " · Ends " + date(campaign.endsAt) : ""}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(campaign.status === "draft" || campaign.status === "paused") && <button type="button" className="btn-primary" onClick={() => void runCampaignLifecycleAction(campaign._id, "publish")} disabled={campaignActionId === campaign._id}><Rocket className="h-4 w-4" />Publish</button>}
+                {campaign.status === "published" && <button type="button" className="btn-secondary" onClick={() => void runCampaignLifecycleAction(campaign._id, "pause")} disabled={campaignActionId === campaign._id}><PauseCircle className="h-4 w-4" />Pause</button>}
+                {campaign.status !== "ended" && <button type="button" className="btn-secondary" onClick={() => void runCampaignLifecycleAction(campaign._id, "disable")} disabled={campaignActionId === campaign._id}><Ban className="h-4 w-4" />Disable</button>}
+              </div>
+            </div>)}
+          </div>}
+        </div>
+      </div>
+    </section>
 
     <div className="mt-6 grid gap-3 sm:grid-cols-3">
       <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/70 p-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white">1</span><div><p className="text-sm font-semibold text-slate-900">Choose learner(s)</p><p className="text-xs text-slate-500">One account or a group</p></div></div>

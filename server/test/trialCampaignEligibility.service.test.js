@@ -98,7 +98,7 @@ test("missing authoritative subscription or trial-history facts fail closed when
     learner,
     now: NOW
   });
-  assert.deepEqual(result.reasonCodes, ["ELIGIBILITY_CONTEXT_UNAVAILABLE", "ELIGIBILITY_CONTEXT_UNAVAILABLE"]);
+  assert.deepEqual(result.reasonCodes, ["ELIGIBILITY_CONTEXT_UNAVAILABLE"]);
 });
 
 test("current subscription statuses and period boundaries are checked consistently", () => {

@@ -300,7 +300,7 @@ export default function AdminTrialCampaigns() {
   const selectField = (label: string, key: keyof Filters, options: Array<[string,string]>) => <label className={labelClass}>{label}<select className={selectClass} value={filters[key] as string} onChange={e => changeFilter(key, e.target.value as never)}>{options.map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select></label>;
 
   return <div className="mx-auto max-w-6xl pb-12">
-    <AdminPageHeader eyebrow="Learner access" title="Trial campaigns & learner grants" description="Create reusable self-serve offers or issue a reviewed trial grant to a specific learner or group." actions={<button className="btn-secondary" type="button" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>} />
+    <AdminPageHeader eyebrow="Learner access" title="Grant a free trial" description="Create reusable self-serve offers or issue a reviewed trial grant to a specific learner or group." actions={<button className="btn-secondary" type="button" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>} />
     {error && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {message && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
 

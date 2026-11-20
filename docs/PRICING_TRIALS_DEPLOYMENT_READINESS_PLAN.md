@@ -383,3 +383,8 @@ Implemented on `buddy-for-study-v2.2`:
 - Added `server/test/trialCampaignEligibility.service.test.js` with deterministic unit and injected-model tests.
 
 **Verification state:** Task 13 implementation and regression tests committed. Branch CI is the verification gate; Task 13 remains in progress until backend, frontend, and production release-gate checks pass on the exact candidate. The new campaign claim ledger and atomic capacity/entitlement writes remain explicitly assigned to Tasks 14–15.
+
+
+### Task 12 CI correction note
+
+The first exact-candidate CI run \`44718122920\` reported backend success and 118/119 browser tests passed. The single failure was an existing administrator browser assertion expecting the established page heading \`Grant a free trial\`; the new campaign section had unnecessarily renamed it. The established heading has now been restored while keeping the self-serve campaign workspace. The corrected candidate is being revalidated through branch CI.

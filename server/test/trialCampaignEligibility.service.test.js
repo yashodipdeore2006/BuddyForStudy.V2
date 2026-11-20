@@ -229,3 +229,20 @@ test("database-backed evaluation rejects a learner whose prior admin trial remai
   );
   assert.deepEqual(result.reasonCodes, ["PREVIOUS_TRIAL"]);
 });
+
+
+test("database-backed evaluation also blocks an explicitly supplied prior campaign claim", async () => {
+  const makeQuery = value => ({
+    select() { return this; },
+    lean: async () => value
+  });
+  const result = await getTrialCampaignEligibilityForUser(
+    { campaign, userId: "learner-1", now: NOW, hasExistingCampaignClaim: true },
+    {
+      UserModel: { findById: () => makeQuery(learner) },
+      UserSubscriptionModel: { findOne: () => makeQuery(null) },
+      TrialGrantModel: { exists: async () => null }
+    }
+  );
+  assert.deepEqual(result.reasonCodes, ["CAMPAIGN_ALREADY_CLAIMED"]);
+});

@@ -3,6 +3,7 @@ const { Schema } = mongoose;
 const schema = new Schema({
   campaign: { type: Schema.Types.ObjectId, ref: "TrialCampaign", required: true },
   user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  activeClaimKey: { type: String, default: undefined, maxlength: 64 },
   idempotencyKey: { type: String, required: true, trim: true, minlength: 16, maxlength: 120 },
   status: { type: String, enum: ["reserved", "active", "failed", "revoked"], default: "reserved", required: true },
   claimedAt: { type: Date, required: true, default: Date.now },
@@ -29,6 +30,7 @@ schema.pre("validate", function validateClaimSnapshot() {
 });
 schema.index({ campaign: 1, user: 1 }, { unique: true, name: "trial_campaign_claim_unique_learner" });
 schema.index({ user: 1, idempotencyKey: 1 }, { unique: true, name: "trial_campaign_claim_idempotency" });
+schema.index({ activeClaimKey: 1 }, { unique: true, partialFilterExpression: { activeClaimKey: { $type: "string" } }, name: "trial_campaign_claim_single_live_user" });
 schema.index({ campaign: 1, claimedAt: -1 }, { name: "trial_campaign_claim_campaign_history" });
 schema.index({ user: 1, status: 1 }, { name: "trial_campaign_claim_user_status" });
 export const TrialCampaignClaim = mongoose.model("TrialCampaignClaim", schema);

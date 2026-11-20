@@ -37,6 +37,7 @@ function fixture(overrides = {}) {
     TrialCampaignClaimModel: {
       findOne(filter) {
         if (Object.hasOwn(filter, "idempotencyKey")) return query(overrides.priorByKey || null);
+        if (Object.hasOwn(filter, "activeClaimKey")) return query(overrides.activeClaim || null);
         return query(overrides.priorByCampaign || null);
       },
       async create(documents, options) {
@@ -86,6 +87,22 @@ test("a different key cannot bypass one claim per campaign and learner", async (
   const f = fixture({ priorByCampaign: { _id: "existing-claim", campaign: campaignId, user: learnerId } });
   const result = await claimTrialCampaign({ campaignId, userId: learnerId, idempotencyKey: "another-trial-claim-key-0002", now }, f.dependencies);
   assert.equal(result.code, "CAMPAIGN_ALREADY_CLAIMED"); assert.equal(f.recorded.filters.length, 0);
+});
+test("a learner with another reserved or active campaign claim cannot reserve a second campaign", async () => {
+  const f = fixture({ activeClaim: {
+    _id: "existing-live-claim", campaign: "another-campaign", user: learnerId,
+    activeClaimKey: learnerId, status: "reserved"
+  } });
+  const result = await claimTrialCampaign({
+    campaignId: "507f1f77bcf86cd799439099",
+    userId: learnerId,
+    idempotencyKey: "second-campaign-claim-0001",
+    now
+  }, f.dependencies);
+  assert.equal(result.status, 409);
+  assert.equal(result.code, "TRIAL_CLAIM_IN_PROGRESS");
+  assert.equal(f.recorded.filters.length, 0);
+  assert.equal(f.recorded.created, null);
 });
 test("ineligible learners are rejected before capacity reservation", async () => {
   const f = fixture({ eligibility: { eligible: false, reasonCodes: ["EMAIL_NOT_VERIFIED"], reasons: [{ message: "Verify email." }] } });

@@ -57,11 +57,12 @@ The counter is not a read-time guarantee. The claim service must atomically cond
 - The campaign has not exhausted its cap.
 - The learner passes current eligibility checks.
 - The learner has not already claimed this campaign.
+- The learner has no other reserved or active campaign claim; a partial unique active-claim key enforces this across campaigns.
 - The learner has no conflicting active subscription or trial.
 
 The campaign capacity update must be a conditional atomic database operation (for example, `findOneAndUpdate` with a server-side `$expr` comparing `claimedCount` and `maxClaims`, while incrementing `claimedCount`). A prior count read followed by an unconditional increment is not safe under concurrent claims.
 
-Task 14 must introduce a unique campaign/learner claim key in the claim ledger. The existing `TrialGrant` unique key is based on administrator `campaignName` and is not a substitute for a stable campaign ObjectId. Claim-ledger insertion, capacity reservation, and subscription mutation must have a transaction or compensating rollback strategy. No over-cap or duplicate success may be returned.
+Task 14 must introduce a unique campaign/learner claim key in the claim ledger. A partial unique active-claim lock also ensures only one reserved/active self-serve claim exists per learner across all campaigns; expiry or revocation must clear the lock while preserving the audit row. The existing `TrialGrant` unique key is based on administrator `campaignName` and is not a substitute for a stable campaign ObjectId. Claim-ledger insertion, capacity reservation, and subscription mutation must have a transaction or compensating rollback strategy. No over-cap or duplicate success may be returned.
 
 ## 5. Conversion and payment safety
 

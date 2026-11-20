@@ -70,6 +70,18 @@ export async function claimTrialCampaign({ campaignId, userId, idempotencyKey, n
         outcome = failure(409, "CAMPAIGN_ALREADY_CLAIMED", "This learner has already claimed this trial campaign.");
         return;
       }
+      const existingLiveClaim = await readQuery(
+        Claim.findOne({ user: userId, activeClaimKey: String(userId) }),
+        session
+      );
+      if (existingLiveClaim) {
+        outcome = failure(
+          409,
+          "TRIAL_CLAIM_IN_PROGRESS",
+          "This learner already has a reserved or active self-serve trial. It must finish or expire before another campaign can be claimed."
+        );
+        return;
+      }
       const campaign = await readQuery(Campaign.findById(campaignId), session);
       if (!campaign) { outcome = failure(404, "TRIAL_CAMPAIGN_NOT_FOUND", "The trial campaign could not be found."); return; }
       const eligibilityCampaign = {
@@ -109,7 +121,7 @@ export async function claimTrialCampaign({ campaignId, userId, idempotencyKey, n
         return;
       }
       const [claim] = await Claim.create([{
-        campaign: campaignId, user: userId, idempotencyKey: key, status: "reserved", claimedAt: now,
+        campaign: campaignId, user: userId, activeClaimKey: String(userId), idempotencyKey: key, status: "reserved", claimedAt: now,
         trialPlan: campaign.trialPlan, trialDays: campaign.trialDays,
         conversionMode: campaign.conversionMode || "none", conversionPlan: campaign.conversionPlan || null
       }], { session });
@@ -122,12 +134,14 @@ export async function claimTrialCampaign({ campaignId, userId, idempotencyKey, n
   }
   if (transactionError) {
     if (transactionError.code === 11000 || transactionError.codeName === "DuplicateKey") {
-      const [sameKey, sameCampaign] = await Promise.all([
+      const [sameKey, sameCampaign, liveClaim] = await Promise.all([
         readQuery(Claim.findOne({ user: userId, idempotencyKey: key }), null),
-        readQuery(Claim.findOne({ campaign: campaignId, user: userId }), null)
+        readQuery(Claim.findOne({ campaign: campaignId, user: userId }), null),
+        readQuery(Claim.findOne({ user: userId, activeClaimKey: String(userId) }), null)
       ]);
       const duplicateOutcome = replayOrConflict(sameKey, campaignId, key)
-        || (sameCampaign ? failure(409, "CAMPAIGN_ALREADY_CLAIMED", "This learner has already claimed this trial campaign.") : null);
+        || (sameCampaign ? failure(409, "CAMPAIGN_ALREADY_CLAIMED", "This learner has already claimed this trial campaign.") : null)
+        || (liveClaim ? failure(409, "TRIAL_CLAIM_IN_PROGRESS", "This learner already has a reserved or active self-serve trial.") : null);
       if (duplicateOutcome) return duplicateOutcome;
       return failure(409, "TRIAL_CLAIM_CONFLICT", "A concurrent trial claim conflicted with this request. Refresh the offer and try again.");
     }

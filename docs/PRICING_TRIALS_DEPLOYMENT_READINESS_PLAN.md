@@ -405,3 +405,6 @@ Implemented on buddy-for-study-v2.2:
 - Added service, model-index, and route tests. Fixed the browser test's unscoped checkbox selector so it targets the manual-grant confirmation control after separate campaign eligibility controls were added.
 
 **Verification state:** implementation and regression tests are committed; Task 14 remains in progress pending exact-SHA backend, frontend, browser, and release-gate CI. Transactional claims require a MongoDB deployment that supports multi-document transactions (replica set or sharded cluster). The API reserves a claim only; Task 15 performs the entitlement mutation. No staging or production deployment has been performed.
+
+
+Task 14 concurrency hardening: a partial unique active-claim key prevents a learner from reserving two different campaigns concurrently. Lifecycle expiry/revocation must unset this key without deleting claim history.

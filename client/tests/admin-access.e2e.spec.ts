@@ -851,7 +851,7 @@ test.describe("administrator route and permission UX", () => {
       },
     });
 
-    await page.getByRole("checkbox").check();
+    await page.getByRole("checkbox", { name: /I confirm granting the Free/ }).check();
     await page.getByRole("button", { name: "Confirm and grant trial" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Trial grants processed: 241 granted, 1 skipped. No autopay was initiated." })).toBeVisible();
     expect(grantPayload).toMatchObject({

@@ -79,14 +79,16 @@ Do not store card details, UPI PINs, mandate secrets, or payment credentials in 
 
 ## 7. Implementation boundary
 
-Implemented in this task:
-- `server/src/models/TrialCampaign.js`
-- `server/test/trialCampaignModel.test.js`
+Implemented in the current V2.2 candidate:
+- server/src/models/TrialCampaign.js and server/test/trialCampaignModel.test.js (Task 10)
+- campaign CRUD/publish APIs and permission tests (Task 11)
+- 7/14/30-day presets and administrator quick-create integration (Task 12; CI verification pending)
+- deterministic eligibility engine and database-backed evaluator (Task 13; CI verification pending)
+- server/src/models/TrialCampaignClaim.js, transactional reservation service, authenticated claim route, and claim tests (Task 14; CI verification pending)
 
 Not implemented here:
-- campaign CRUD/publish APIs (Task 11)
-- 7/14/30-day presets (Task 12)
-- eligibility execution (Task 13)
-- atomic claim ledger and entitlement creation (Task 14–15)
+- trial entitlement creation, UserSubscription mutation, and no-payment activation (Task 15)
 - learner offer API, popup, and expiry UI (Tasks 16–19)
-- admin campaign UI redesign (Tasks 20–21)
+- admin campaign dashboard redesign (Tasks 20–21)
+
+The Task 14 claim API requires MongoDB transaction support. Before enabling it in an environment with automatic index creation disabled, initialize and verify both TrialCampaign.init() and TrialCampaignClaim.init(). Do not run claims against a standalone MongoDB server that cannot provide multi-document transactions.

@@ -155,7 +155,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | DONE |
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | IN_PROGRESS |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | IN_PROGRESS |
-| 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | NOT_STARTED |
+| 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | IN_PROGRESS |
 | 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | NOT_STARTED |
 
 ### Phase 4 — Learner trial experience
@@ -388,3 +388,20 @@ Implemented on `buddy-for-study-v2.2`:
 ### Task 12 CI correction note
 
 The first exact-candidate CI run \`44718122920\` reported backend success and 118/119 browser tests passed. The single failure was an existing administrator browser assertion expecting the established page heading \`Grant a free trial\`; the new campaign section had unnecessarily renamed it. The established heading has now been restored while keeping the self-serve campaign workspace. The corrected candidate is being revalidated through branch CI.
+
+
+## 15. Task 14 implementation candidate — transactional campaign claim reservation
+
+**Scope:** Implement a learner-authenticated, idempotent campaign claim endpoint. The claim ledger and campaign capacity reservation are committed in the same MongoDB transaction. Trial entitlement activation remains Task 15.
+
+Implemented on buddy-for-study-v2.2:
+
+- server/src/models/TrialCampaignClaim.js adds the durable trial_campaign_claims ledger. Unique indexes enforce one claim per campaign/learner and one idempotency key per learner. The record preserves campaign trial-plan, duration, and conversion-offer snapshot and has reservation/activation/failure lifecycle fields for Task 15.
+- server/src/services/trialCampaignClaim.service.js performs replay lookup, duplicate-claim rejection, authoritative eligibility evaluation, a hard active-subscription/trial guard, and an active trial-plan check inside a MongoDB transaction.
+- Capacity is reserved using a conditional findOneAndUpdate that requires published status, an active date window, and $expr: { $lt: ["$claimedCount", "$maxClaims"] } while incrementing claimedCount. The unique claim row is created in the same session; a transaction failure rolls both operations back.
+- server/src/controllers/trialCampaignClaim.controller.js accepts an explicit Idempotency-Key header (or matching body value), scopes it to the authenticated user, and returns the durable reservation or a structured conflict/eligibility response.
+- server/src/routes/trialCampaign.routes.js exposes POST /api/trials/campaigns/:campaignId/claim behind authentication. No payment, Razorpay, or recurring-payment code is called. New claims remain reserved until Task 15 attaches the entitlement.
+- Task 13's database-backed eligibility reads now accept the same transaction session so campaign, user, subscription, and prior-trial facts are evaluated consistently with the claim write.
+- Added service, model-index, and route tests. Fixed the browser test's unscoped checkbox selector so it targets the manual-grant confirmation control after separate campaign eligibility controls were added.
+
+**Verification state:** implementation and regression tests are committed; Task 14 remains in progress pending exact-SHA backend, frontend, browser, and release-gate CI. Transactional claims require a MongoDB deployment that supports multi-document transactions (replica set or sharded cluster). The API reserves a claim only; Task 15 performs the entitlement mutation. No staging or production deployment has been performed.

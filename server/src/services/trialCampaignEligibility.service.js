@@ -229,10 +229,18 @@ export async function getTrialCampaignEligibilityForUser({ campaign, userId, now
   const UserSubscriptionModel = dependencies.UserSubscriptionModel || UserSubscription;
   const TrialGrantModel = dependencies.TrialGrantModel || TrialGrant;
 
+  const learnerQuery = UserModel.findById(userId).select("role isActive emailVerified");
+  const subscriptionQuery = UserSubscriptionModel.findOne({ user: userId }).select("status currentPeriodEnd");
+  const previousTrialQuery = TrialGrantModel.exists({ user: userId });
+  if (dependencies.session) {
+    learnerQuery.session(dependencies.session);
+    subscriptionQuery.session(dependencies.session);
+    previousTrialQuery.session(dependencies.session);
+  }
   const [learner, subscription, previousTrial] = await Promise.all([
-    UserModel.findById(userId).select("role isActive emailVerified").lean(),
-    UserSubscriptionModel.findOne({ user: userId }).select("status currentPeriodEnd").lean(),
-    TrialGrantModel.exists({ user: userId })
+    learnerQuery.lean(),
+    subscriptionQuery.lean(),
+    previousTrialQuery
   ]);
 
   return evaluateTrialCampaignEligibility({

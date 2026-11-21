@@ -31,7 +31,7 @@ test("bulk pricing always previews selected scope before applying", () => {
   assert.match(source, /adminFetch\("\/api\/admin\/pricing\/preview"/);
   assert.match(source, /adminFetch\("\/api\/admin\/pricing\/apply"/);
   assert.match(source, /Preview and approval/);
-  assert.match(source, /No course price is changed by preview generation/);
+  assert.match(source, /No price is changed by preview generation/);
   assert.match(source, /confirm\("Apply only the course prices shown in this preview/);
   assert.match(source, /reason\.trim\(\)\.length < 10/);
 });

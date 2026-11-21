@@ -162,7 +162,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | IN_PROGRESS |
+| 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | NOT_STARTED |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | NOT_STARTED |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
@@ -220,7 +220,7 @@ The older production-readiness checklist and admin master specification remain h
 
 ## 8. Current V2.2 architecture map and verified gaps
 
-This map was checked against source candidate `5b43ce3534a47b2ca783e9f19e15ae546ac2c6e7`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
+This map was refreshed against source candidate `d3de84cf7f467f5133b9ca0c4a1fd4461dc4a031`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
 
 ### 8.1 Public plan and learner billing path
 
@@ -241,7 +241,7 @@ This map was checked against source candidate `5b43ce3534a47b2ca783e9f19e15ae546
 | Admin navigation | `client/src/pages/admin/AdminLayout.tsx` | Currently lists both work areas in Finance & Governance; preserve their distinct meaning while making the group easier to scan. |
 | Authorization | `server/src/routes/adminPro.routes.js` — `plans.read` for listing; `plans.manage` for create/update; `pricing.manage` for course pricing | The admin route is authenticated and role-protected, with a permission check per endpoint. UI navigation is not a security boundary. |
 
-### 8.3 Existing trial path and missing self-serve campaign path
+### 8.3 Existing trial path and self-serve campaign path
 
 | Layer | Current implementation | Finding |
 |---|---|---|
@@ -249,8 +249,8 @@ This map was checked against source candidate `5b43ce3534a47b2ca783e9f19e15ae546
 | Admin grant flow | `client/src/pages/admin/AdminTrialCampaigns.tsx`, `server/src/controllers/adminTrials.controller.js`, `server/src/routes/adminTrials.routes.js` | Supports choosing a learner or filtered group, previewing eligibility, granting, and viewing recent grants. |
 | Learner trial status | `GET /api/billing/trial` in `server/src/routes/billing.routes.js` | Returns a learner's current active TrialGrant and optional conversion plan. |
 | Learner trial UI | `client/src/pages/Billing.tsx` and `client/src/pages/Pricing.tsx` | Displays an active trial and, when configured, a paid conversion offer with explicit consent. |
-| Campaign configuration | No `TrialCampaign` model or public campaign CRUD/claim route exists in the audited tree | Admin grants are not the same as reusable, publishable self-serve campaigns. |
-| Self-serve offer | No authenticated eligible-offer endpoint or trial-claim popup exists in the audited tree | Must be implemented without allowing browser-only eligibility or duplicate claim decisions. |
+| Campaign configuration | `server/src/models/TrialCampaign.js`, protected admin trial routes/controller, and `client/src/pages/admin/AdminTrialCampaigns.tsx` | Administrators configure reusable published campaigns separately from one-off manual grants. |
+| Self-serve offer and claim | `GET /api/trials/offer` and `POST /api/trials/campaigns/:campaignId/claim` in `server/src/routes/trialCampaign.routes.js` | The offer API is authenticated, read-only, and server-calculated; the claim API rechecks eligibility and atomically activates the entitlement. The learner popup remains Task 17. |
 
 ### 8.4 Payment route boundary
 
@@ -443,4 +443,4 @@ Implemented on `buddy-for-study-v2.2`:
 - The endpoint is read-only. It does not reserve campaign capacity, create a claim, create a TrialGrant/UserSubscription, or invoke a payment provider. Task 15 claim-time revalidation and transactional capacity protection remain authoritative.
 - Added service regression coverage for no active offer, safe response shaping, free-plan handling, paid-subscription exclusion, prior claims, live claims, active administrator trials, inactive plans, and unverified email.
 
-**Verification state:** Task 16 implementation and tests are committed; exact-SHA backend, frontend, browser, and Production release-gate CI are pending. No staging or production deployment has been performed.
+**Verification:** exact-SHA backend lint and full backend tests, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `d3de84cf7f467f5133b9ca0c4a1fd4461dc4a031` (run [44872385306](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44872385306)). No staging or production deployment has been performed.

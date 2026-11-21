@@ -11,7 +11,8 @@ const js = ts.transpileModule(source, {
 }).outputText;
 const loadedModule = { exports: {} };
 vm.runInNewContext(js, {
-  exports: module.exports, module,
+  exports: loadedModule.exports,
+  module: loadedModule,
   globalThis: { crypto: { randomUUID: () => "123e4567-e89b-12d3-a456-426614174000" } },
   Date, Math, encodeURIComponent, Number, String,
 }, { filename: "trialOffer.ts" });

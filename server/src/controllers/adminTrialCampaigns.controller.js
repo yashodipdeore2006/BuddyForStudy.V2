@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TrialCampaign } from "../models/TrialCampaign.js";
+import { TrialCampaignClaim } from "../models/TrialCampaignClaim.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
@@ -358,4 +359,34 @@ export async function disableCampaign(req, res, next) {
   } catch (error) {
     return next(error);
   }
+}
+
+
+export async function listCampaignClaims(req, res, next) {
+  try {
+    const page = Math.max(1, Math.min(10000, Number(req.query.page) || 1));
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 25));
+    const filter = {};
+    const status = req.query.status == null ? "" : String(req.query.status).trim();
+    if (status) {
+      if (!["reserved", "active", "failed", "expired", "revoked"].includes(status)) return failure(res, "Invalid claim status filter.", 400);
+      filter.status = status;
+    }
+    const campaignId = req.query.campaignId == null ? "" : String(req.query.campaignId).trim();
+    if (campaignId) {
+      if (!isValidObjectId(campaignId)) return failure(res, "Invalid campaignId.", 400);
+      filter.campaign = campaignId;
+    }
+    const [claims, total] = await Promise.all([
+      TrialCampaignClaim.find(filter)
+        .populate("campaign", "internalName offerTitle status")
+        .populate("user", "name email")
+        .populate("trialPlan", "name")
+        .populate("conversionPlan", "name price currency billingInterval")
+        .populate("trialGrant", "status startsAt endsAt")
+        .sort({ claimedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      TrialCampaignClaim.countDocuments(filter)
+    ]);
+    return success(res, { claims, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+  } catch (error) { next(error); }
 }

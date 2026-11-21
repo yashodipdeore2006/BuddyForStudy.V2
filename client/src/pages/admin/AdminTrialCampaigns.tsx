@@ -23,6 +23,7 @@ type CampaignPreset = {
   conversionMode: "none" | "consent_required";
   conversionPlanId: string | null;
 };
+type TrialClaim = { _id: string; status: string; claimedAt: string; activatedAt?: string | null; campaign?: { internalName?: string; status?: string } | null; user?: { name?: string; email?: string } | null; trialPlan?: { name?: string } | null; trialGrant?: { status?: string } | null };
 type TrialCampaign = {
   _id: string;
   internalName: string;
@@ -77,6 +78,8 @@ const date = (value?: string) => value ? new Date(value).toLocaleString("en-IN")
 export default function AdminTrialCampaigns() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
+  const [claims, setClaims] = useState<TrialClaim[]>([]);
+  const [claimStatusFilter, setClaimStatusFilter] = useState("all");
   const [planId, setPlanId] = useState("");
   const [conversionPlanId, setConversionPlanId] = useState("");
   const [campaignName, setCampaignName] = useState("Personal trial grant");
@@ -242,11 +245,12 @@ export default function AdminTrialCampaigns() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [planData, grantData] = await Promise.all([adminFetch("/api/admin/plans"), adminFetch("/api/admin/trials/grants?limit=25")]);
+      const [planData, grantData, claimData] = await Promise.all([adminFetch("/api/admin/plans"), adminFetch("/api/admin/trials/grants?limit=50"), adminFetch("/api/admin/trials/claims?limit=50")]);
       const activePlans = (planData.plans || []).filter((p: Plan) => p.isActive);
       setPlans(activePlans);
       if (!planId && activePlans[0]) setPlanId(activePlans[0]._id);
       setGrants(grantData.grants || []);
+      setClaims(claimData.claims || []);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load trial campaigns."); }
     finally { setLoading(false); }
   }, [planId]);
@@ -323,6 +327,10 @@ export default function AdminTrialCampaigns() {
     finally { setLoading(false); }
   }
   const valid = Boolean(planId) && campaignName.trim().length >= 3 && reason.trim().length >= 10 && trialDays >= 1 && trialDays <= 30 && (targetMode === "single" ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(singleEmail.trim()) : true);
+  const claimCounts = claims.reduce((counts, claim) => { counts[claim.status] = (counts[claim.status] || 0) + 1; return counts; }, {} as Record<string, number>);
+  const activeGrantCount = grants.filter(grant => grant.status === "trialing").length;
+  const historyGrantCount = grants.filter(grant => ["expired", "revoked", "converted"].includes(grant.status)).length;
+  const filteredClaims = claimStatusFilter === "all" ? claims : claims.filter(claim => claim.status === claimStatusFilter);
   const inputClass = "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100";
   const labelClass = "block text-xs font-semibold text-slate-600";
   const selectClass = inputClass;
@@ -330,11 +338,24 @@ export default function AdminTrialCampaigns() {
 
   return <div className="mx-auto max-w-6xl pb-12">
     <AdminPageHeader eyebrow="Learner access" title="Grant a free trial" description="Create reusable self-serve offers or issue a reviewed trial grant to a specific learner or group." actions={<button className="btn-secondary" type="button" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>} />
+    <nav aria-label="Trial dashboard sections" className="mt-5 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+      {([["overview","Overview"],["campaigns","Campaigns"],["claims","Claims"],["grants","Grants"],["history","History"]] as const).map(([id,label]) => <a key={id} href={"#trial-" + id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-800">{label}</a>)}
+    </nav>
+    <section id="trial-overview" className="mt-5 scroll-mt-24">
+      <h2 className="mb-3 text-base font-bold text-slate-900">Trial operations overview</h2>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Campaigns", campaigns.length], ["Published", campaigns.filter(c => c.status === "published").length],
+          ["Recent claims", claims.length], ["Active grants", activeGrantCount], ["Trial history", historyGrantCount]
+        ].map(([label,value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase text-slate-500">{label}</p><p className="mt-2 text-2xl font-extrabold text-slate-950">{value}</p></div>)}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">{["reserved","active","failed","expired","revoked"].map(status => <span key={status} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">{status}: {claimCounts[status] || 0}</span>)}</div>
+    </section>
     {error && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {message && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
 
 
-    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section id="trial-campaigns" className="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
         <div>
           <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-violet-700" /><h2 className="font-bold text-slate-900">Self-serve quick-trial campaigns</h2></div>
@@ -453,6 +474,17 @@ export default function AdminTrialCampaigns() {
       </div>
     </section>
 
+    <section id="trial-claims" className="mt-7 scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+        <div><h2 className="font-bold text-slate-900">Campaign claims</h2><p className="mt-1 text-sm text-slate-500">Claim attempts and activation outcomes, separate from trial entitlements.</p></div>
+        <label className="text-xs font-semibold text-slate-600">Status <select className="ml-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" value={claimStatusFilter} onChange={e=>setClaimStatusFilter(e.target.value)}><option value="all">All</option><option value="reserved">Reserved</option><option value="active">Active</option><option value="failed">Failed</option><option value="expired">Expired</option><option value="revoked">Revoked</option></select></label>
+      </div>
+      <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Learner</th><th className="p-3">Campaign</th><th className="p-3">Plan</th><th className="p-3">Claimed</th><th className="p-3">Status</th><th className="p-3">Grant</th></tr></thead>
+        <tbody className="divide-y divide-slate-100">{filteredClaims.map(claim=><tr key={claim._id}><td className="p-3"><p className="font-semibold">{claim.user?.name||"Unknown learner"}</p><p className="text-xs text-slate-500">{claim.user?.email||"—"}</p></td><td className="p-3">{claim.campaign?.internalName||"Campaign unavailable"}</td><td className="p-3">{claim.trialPlan?.name||"—"}</td><td className="p-3 text-xs">{date(claim.claimedAt)}</td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{claim.status}</span></td><td className="p-3 text-xs">{claim.trialGrant?.status||"—"}</td></tr>)}</tbody>
+      </table>{!filteredClaims.length&&<p className="p-8 text-center text-sm text-slate-500">No campaign claims for this status.</p>}</div>
+    </section>
+    <section id="trial-grants" className="mt-7 scroll-mt-24">
+      <div className="mb-3"><h2 className="text-base font-bold text-slate-900">Issue a trial grant</h2><p className="text-sm text-slate-500">Manual grants are independent from campaign claims.</p></div>
     <div className="mt-6 grid gap-3 sm:grid-cols-3">
       <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/70 p-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white">1</span><div><p className="text-sm font-semibold text-slate-900">Choose learner(s)</p><p className="text-xs text-slate-500">One account or a group</p></div></div>
       <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-700">2</span><div><p className="text-sm font-semibold text-slate-900">Set trial access</p><p className="text-xs text-slate-500">Plan and number of days</p></div></div>
@@ -519,6 +551,8 @@ export default function AdminTrialCampaigns() {
       <div className="border-t border-slate-100 p-5 sm:px-6"><label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" checked={confirmGrant} onChange={e=>setConfirmGrant(e.target.checked)} className="mt-1 h-4 w-4 accent-violet-600"/><span>I confirm granting the <strong>{plans.find(p=>p._id===planId)?.name}</strong> plan for <strong>{trialDays} days</strong> to <strong>{preview.eligibleCount} eligible learner(s)</strong>. This does not authorize recurring payments.</span></label><div className="mt-4 flex flex-wrap gap-3"><button type="button" className="btn-primary" onClick={()=>void applyGrant()} disabled={loading||!confirmGrant||preview.eligibleCount===0}><ShieldCheck className="h-4 w-4"/>Confirm and grant trial</button><button type="button" className="btn-secondary" onClick={()=>{setPreview(null);setConfirmGrant(false);}}>Back to edit</button></div></div>
     </section>}
 
-    <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-5"><h2 className="font-bold text-slate-900">Recent trial grants</h2><p className="mt-1 text-sm text-slate-500">Review the latest grants and their conversion-consent state.</p></div>{loading&&!grants.length?<p className="p-8 text-sm text-slate-500">Loading grants…</p>:<div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Learner</th><th className="p-3">Campaign / plan</th><th className="p-3">Trial period</th><th className="p-3">Status</th><th className="p-3">Conversion</th><th className="p-3">Reason</th><th className="p-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{grants.map(g=><tr key={g._id}><td className="p-3"><p className="font-semibold">{g.user?.name||"Unknown user"}</p><p className="text-xs text-slate-500">{g.user?.email}</p></td><td className="p-3"><p>{g.campaignName}</p><p className="text-xs text-slate-500">{g.plan?.name||"Plan"}</p></td><td className="p-3 text-xs"><p>{date(g.startsAt)}</p><p>Ends {date(g.endsAt)}</p></td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{g.status}</span></td><td className="p-3">{g.conversionPlan?.name||"None"}<p className="text-xs text-slate-500">{g.conversionConsentStatus.replace(/_/g," ")}</p></td><td className="max-w-56 p-3 text-xs text-slate-500">{g.reason}</td><td className="p-3">{g.status==="trialing" ? <button type="button" className="btn-secondary whitespace-nowrap" onClick={()=>void revokeGrant(g._id)} disabled={grantActionId===g._id || Boolean(grantActionId)}><Ban className="h-3.5 w-3.5"/>{grantActionId===g._id ? "Revoking…" : "Revoke trial"}</button> : <span className="text-xs text-slate-400">—</span>}</td></tr>)}</tbody></table>{!grants.length&&<p className="p-8 text-center text-sm text-slate-500">No trial grants yet.</p>}</div>}</section>
+    <section id="trial-history" className="mt-8 scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-5"><h2 className="font-bold text-slate-900">Trial grant history</h2><p className="mt-1 text-sm text-slate-500">Review current and terminal entitlements, conversion consent, and administrative reason.</p></div>{loading&&!grants.length?<p className="p-8 text-sm text-slate-500">Loading grants…</p>:<div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Learner</th><th className="p-3">Campaign / plan</th><th className="p-3">Trial period</th><th className="p-3">Status</th><th className="p-3">Conversion</th><th className="p-3">Reason</th><th className="p-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{grants.map(g=><tr key={g._id}><td className="p-3"><p className="font-semibold">{g.user?.name||"Unknown user"}</p><p className="text-xs text-slate-500">{g.user?.email}</p></td><td className="p-3"><p>{g.campaignName}</p><p className="text-xs text-slate-500">{g.plan?.name||"Plan"}</p></td><td className="p-3 text-xs"><p>{date(g.startsAt)}</p><p>Ends {date(g.endsAt)}</p></td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{g.status}</span></td><td className="p-3">{g.conversionPlan?.name||"None"}<p className="text-xs text-slate-500">{g.conversionConsentStatus.replace(/_/g," ")}</p></td><td className="max-w-56 p-3 text-xs text-slate-500">{g.reason}</td><td className="p-3">{g.status==="trialing" ? <button type="button" className="btn-secondary whitespace-nowrap" onClick={()=>void revokeGrant(g._id)} disabled={grantActionId===g._id || Boolean(grantActionId)}><Ban className="h-3.5 w-3.5"/>{grantActionId===g._id ? "Revoking…" : "Revoke trial"}</button> : <span className="text-xs text-slate-400">—</span>}</td></tr>)}</tbody></table>{!grants.length&&<p className="p-8 text-center text-sm text-slate-500">No trial grants yet.</p>}</div>}</section>
+    </section>
+    </section>
   </div>;
 }

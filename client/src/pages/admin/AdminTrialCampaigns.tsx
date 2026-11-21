@@ -603,7 +603,6 @@ export default function AdminTrialCampaigns() {
                 <ShieldCheck className="h-4 w-4" />{campaignSaving ? "Saving draft…" : "Save campaign as draft"}
               </button>}
         </div>
-      </div>
         <div className="mt-8 border-t border-slate-100 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900">Existing self-serve campaigns</h3><p className="mt-1 text-xs text-slate-500">Publish, pause or disable a campaign separately from draft creation.</p></div><span className="text-xs text-slate-500">{campaigns.length} shown</span></div>
           {campaignLoading && <p className="mt-4 text-sm text-slate-500">Loading campaigns…</p>}

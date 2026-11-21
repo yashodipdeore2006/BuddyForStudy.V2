@@ -822,7 +822,7 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("heading", { name: "Subscription plans" })).toBeVisible();
     await expect(page.getByText("Paid checkout disabled")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Default free-assignment plan" })).toBeVisible();
-    await expect(page.getByText("Free Starter", { exact: true })).toBeVisible();
+    await expect(page.getByText("Free Starter", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("2 active plans qualify. This plan wins under the current ordering.", { exact: false })).toBeVisible();
 
     await page.getByRole("tab", { name: /Catalogue/ }).click();
@@ -832,7 +832,8 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText("Free Starter", { exact: true })).toHaveCount(0);
     await page.getByLabel("Search plans").fill("");
 
-    await page.getByRole("button", { name: "Manage plan" }).filter({ has: page.getByText("Pro", { exact: true }) }).click();
+    const proCard = page.locator(".admin-card").filter({ has: page.getByRole("heading", { name: "Pro", exact: true }) });
+    await proCard.getByRole("button", { name: "Manage plan" }).click();
     await expect(page.getByRole("heading", { name: "1. Plan details and billing" })).toBeVisible();
     await expect(page.getByLabel("Plan price for Pro")).toBeDisabled();
     await expect(page.getByLabel("Billing interval for Pro")).toBeDisabled();

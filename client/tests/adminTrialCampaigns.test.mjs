@@ -53,7 +53,20 @@ test("trial dashboard separates claims from grant history and exposes operations
   assert.match(source, /trial-campaigns/);
   assert.match(source, /trial-claims/);
   assert.match(source, /trial-grants/);
+  assert.match(source, /trial-issue/);
   assert.match(source, /trial-history/);
   assert.match(source, /Campaign claims/);
   assert.match(source, /Trial grant history/);
+});
+
+test("active trial grants and terminal trial history are separate dashboard workspaces", () => {
+  assert.match(source, /id="trial-grants"/);
+  assert.match(source, /Active trial grants/);
+  assert.match(source, /activeGrants\.map/);
+  assert.match(source, /id="trial-issue"/);
+  assert.match(source, /Issue a trial grant/);
+  assert.match(source, /id="trial-history"/);
+  assert.match(source, /historicalGrants\.map/);
+  assert.match(source, /No expired, revoked or converted trials yet/);
+  assert.match(source, /\["expired", "revoked", "converted"\]/);
 });

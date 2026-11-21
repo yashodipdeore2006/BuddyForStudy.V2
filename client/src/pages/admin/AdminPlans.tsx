@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Power, Plus, RefreshCcw, Save, Sparkles, Search, CreditCard, CircleDollarSign, Layers3, Pencil, SlidersHorizontal, UsersRound } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Power, Plus, RefreshCcw, Save, Search, CreditCard, CircleDollarSign, Layers3, Pencil, SlidersHorizontal, UsersRound } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { apiFetch } from "@/lib/api";
 import { AdminAlert, AdminBadge, AdminCard, AdminEmptyState, AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";

@@ -163,7 +163,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
-| 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | IN_PROGRESS |
+| 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | DONE |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | NOT_STARTED |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
 
@@ -220,7 +220,7 @@ The older production-readiness checklist and admin master specification remain h
 
 ## 8. Current V2.2 architecture map and verified gaps
 
-This map was refreshed against source candidate `d3de84cf7f467f5133b9ca0c4a1fd4461dc4a031`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
+This map was refreshed against source candidate `9d5e7d7a0ec75dbbde36ff88270b019f777ee37f`. Paths are repository-relative. The map is a code-structure finding, not evidence that the corresponding external deployment is live.
 
 ### 8.1 Public plan and learner billing path
 
@@ -250,7 +250,7 @@ This map was refreshed against source candidate `d3de84cf7f467f5133b9ca0c4a1fd44
 | Learner trial status | `GET /api/billing/trial` in `server/src/routes/billing.routes.js` | Returns a learner's current active TrialGrant and optional conversion plan. |
 | Learner trial UI | `client/src/pages/Billing.tsx` and `client/src/pages/Pricing.tsx` | Displays an active trial and, when configured, a paid conversion offer with explicit consent. |
 | Campaign configuration | `server/src/models/TrialCampaign.js`, protected admin trial routes/controller, and `client/src/pages/admin/AdminTrialCampaigns.tsx` | Administrators configure reusable published campaigns separately from one-off manual grants. |
-| Self-serve offer and claim | `GET /api/trials/offer` and `POST /api/trials/campaigns/:campaignId/claim` in `server/src/routes/trialCampaign.routes.js` | The offer API is authenticated, read-only, and server-calculated; the claim API rechecks eligibility and atomically activates the entitlement. The learner popup remains Task 17. |
+| Self-serve offer and claim | `GET /api/trials/offer` and `POST /api/trials/campaigns/:campaignId/claim` in `server/src/routes/trialCampaign.routes.js` | The offer API is authenticated, read-only, and server-calculated; the claim API rechecks eligibility and atomically activates the entitlement. The learner popup is implemented in Task 17 and presents explicit Claim and Not now actions. |
 
 ### 8.4 Payment route boundary
 
@@ -460,4 +460,4 @@ Implemented on \`buddy-for-study-v2.2\`:
 - **Not now**, the close control, and Escape dismiss without calling the claim endpoint. Dismissal is stored per learner and campaign for a 24-hour UI cooldown; this storage affects prompt frequency only and never affects server eligibility or entitlement.
 - Added a tested dismissal/idempotency helper, Playwright coverage for dismiss-without-claim and claim-confirmation/no-repeat, and API GET cache invalidation after trial mutations.
 
-**Verification state:** Task 17 implementation and regression tests are committed; exact-SHA backend, frontend, Playwright, and Production release-gate CI are pending. No staging or production deployment has been performed.
+**Verification:** exact-SHA frontend lint, typecheck, unit tests, production build, Playwright browser navigation smoke tests, backend lint and full test suite, production-config preflight, server JavaScript syntax validation, and the Production release gate all passed on implementation candidate `9d5e7d7a0ec75dbbde36ff88270b019f777ee37f` (run [44873843558](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44873843558)). No staging or production deployment has been performed.

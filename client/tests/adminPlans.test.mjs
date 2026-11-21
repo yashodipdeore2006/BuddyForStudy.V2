@@ -22,7 +22,7 @@ test("subscription plans are separated into overview, catalogue, editor and crea
 test("overview reports plan totals and keeps global payment availability separate", () => {
   for (const label of ["Total plans", "Active plans", "Inactive plans", "Free plans", "Paid plans"]) includes(label);
   includes('apiFetch<{ paymentsEnabled?: boolean }>("/api/billing/plans")');
-  includes("Plan visibility and payment availability are separate controls");
+  includes("plan visibility and payment availability are separate controls");
   includes("Paid checkout disabled");
   includes("Paid checkout enabled");
 });

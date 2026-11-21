@@ -16,8 +16,8 @@ export async function claimCampaign(req, res, next) {
     if (!result.ok) return failure(res, result.message, result.status || 400, { code: result.code, reasons: result.reasons || [] });
     return success(res, {
       claim: result.claim, idempotentReplay: Boolean(result.replayed)
-    }, result.replayed ? "The existing trial claim reservation was returned."
-      : "Trial claim reserved. Trial entitlement activation is handled by the next rollout step.",
-    result.replayed ? 200 : 202);
+    }, result.replayed ? "Your existing trial claim and entitlement were returned."
+      : "Your trial is now active. No payment or recurring authorization was initiated.",
+    result.replayed ? 200 : 201);
   } catch (error) { return next(error); }
 }

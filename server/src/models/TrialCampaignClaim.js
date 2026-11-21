@@ -17,6 +17,7 @@ const schema = new Schema({
   trialGrant: { type: Schema.Types.ObjectId, ref: "TrialGrant", default: null },
   userSubscription: { type: Schema.Types.ObjectId, ref: "UserSubscription", default: null },
   activatedAt: { type: Date, default: null },
+  trialEndsAt: { type: Date, default: null },
   failedAt: { type: Date, default: null },
   failureCode: { type: String, default: "", maxlength: 80 }
 }, { timestamps: true, collection: "trial_campaign_claims", strict: "throw", minimize: false });

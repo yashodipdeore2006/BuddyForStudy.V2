@@ -113,6 +113,29 @@ test("current subscription statuses and period boundaries are checked consistent
   assert.equal(isTrialCampaignSubscriptionActive({ status: "active", currentPeriodEnd: "invalid" }, NOW), true);
 });
 
+test("a configured free/default plan is not treated as an active paid subscription", () => {
+  for (const plan of [
+    { slug: "free", price: 0 },
+    { slug: "starter-free", price: 0 }
+  ]) {
+    assert.equal(isTrialCampaignSubscriptionActive({
+      status: "active",
+      currentPeriodEnd: null,
+      plan
+    }, NOW), false);
+  }
+  assert.equal(isTrialCampaignSubscriptionActive({
+    status: "trialing",
+    currentPeriodEnd: "2026-11-20T10:00:01.000Z",
+    plan: { slug: "free", price: 0 }
+  }, NOW), true);
+  assert.equal(isTrialCampaignSubscriptionActive({
+    status: "active",
+    currentPeriodEnd: null,
+    plan: { slug: "premium", price: 299 }
+  }, NOW), true);
+});
+
 test("campaign dates, publication state and capacity block unavailable offers", () => {
   const cases = [
     [{ ...campaign, startsAt: "2026-11-21T00:00:00.000Z" }, "CAMPAIGN_NOT_STARTED"],
@@ -191,6 +214,8 @@ test("audience evaluation preserves order and returns useful skipped reasons and
 test("database-backed evaluation uses current user, subscription and trial history reads", async () => {
   const makeQuery = value => ({
     select() { return this; },
+    populate() { return this; },
+    session() { return this; },
     lean: async () => value
   });
   const calls = [];
@@ -217,6 +242,8 @@ test("database-backed evaluation uses current user, subscription and trial histo
 test("database-backed evaluation rejects a learner whose prior admin trial remains in history", async () => {
   const makeQuery = value => ({
     select() { return this; },
+    populate() { return this; },
+    session() { return this; },
     lean: async () => value
   });
   const result = await getTrialCampaignEligibilityForUser(
@@ -234,6 +261,8 @@ test("database-backed evaluation rejects a learner whose prior admin trial remai
 test("database-backed evaluation also blocks an explicitly supplied prior campaign claim", async () => {
   const makeQuery = value => ({
     select() { return this; },
+    populate() { return this; },
+    session() { return this; },
     lean: async () => value
   });
   const result = await getTrialCampaignEligibilityForUser(

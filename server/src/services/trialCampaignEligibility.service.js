@@ -40,8 +40,15 @@ function resolveNow(value) {
  * its billing period has not ended. A malformed period fails closed so a bad
  * timestamp cannot accidentally make an active paid/trial entitlement eligible.
  */
+function isFreePlan(plan) {
+  if (!plan || typeof plan !== "object") return false;
+  return String(plan.slug || "").trim().toLowerCase() === "free"
+    || (Number.isFinite(Number(plan.price)) && Number(plan.price) === 0);
+}
+
 export function isTrialCampaignSubscriptionActive(subscription, now = new Date()) {
   if (!subscription || !ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)) return false;
+  if (subscription.status !== "trialing" && isFreePlan(subscription.plan)) return false;
   if (subscription.currentPeriodEnd == null || subscription.currentPeriodEnd === "") return true;
   const end = asDate(subscription.currentPeriodEnd);
   if (!end) return true;
@@ -230,7 +237,9 @@ export async function getTrialCampaignEligibilityForUser({ campaign, userId, now
   const TrialGrantModel = dependencies.TrialGrantModel || TrialGrant;
 
   const learnerQuery = UserModel.findById(userId).select("role isActive emailVerified");
-  const subscriptionQuery = UserSubscriptionModel.findOne({ user: userId }).select("status currentPeriodEnd");
+  const subscriptionQuery = UserSubscriptionModel.findOne({ user: userId })
+    .select("status currentPeriodEnd plan")
+    .populate("plan", "slug price");
   const previousTrialQuery = TrialGrantModel.exists({ user: userId });
   if (dependencies.session) {
     learnerQuery.session(dependencies.session);

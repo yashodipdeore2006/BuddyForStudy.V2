@@ -153,10 +153,10 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 |---:|---|---|---|
 | 10 | Design TrialCampaign data model | Schema, indexes, validation, and migration/deployment notes reviewed | DONE |
 | 11 | Implement campaign management APIs | Permission-protected create, update, list, publish, pause, and disable operations | DONE |
-| 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | IN_PROGRESS |
-| 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | IN_PROGRESS |
-| 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | IN_PROGRESS |
-| 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | NOT_STARTED |
+| 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | DONE |
+| 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | DONE |
+| 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | DONE |
+| 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | IN_PROGRESS |
 
 ### Phase 4 — Learner trial experience
 
@@ -366,7 +366,7 @@ Implemented on `buddy-for-study-v2.2`:
 - The existing one-learner/group manual preview and grant workflow and recent grant history are retained separately.
 - Added `client/tests/adminTrialCampaigns.test.mjs` and included it in `npm run test:unit`.
 
-**Verification state:** implementation and regression coverage committed; branch CI is the required verification gate. Task 12 remains in progress until the exact commit's frontend, backend, and production release-gate checks are confirmed green. No staging or production deployment has been performed.
+**Verification:** the corrected preset UI and browser regression suite passed backend, frontend, Playwright, and production release-gate CI on `b70ed8b7925647e1b9b3d864b84045a950e0fc49` (run [44721916052](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44721916052)). Task 12 is complete for this repository candidate. No staging or production deployment has been performed.
 
 
 ## 14. Task 13 implementation candidate — deterministic eligibility engine
@@ -382,12 +382,12 @@ Implemented on `buddy-for-study-v2.2`:
 - Missing required eligibility facts fail closed. Malformed subscription period data is treated as active so it cannot accidentally authorize a new trial.
 - Added `server/test/trialCampaignEligibility.service.test.js` with deterministic unit and injected-model tests.
 
-**Verification state:** Task 13 implementation and regression tests committed. Branch CI is the verification gate; Task 13 remains in progress until backend, frontend, and production release-gate checks pass on the exact candidate. The new campaign claim ledger and atomic capacity/entitlement writes remain explicitly assigned to Tasks 14–15.
+**Verification:** Task 13 eligibility engine and regression tests passed backend, frontend, Playwright, and production release-gate CI on `b70ed8b7925647e1b9b3d864b84045a950e0fc49` (run [44721916052](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44721916052)). Task 13 is complete for this repository candidate. Transactional claim and entitlement mutation are tracked separately in Tasks 14–15.
 
 
 ### Task 12 CI correction note
 
-The first exact-candidate CI run \`44718122920\` reported backend success and 118/119 browser tests passed. The single failure was an existing administrator browser assertion expecting the established page heading \`Grant a free trial\`; the new campaign section had unnecessarily renamed it. The established heading has now been restored while keeping the self-serve campaign workspace. The corrected candidate is being revalidated through branch CI.
+The first exact-candidate CI run \`44718122920\` reported backend success and 118/119 browser tests passed. The single failure was an existing administrator browser assertion expecting the established page heading \`Grant a free trial\`; the new campaign section had unnecessarily renamed it. The established heading has now been restored while keeping the self-serve campaign workspace. The corrected candidate passed all CI and release-gate jobs on `b70ed8b7925647e1b9b3d864b84045a950e0fc49` (run [44721916052](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44721916052)).
 
 
 ## 15. Task 14 implementation candidate — transactional campaign claim reservation
@@ -408,3 +408,21 @@ Implemented on buddy-for-study-v2.2:
 
 
 Task 14 concurrency hardening: a partial unique active-claim key prevents a learner from reserving two different campaigns concurrently. Lifecycle expiry/revocation must unset this key without deleting claim history.
+
+
+## 16. Task 15 implementation candidate — transactional trial entitlement activation
+
+**Scope:** A successful self-serve claim now activates the trial entitlement in the same MongoDB transaction as its campaign capacity reservation and claim-ledger row.
+
+Implemented on buddy-for-study-v2.2:
+
+- TrialGrant now records source=campaign, campaign, claim, and the claiming learner. Administrator grants retain the default source=admin and continue to require grantedBy; a campaign claim is not misattributed to the administrator who configured the campaign.
+- UserSubscription now carries optional TrialGrant and TrialCampaign references for subsequent expiry, revocation, and audit operations.
+- The claim transaction creates the TrialGrant, creates or conditionally replaces the learner subscription with the configured trial plan, and changes the claim record to active. If any write fails, the MongoDB transaction rolls back the capacity increment and every entitlement write.
+- An existing active free/default-plan subscription is conditionally replaced with the trial entitlement. A current paid, past-due, or trial subscription is never overwritten. Expired/cancelled subscriptions can be replaced safely.
+- The eligibility reader now populates the subscription plan and treats a known zero-price/free plan as the free baseline, not as an active paid subscription. A trialing subscription remains a conflict even when its plan costs zero.
+- If campaign conversion is configured, TrialGrant stores pending_user_consent. The claim flow makes no payment order, Razorpay call, provider subscription, or recurring authorization.
+- The learner claim response now confirms activation and includes the claim ID, entitlement references, and trial end timestamp.
+- Added claim activation, free-plan replacement, paid-subscription protection, campaign provenance, and no-payment regression tests.
+
+**Verification state:** Task 15 implementation and tests are committed; exact-SHA backend, frontend, browser, and release-gate CI are pending. This verifies repository behaviour only; live MongoDB transaction/index rollout and staging activation remain release tasks.

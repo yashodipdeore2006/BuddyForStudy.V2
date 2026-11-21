@@ -22,4 +22,5 @@ test("claim ledger keeps bounded trial snapshots and later activation references
   assert.equal(TrialCampaignClaim.schema.path("trialGrant").options.default, null);
   assert.equal(TrialCampaignClaim.schema.path("userSubscription").options.default, null);
   assert.equal(TrialCampaignClaim.schema.path("activeClaimKey").options.default, undefined);
+  assert.equal(TrialCampaignClaim.schema.path("trialEndsAt").options.default, null);
 });

@@ -9,9 +9,9 @@
 
 `TrialCampaign` represents a self-serve offer that an authenticated learner may explicitly claim. It is deliberately separate from the existing administrator-granted trial workflow.
 
-The existing `TrialGrant` collection and `/api/admin/trials/grant` flow remain the record of administrator-issued grants. This task does not rename, repurpose, or backfill those records. The campaign model must not be used to silently convert an admin grant into a learner-claimed offer.
+The existing `TrialGrant` collection and `/api/admin/trials/grant` flow remain the record of administrator-issued grants. Campaign claims create a separate source=campaign TrialGrant linked to the campaign, claim, and learner; admin grant provenance and required grantedBy remain unchanged. The campaign model must not be used to silently convert an admin grant into a learner-claimed offer.
 
-A campaign does not itself create a subscription, payment, provider mandate, or entitlement. Those mutations belong to the later claim/lifecycle tasks.
+A campaign configuration does not itself create a subscription, payment, provider mandate, or entitlement. The authenticated learner claim flow creates the TrialGrant and effective UserSubscription inside the claim transaction; payment and provider mandate creation remain excluded.
 
 ## 2. Model fields
 
@@ -32,6 +32,8 @@ A campaign does not itself create a subscription, payment, provider mandate, or 
 | `conversionPlan` | Optional ObjectId → SubscriptionPlan | Paid recurring plan requiring separate learner authorization |
 | `createdBy`, `updatedBy`, `publishedBy` | ObjectId → User | Campaign ownership and lifecycle actors |
 | `publishedAt`, `pausedAt`, `endedAt` | Date | Lifecycle audit timestamps |
+
+The claim ledger stores claim status, idempotency key, active-claim lock, entitlement references, and trial end snapshot. TrialGrant stores source, campaign, campaign claim, and claiming learner. UserSubscription stores optional TrialGrant and TrialCampaign references for expiry/revocation operations.
 
 Mongoose timestamps provide `createdAt` and `updatedAt`. Unknown top-level and eligibility properties are rejected with strict schema mode. Schema validation enforces field bounds, valid lifecycle timestamps, start/end ordering, and the conversion-plan/consent relationship.
 
@@ -62,7 +64,7 @@ The counter is not a read-time guarantee. The claim service must atomically cond
 
 The campaign capacity update must be a conditional atomic database operation (for example, `findOneAndUpdate` with a server-side `$expr` comparing `claimedCount` and `maxClaims`, while incrementing `claimedCount`). A prior count read followed by an unconditional increment is not safe under concurrent claims.
 
-Task 14 must introduce a unique campaign/learner claim key in the claim ledger. A partial unique active-claim lock also ensures only one reserved/active self-serve claim exists per learner across all campaigns; expiry or revocation must clear the lock while preserving the audit row. The existing `TrialGrant` unique key is based on administrator `campaignName` and is not a substitute for a stable campaign ObjectId. Claim-ledger insertion, capacity reservation, and subscription mutation must have a transaction or compensating rollback strategy. No over-cap or duplicate success may be returned.
+Task 14 must introduce a unique campaign/learner claim key in the claim ledger. A partial unique active-claim lock also ensures only one reserved/active self-serve claim exists per learner across all campaigns; expiry or revocation must clear the lock while preserving the audit row. The existing `TrialGrant` unique key is based on administrator `campaignName` and is not a substitute for a stable campaign ObjectId. Claim-ledger insertion, capacity reservation, TrialGrant creation, and UserSubscription creation/replacement commit in one MongoDB transaction. A failed write rolls back all of them. No over-cap, partially activated, or duplicate success may be returned.
 
 ## 5. Conversion and payment safety
 
@@ -88,8 +90,7 @@ Implemented in the current V2.2 candidate:
 - server/src/models/TrialCampaignClaim.js, transactional reservation service, authenticated claim route, and claim tests (Task 14; CI verification pending)
 
 Not implemented here:
-- trial entitlement creation, UserSubscription mutation, and no-payment activation (Task 15)
 - learner offer API, popup, and expiry UI (Tasks 16–19)
 - admin campaign dashboard redesign (Tasks 20–21)
 
-The Task 14 claim API requires MongoDB transaction support. Before enabling it in an environment with automatic index creation disabled, initialize and verify both TrialCampaign.init() and TrialCampaignClaim.init(). Do not run claims against a standalone MongoDB server that cannot provide multi-document transactions.
+The Task 14–15 claim and entitlement API requires MongoDB transaction support. Before enabling it in an environment with automatic index creation disabled, initialize and verify both TrialCampaign.init() and TrialCampaignClaim.init(). Do not run claims against a standalone MongoDB server that cannot provide multi-document transactions.

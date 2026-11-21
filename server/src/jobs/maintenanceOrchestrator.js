@@ -173,7 +173,9 @@ export function createMaintenanceOrchestrator() {
       });
       return {
         subscriptionsExpired: subscriptions.modifiedCount || 0,
-        trialGrantsExpired: trialGrants.modifiedCount || 0,
+        trialGrantsExpired: trialLifecycle.expiredCount || 0,
+        trialSubscriptionsRestored: trialLifecycle.subscriptionsRestored || 0,
+        trialClaimLocksReleased: trialLifecycle.claimsReleased || 0,
         stalePaymentsCancelled: payments.modifiedCount || 0,
         notificationJobs: notificationJobs.map((item) => item.status)
       };

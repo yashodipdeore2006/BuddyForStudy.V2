@@ -1,6 +1,6 @@
 import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
-import { TrialGrant } from "../models/TrialGrant.js";
+import { processExpiredTrialGrants } from "../services/trialLifecycle.service.js";
 import { processPendingAuditOutbox } from "../services/auditOutbox.service.js";
 import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
@@ -106,19 +106,16 @@ export function createMaintenanceOrchestrator() {
 
       if (!(await shouldContinue())) return { skipped: 'lease_lost' };
       const expiryCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const [subscriptions, payments, trialGrants] = await Promise.all([
+      const [subscriptions, payments, trialLifecycle] = await Promise.all([
         updateLimitedRecords(UserSubscription, {
-          status: { $in: ['trialing', 'active', 'past_due'] },
+          status: { $in: ['active', 'past_due'] },
           currentPeriodEnd: { $lt: now }
         }, 'expired', 25),
         updateLimitedRecords(Payment, {
           status: { $in: ['created', 'pending'] },
           createdAt: { $lt: expiryCutoff }
         }, 'cancelled', 25),
-        updateLimitedRecords(TrialGrant, {
-          status: 'trialing',
-          endsAt: { $lte: now }
-        }, 'expired', 25)
+        processExpiredTrialGrants({ now, maxItems: 25, shouldContinue })
       ]);
 
       if (!(await shouldContinue())) return { skipped: 'lease_lost' };
@@ -168,7 +165,9 @@ export function createMaintenanceOrchestrator() {
       await markMaintenanceCompleted().catch((error) => console.error('[inline-worker] unable to record maintenance completion', { code: error?.code }));
       console.info('[inline-worker] bounded maintenance completed in ' + (Date.now() - startedAt) + 'ms', {
         subscriptionsExpired: subscriptions.modifiedCount || 0,
-        trialGrantsExpired: trialGrants.modifiedCount || 0,
+        trialGrantsExpired: trialLifecycle.expiredCount || 0,
+        trialSubscriptionsRestored: trialLifecycle.subscriptionsRestored || 0,
+        trialClaimLocksReleased: trialLifecycle.claimsReleased || 0,
         stalePaymentsCancelled: payments.modifiedCount || 0,
         notificationJobs: notificationJobs.map((item) => item.status)
       });
@@ -238,19 +237,16 @@ export function createMaintenanceOrchestrator() {
         });
       }
       if (!(await shouldContinue())) return { skipped: "lease_lost" };
-      const [subscriptions, payments, trialGrants] = await Promise.all([
+      const [subscriptions, payments, trialLifecycle] = await Promise.all([
         UserSubscription.updateMany(
-          { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lt: now } },
+          { status: { $in: ["active", "past_due"] }, currentPeriodEnd: { $lt: now } },
           { $set: { status: "expired" } }
         ),
         Payment.updateMany(
           { status: { $in: ["created", "pending"] }, createdAt: { $lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
           { $set: { status: "cancelled" } }
         ),
-        TrialGrant.updateMany(
-          { status: "trialing", endsAt: { $lte: now } },
-          { $set: { status: "expired" } }
-        )
+        processExpiredTrialGrants({ now, maxItems: 250, shouldContinue })
       ]);
       if (!(await shouldContinue())) return { skipped: "lease_lost" };
       const notificationJobs = await Promise.allSettled([
@@ -304,7 +300,7 @@ export function createMaintenanceOrchestrator() {
       if (!(await shouldContinue())) return { skipped: "lease_lost" };
       await resolveOperationalAlert("background-maintenance-failure");
       await markMaintenanceCompleted().catch((error) => console.error("[worker] unable to record maintenance completion", { code: error?.code }));
-      console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; trial grants expired=${trialGrants.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
+      console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; trial grants expired=${trialLifecycle.expiredCount}; trial subscriptions restored=${trialLifecycle.subscriptionsRestored}; campaign claim locks released=${trialLifecycle.claimsReleased}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
     } catch (error) {
       await markMaintenanceFailed(error).catch((heartbeatError) => console.error("[worker] unable to record maintenance failure", { code: heartbeatError?.code }));
       // Do not dump provider payloads or raw objects into logs; the message is bounded.

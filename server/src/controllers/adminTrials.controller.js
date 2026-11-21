@@ -7,6 +7,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { resolveAdminAudience } from "../services/adminAudience.service.js";
 import { matchesProfileSetupFilter } from "../utils/adminProfileSetupFilters.js";
+import { revokeTrialGrant } from "../services/trialLifecycle.service.js";
 
 const filterSchema = z.object({
   q: z.string().trim().max(100).optional().or(z.literal("")),
@@ -164,6 +165,7 @@ export async function grant(req, res, next) {
         });
         const subscriptionValues = {
           plan: plan._id, status: "trialing", provider: "manual", providerSubscriptionId: "",
+          trialGrant: grant._id, trialCampaign: null,
           currentPeriodStart: now, currentPeriodEnd: endsAt, cancelAtPeriodEnd: false, cancelledAt: null
         };
         // Atomically replace only an absent/expired/cancelled subscription. A paid
@@ -262,4 +264,63 @@ export async function listGrants(req, res, next) {
     ]);
     return success(res, { grants, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (error) { next(error); }
+}
+
+
+export async function revokeGrant(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.grantId)) return failure(res, "Invalid grantId.", 400);
+    const input = z.object({ reason: z.string().trim().min(10).max(500) }).strict().parse(req.body || {});
+    const actor = actorId(req);
+    if (!actor) return failure(res, "Administrator identity is required.", 401);
+
+    const result = await revokeTrialGrant({
+      grantId: req.params.grantId,
+      reason: input.reason,
+      now: new Date()
+    });
+    if (!result.ok) return failure(res, result.message, result.status || 409, { code: result.code });
+
+    const audit = await recordAuditEvent({
+      actor,
+      action: "trial.revoked",
+      targetType: "TrialGrant",
+      targetId: result.grant.id,
+      before: {
+        status: "trialing",
+        userId: result.grant.userId,
+        planId: result.grant.planId,
+        endsAt: result.grant.previousEndsAt
+      },
+      after: {
+        status: "revoked",
+        subscriptionRestored: result.subscriptionUpdated,
+        fallbackPlanId: result.fallbackPlanId,
+        campaignClaimId: result.grant.campaignClaimId
+      },
+      reason: input.reason,
+      ip: String(req.ip || "").slice(0, 100),
+      userAgent: String(req.get("user-agent") || "").slice(0, 500)
+    });
+    if (!audit?.recorded && !audit?.queued) {
+      console.error("[trial-lifecycle] revocation committed but audit persistence needs manual reconciliation", {
+        grantId: result.grant.id
+      });
+    }
+
+    return success(res, {
+      grant: { id: result.grant.id, status: "revoked" },
+      subscriptionRestored: result.subscriptionUpdated,
+      fallbackAvailable: result.fallbackAvailable,
+      fallbackPlanId: result.fallbackPlanId,
+      campaignClaimReleased: result.claimUpdated,
+      auditRecorded: Boolean(audit?.recorded),
+      auditQueued: Boolean(audit?.queued)
+    }, result.fallbackAvailable
+      ? "Trial revoked. The learner's configured free plan was restored where appropriate; no payment was initiated."
+      : "Trial revoked. No active free plan is configured, so the expired trial no longer grants access.", 200);
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Enter a revocation reason between 10 and 500 characters.", 400, error.flatten().fieldErrors);
+    next(error);
+  }
 }

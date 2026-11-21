@@ -164,7 +164,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 |---:|---|---|---|
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | DONE |
-| 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | NOT_STARTED |
+| 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | IN_PROGRESS |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
 
 ### Phase 5 — Admin experience
@@ -461,3 +461,21 @@ Implemented on \`buddy-for-study-v2.2\`:
 - Added a tested dismissal/idempotency helper, Playwright coverage for dismiss-without-claim and claim-confirmation/no-repeat, and API GET cache invalidation after trial mutations.
 
 **Verification:** exact-SHA frontend lint, typecheck, unit tests, production build, Playwright browser navigation smoke tests, backend lint and full test suite, production-config preflight, server JavaScript syntax validation, and the Production release gate all passed on implementation candidate `9d5e7d7a0ec75dbbde36ff88270b019f777ee37f` (run [44873843558](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44873843558)). No staging or production deployment has been performed.
+
+
+## 19. Task 18 implementation candidate — trial expiry, revocation and free-plan restoration
+
+**Scope:** Keep the durable TrialGrant, UserSubscription and campaign claim ledger in agreement as a trial ends or is revoked, without touching a newer provider-backed subscription or creating a payment action.
+
+Implemented on \`buddy-for-study-v2.2\`:
+
+- Added \`server/src/services/trialLifecycle.service.js\` as the shared lifecycle coordinator for administrator-issued and self-serve grants. Each grant transition uses a MongoDB transaction and fails closed when transactions are unavailable.
+- Expiry is a bounded worker operation. Inline maintenance processes at most 25 due grants per pass; standalone maintenance processes at most 250. Both use the same service inside the existing lease-controlled maintenance run.
+- A transition changes TrialGrant to \`expired\` or \`revoked\`, cancels pending conversion consent, restores the configured active free plan on the exact linked manual trial subscription, and clears its TrialGrant/TrialCampaign references. If no active free plan is configured, the trial subscription becomes \`expired\` and no replacement plan is invented.
+- Campaign claims retain their audit history but move to \`expired\` or \`revoked\` and unset \`activeClaimKey\`, releasing the cross-campaign live claim lock. Campaign capacity counters are not decremented.
+- New administrator-issued grants persist their TrialGrant reference on UserSubscription. A narrowly scoped exact-plan/exact-end-time fallback reconciles older admin grants that predate this reference.
+- Expiry does not overwrite a paid/provider subscription, a converted grant, or a subscription that no longer matches the original manual trial. If the trial subscription row is missing and no newer subscription exists, the configured free plan is recreated within the lifecycle transaction.
+- Added \`POST /api/admin/trials/grants/:grantId/revoke\`, guarded by \`trials.manage\`, with a required administrator reason and an audit event. The existing grant workspace exposes a revoke action for currently trialing grants.
+- \`GET /api/billing/me\` synchronizes an ended learner trial before returning subscription details, so the Billing page does not depend only on the next worker interval to show free-plan fallback.
+
+**Verification state:** Task 18 implementation and regression tests are committed; exact-SHA backend, frontend, Playwright, and Production release-gate CI are pending. No staging or production deployment has been performed.

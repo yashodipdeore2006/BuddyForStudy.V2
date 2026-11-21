@@ -16,6 +16,7 @@ import { buildSubscriptionActivatedNotificationPayload } from "../services/billi
 import { sendBillingNotificationSafely } from "../services/billingNotification.service.js";
 import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
 import { getOrCreateFreePlanSubscription } from "../services/freePlanAssignment.service.js";
+import { expireUserTrialIfDue } from "../services/trialLifecycle.service.js";
 
 const router = Router();
 
@@ -51,6 +52,7 @@ router.get("/plans", listPublicPlans);
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try {
+  await expireUserTrialIfDue(req.user.userId, { now: new Date(), maxItems: 10 });
   const subscription = await getOrCreateFreePlanSubscription(req.user.userId);
   return success(res,{subscription,paymentsEnabled:env.paymentsEnabled});
 } catch(e){next(e)} });

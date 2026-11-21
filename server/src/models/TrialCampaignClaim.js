@@ -5,7 +5,7 @@ const schema = new Schema({
   user: { type: Schema.Types.ObjectId, ref: "User", required: true },
   activeClaimKey: { type: String, default: undefined, maxlength: 64 },
   idempotencyKey: { type: String, required: true, trim: true, minlength: 16, maxlength: 120 },
-  status: { type: String, enum: ["reserved", "active", "failed", "revoked"], default: "reserved", required: true },
+  status: { type: String, enum: ["reserved", "active", "failed", "expired", "revoked"], default: "reserved", required: true },
   claimedAt: { type: Date, required: true, default: Date.now },
   trialPlan: { type: Schema.Types.ObjectId, ref: "SubscriptionPlan", required: true },
   trialDays: {

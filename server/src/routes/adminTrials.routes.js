@@ -18,6 +18,7 @@ router.post("/campaigns/:campaignId/pause", adminPermissionMiddleware("trials.ma
 router.post("/campaigns/:campaignId/disable", adminPermissionMiddleware("trials.manage"), campaignController.disableCampaign);
 
 // Existing administrator-issued grant workflow remains unchanged.
+router.post("/grants/:grantId/revoke", adminPermissionMiddleware("trials.manage"), controller.revokeGrant);
 router.get("/grants", adminPermissionMiddleware("trials.manage"), controller.listGrants);
 router.post("/preview", adminPermissionMiddleware("trials.manage"), controller.preview);
 router.post("/grant", adminPermissionMiddleware("trials.manage"), controller.grant);

@@ -33,7 +33,7 @@ A campaign configuration does not itself create a subscription, payment, provide
 | `createdBy`, `updatedBy`, `publishedBy` | ObjectId → User | Campaign ownership and lifecycle actors |
 | `publishedAt`, `pausedAt`, `endedAt` | Date | Lifecycle audit timestamps |
 
-The claim ledger stores claim status, idempotency key, active-claim lock, entitlement references, and trial end snapshot. TrialGrant stores source, campaign, campaign claim, and claiming learner. UserSubscription stores optional TrialGrant and TrialCampaign references for expiry/revocation operations.
+The claim ledger stores claim status, idempotency key, active-claim lock, entitlement references, and trial end snapshot. Its terminal states include expired and revoked; both release activeClaimKey while preserving the ledger row. TrialGrant stores source, campaign, campaign claim, and claiming learner. UserSubscription stores optional TrialGrant and TrialCampaign references for expiry/revocation operations. A shared transaction-safe lifecycle service expires or revokes these records together and restores the active free plan only on the matching manual trial subscription.
 
 Mongoose timestamps provide `createdAt` and `updatedAt`. Unknown top-level and eligibility properties are rejected with strict schema mode. Schema validation enforces field bounds, valid lifecycle timestamps, start/end ordering, and the conversion-plan/consent relationship.
 
@@ -90,7 +90,7 @@ Implemented in the current V2.2 candidate:
 - server/src/models/TrialCampaignClaim.js, transactional claim/entitlement service, authenticated claim route, and learner offer route/service (Tasks 14–16; exact-SHA CI verification pending for Task 16)
 
 Not implemented here:
-- learner offer API is implemented and CI-verified in Task 16; popup, claim UI, billing presentation, and expiry lifecycle remain in Tasks 17–19
+- learner offer API is implemented and CI-verified in Task 16; popup and claim UI are implemented in Task 17; lifecycle handling is implemented in Task 18; Billing presentation remains Task 19
 - admin campaign dashboard redesign (Tasks 20–21)
 
 The Task 14–15 claim and entitlement API requires MongoDB transaction support. Before enabling it in an environment with automatic index creation disabled, initialize and verify both TrialCampaign.init() and TrialCampaignClaim.init(). Do not run claims against a standalone MongoDB server that cannot provide multi-document transactions.

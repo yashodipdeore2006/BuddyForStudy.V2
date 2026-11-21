@@ -15,7 +15,7 @@ test("campaign claim indexes enforce unique learner claims and learner-scoped id
   assert.deepEqual(liveUserLock?.[1]?.partialFilterExpression, { activeClaimKey: { $type: "string" } });
 });
 test("claim ledger keeps bounded trial snapshots and later activation references", () => {
-  assert.equal(TrialCampaignClaim.schema.path("status").enumValues.join(","), "reserved,active,failed,revoked");
+  assert.equal(TrialCampaignClaim.schema.path("status").enumValues.join(","), "reserved,active,failed,expired,revoked");
   assert.equal(TrialCampaignClaim.schema.path("status").defaultValue, "reserved");
   assert.equal(TrialCampaignClaim.schema.path("trialDays").options.min, 1);
   assert.equal(TrialCampaignClaim.schema.path("trialDays").options.max, 30);

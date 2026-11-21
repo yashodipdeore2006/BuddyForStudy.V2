@@ -701,6 +701,7 @@ test.describe("administrator route and permission UX", () => {
 
   test("[ADM-PRICING-APPLY-FAILURE-001] pricing apply failure preserves preview and reason for retry", async ({ page }) => {
     let previewRequests = 0;
+    let previewPayload: Record<string, unknown> | null = null;
     let applyRequests = 0;
     let coursePrice = 799;
     let applyPayload: Record<string, unknown> | null = null;
@@ -738,6 +739,7 @@ test.describe("administrator route and permission UX", () => {
     } }));
     await page.route("**/api/admin/pricing/preview", async (route) => {
       previewRequests += 1;
+      previewPayload = route.request().postDataJSON() as Record<string, unknown>;
       return json(route, {
         previewId: "pricing-preview-fixture",
         kind: "bulk",
@@ -767,16 +769,22 @@ test.describe("administrator route and permission UX", () => {
 
     await page.goto(baseURL + "/admin/pricing");
     await expect(page.getByRole("heading", { name: "Course Pricing Studio" })).toBeVisible();
-    await expect(page.getByText("Backend Fundamentals", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Preview bulk change" }).click();
-    await expect(page.getByText("Preview ready. No prices have changed yet.")).toBeVisible();
+    await page.getByRole("tab", { name: "Course catalogue" }).click();
+    const catalogueTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Base price" }) });
+    await expect(catalogueTable.getByText("Backend Fundamentals", { exact: true })).toBeVisible();
+    await page.getByRole("checkbox", { name: "Select Backend Fundamentals" }).check();
+    await page.getByRole("button", { name: "Continue to bulk pricing" }).click();
+    await expect(page.getByRole("heading", { name: "Bulk price editor" })).toBeVisible();
+    await page.getByRole("button", { name: "Generate bulk preview" }).click();
+    await expect(page.getByText("Preview generated. No course prices have changed.")).toBeVisible();
     await expect(page.getByText("Matched", { exact: true })).toBeVisible();
     const previewTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Proposed" }) });
     await expect(previewTable.getByRole("row", { name: /Backend Fundamentals/ })).toContainText("₹499");
     expect(previewRequests).toBe(1);
+    expect(previewPayload).toMatchObject({ selection: { mode: "selected", courseIds: ["pricing-course-fixture"] } });
     expect(applyRequests).toBe(0);
 
-    const reason = page.getByLabel(/Reason for change/);
+    const reason = page.getByLabel(/Reason for pricing change/);
     await reason.fill("Standardize the published beginner course price for the next term.");
     await page.getByRole("button", { name: "Confirm and apply preview" }).click();
     await expect(page.getByRole("alert")).toContainText("Pricing service is temporarily unavailable.");
@@ -786,8 +794,8 @@ test.describe("administrator route and permission UX", () => {
     expect(applyPayload).toMatchObject({ previewId: "pricing-preview-fixture", reason: "Standardize the published beginner course price for the next term." });
 
     await page.getByRole("button", { name: "Confirm and apply preview" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped. Stale courses were left unchanged." })).toBeVisible();
-    const catalogueTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Base price" }) });
+    await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped." })).toBeVisible();
+    await page.getByRole("tab", { name: "Course catalogue" }).click();
     await expect(catalogueTable.getByRole("row", { name: /Backend Fundamentals/ })).toContainText("₹499");
     expect(applyRequests).toBe(2);
   });

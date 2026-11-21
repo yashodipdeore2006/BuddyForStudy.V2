@@ -50,7 +50,7 @@ test("new-course pricing policy retains mode, level bands and generated course s
   assert.match(source, /levelBands/);
   assert.match(source, /applyTo\.includes/);
   assert.match(source, /generated-policy/);
-  assert.match(source, /existing courses are not changed by this policy/);
+  assert.match(source, /Existing course prices are not changed by this policy/);
 });
 
 test("history workspace paginates and inspects per-course audit details", () => {

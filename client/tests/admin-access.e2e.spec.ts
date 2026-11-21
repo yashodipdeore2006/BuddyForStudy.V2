@@ -800,6 +800,51 @@ test.describe("administrator route and permission UX", () => {
     expect(applyRequests).toBe(2);
   });
 
+  test("[ADM-PLANS-WORKSPACES-001] subscription plan workspaces show checkout and default free-plan status", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: ["dashboard.read", "plans.read", "plans.manage"],
+    });
+    await page.route("**/api/admin/plans", async (route) => json(route, {
+      plans: [
+        { _id: "plan-free-first", name: "Free Starter", slug: "free", description: "Starter learning access", price: 0, currency: "INR", billingInterval: "monthly", features: ["Access published courses"], limits: { ai_course_builds_per_month: 0 }, isActive: true, isPopular: false, sortOrder: 10, createdAt: "2026-01-01T00:00:00.000Z" },
+        { _id: "plan-free-second", name: "Zero Price Legacy", slug: "legacy-free", description: "Older free offer", price: 0, currency: "INR", billingInterval: "monthly", features: [], limits: {}, isActive: true, isPopular: false, sortOrder: 20, createdAt: "2026-01-02T00:00:00.000Z" },
+        { _id: "plan-pro", name: "Pro", slug: "pro", description: "Paid recurring access", price: 199, currency: "INR", billingInterval: "monthly", features: ["Build with AI"], limits: { ai_course_builds_per_month: 10 }, isActive: true, isPopular: true, sortOrder: 30, providerPlanId: "razorpay-pro-plan", createdAt: "2026-01-03T00:00:00.000Z" },
+        { _id: "plan-hidden", name: "Hidden Annual", slug: "hidden-annual", description: "Inactive plan", price: 999, currency: "INR", billingInterval: "yearly", features: [], limits: {}, isActive: false, sortOrder: 40, createdAt: "2026-01-04T00:00:00.000Z" },
+      ],
+      availableFeatures: [{ key: "published_courses", label: "Access published courses" }, { key: "build_with_ai", label: "Build with AI" }],
+    }));
+    await page.route("**/api/billing/plans", async (route) => json(route, { paymentsEnabled: false, plans: [] }));
+
+    await page.goto(baseURL + "/admin/plans");
+    await expect(page.getByRole("heading", { name: "Subscription plans" })).toBeVisible();
+    await expect(page.getByText("Paid checkout disabled")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Default free-assignment plan" })).toBeVisible();
+    await expect(page.getByText("Free Starter", { exact: true })).toBeVisible();
+    await expect(page.getByText("2 active plans qualify. This plan wins under the current ordering.", { exact: false })).toBeVisible();
+
+    await page.getByRole("tab", { name: /Catalogue/ }).click();
+    await expect(page.getByText("Hidden Annual", { exact: true })).toBeVisible();
+    await page.getByLabel("Search plans").fill("pro");
+    await expect(page.getByText("Pro", { exact: true })).toBeVisible();
+    await expect(page.getByText("Free Starter", { exact: true })).toHaveCount(0);
+    await page.getByLabel("Search plans").fill("");
+
+    await page.getByRole("button", { name: "Manage plan" }).filter({ has: page.getByText("Pro", { exact: true }) }).click();
+    await expect(page.getByRole("heading", { name: "1. Plan details and billing" })).toBeVisible();
+    await expect(page.getByLabel("Plan price for Pro")).toBeDisabled();
+    await expect(page.getByLabel("Billing interval for Pro")).toBeDisabled();
+    await expect(page.getByRole("heading", { name: "2. Feature access" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "3. Monthly usage limits" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "4. Availability and catalogue display" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Create plan" }).click();
+    await expect(page.getByRole("heading", { name: "Create subscription plan · Step 1 of 4" })).toBeVisible();
+    await expect(page.getByLabel("Plan name")).toBeVisible();
+  });
+
   test("[ADM-TRIAL-GRANT-PREVIEW-001] group trial preview includes all filtered eligible learners", async ({ page }) => {
     let previewPayload: Record<string, unknown> | null = null;
     let grantPayload: Record<string, unknown> | null = null;

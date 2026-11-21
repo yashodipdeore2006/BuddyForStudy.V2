@@ -9,6 +9,7 @@ import FeatureUpgradeModal from '@/components/FeatureUpgradeModal';
 import CookieConsentManager from "@/components/CookieConsentManager";
 import AccountConsentGate from "@/components/AccountConsentGate";
 import PushNotificationPrompt from "@/components/PushNotificationPrompt";
+import TrialCampaignOfferPrompt from "@/components/TrialCampaignOfferPrompt";
 const Home = lazy(() => import('@/pages/Home'));
 const About = lazy(() => import('@/pages/About'));
 const Contact = lazy(() => import('@/pages/Contact'));
@@ -65,7 +66,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
-  return <div className="flex min-h-screen flex-col"><PublicCanonicalUrl />{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><CookieConsentManager /><AccountConsentGate /><PushNotificationPrompt /></div>;
+  return <div className="flex min-h-screen flex-col"><PublicCanonicalUrl />{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><CookieConsentManager /><AccountConsentGate /><PushNotificationPrompt /><TrialCampaignOfferPrompt /></div>;
 }
 
 function AdminPage({ children }: { children: React.ReactNode }) {

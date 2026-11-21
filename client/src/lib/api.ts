@@ -39,7 +39,9 @@ function invalidateRelatedGetCache(path: string) {
           ? ['/api/courses', '/api/reviews']
           : path.startsWith('/api/billing') || path.startsWith('/api/payments')
             ? ['/api/billing', '/api/ai/usage']
-            : [];
+            : path.startsWith('/api/trials')
+              ? ['/api/trials', '/api/billing']
+              : [];
   if (!prefixes.length) return;
   for (const key of getResponseCache.keys()) {
     if (prefixes.some((prefix) => key.includes(`:${prefix}`) || key.endsWith(prefix))) getResponseCache.delete(key);

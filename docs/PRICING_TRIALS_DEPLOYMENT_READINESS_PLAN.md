@@ -163,7 +163,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
-| 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | NOT_STARTED |
+| 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | IN_PROGRESS |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | NOT_STARTED |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
 
@@ -444,3 +444,20 @@ Implemented on `buddy-for-study-v2.2`:
 - Added service regression coverage for no active offer, safe response shaping, free-plan handling, paid-subscription exclusion, prior claims, live claims, active administrator trials, inactive plans, and unverified email.
 
 **Verification:** exact-SHA backend lint and full backend tests, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `d3de84cf7f467f5133b9ca0c4a1fd4461dc4a031` (run [44872385306](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44872385306)). No staging or production deployment has been performed.
+
+
+## 18. Task 17 implementation candidate — learner trial claim popup
+
+**Scope:** Add a learner-facing offer modal that presents the server-calculated offer, distinguishes claiming from dismissal, and confirms activation without implying a payment obligation.
+
+Implemented on \`buddy-for-study-v2.2\`:
+
+- \`client/src/components/TrialCampaignOfferPrompt.tsx\` is mounted once in the application layout. It only requests offers for authenticated learner accounts and suppresses display on authentication, legal, and administrator routes.
+- The prompt waits for a saved cookie choice and for account legal/profile gates to be settled. It refreshes when consent is settled, the cookie choice changes, the app regains focus, or the document becomes visible.
+- The modal displays the configured learner title/description, trial duration, trial plan, selected feature entitlements, optional future paid-plan price, and an explicit statement that no payment method, payment order, or recurring authorization is required to claim.
+- **Claim free trial** sends the authenticated campaign claim endpoint with a generated \`Idempotency-Key\`. It shows a busy state, preserves the same key when the user retries an uncertain request, handles errors without dismissing the offer, and only confirms success when the API returns an active claim.
+- Successful activation shows the trial end date when returned, confirms no automatic payment, dispatches entitlement/cache refresh events, and suppresses further offer requests for that learner during the current app session. On subsequent visits the backend offer API remains authoritative and excludes prior/active claims.
+- **Not now**, the close control, and Escape dismiss without calling the claim endpoint. Dismissal is stored per learner and campaign for a 24-hour UI cooldown; this storage affects prompt frequency only and never affects server eligibility or entitlement.
+- Added a tested dismissal/idempotency helper, Playwright coverage for dismiss-without-claim and claim-confirmation/no-repeat, and API GET cache invalidation after trial mutations.
+
+**Verification state:** Task 17 implementation and regression tests are committed; exact-SHA backend, frontend, Playwright, and Production release-gate CI are pending. No staging or production deployment has been performed.

@@ -110,6 +110,8 @@ async function mockAppApi(page: Page, options: {
   reviewMutationFailure?: boolean;
   checkoutOrderFailure?: boolean;
   billingPlans?: Array<Record<string, unknown>>;
+  trialOffer?: Record<string, unknown>;
+  trialClaimResponse?: Record<string, unknown>;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -125,6 +127,7 @@ async function mockAppApi(page: Page, options: {
     outcome: "Understand the foundations.",
   }];
   const roadmapProgress = options.roadmapProgress === undefined ? null : options.roadmapProgress;
+  let trialClaimed = false;
 
   if (options.authenticated) {
     await page.addInitScript(() => localStorage.setItem("bfs_token", "e2e-token"));
@@ -132,6 +135,19 @@ async function mockAppApi(page: Page, options: {
 
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+
+    if (pathname === "/api/trials/offer" && method === "GET") {
+      return json(route, trialClaimed
+        ? { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["PREVIOUS_TRIAL"], reasons: [] } }
+        : options.trialOffer || { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["NO_AVAILABLE_CAMPAIGN"], reasons: [] } });
+    }
+    if (/^\/api\/trials\/campaigns\/[^/]+\/claim$/.test(pathname) && method === "POST") {
+      trialClaimed = true;
+      return json(route, options.trialClaimResponse || {
+        claim: { status: "active", trialEndsAt: "2026-12-05T10:00:00.000Z" }
+      }, 201);
+    }
 
     if (pathname.endsWith("/api/auth/me")) {
       const currentPath = new URL(page.url()).pathname;
@@ -2661,4 +2677,71 @@ test("[A11Y-KEYBOARD-FOCUS-001] keyboard navigation exposes a visible focus indi
   }
 
   expect(failures, failures.join("\n")).toEqual([]);
+});
+
+
+const eligibleTrialOfferFixture = {
+  available: true,
+  offer: {
+    campaignId: "campaign-fixture",
+    title: "Enjoy 14 days of Premium",
+    description: "Explore premium learning resources and build momentum with a guided learning experience.",
+    startsAt: "2026-11-01T00:00:00.000Z",
+    endsAt: "2026-12-01T00:00:00.000Z",
+    durationDays: 14,
+    trialPlan: {
+      id: "trial-plan-fixture",
+      name: "Premium Trial",
+      description: "More room to learn and practise.",
+      features: ["Premium courses", "Guided roadmaps", "AI learning tools"],
+      limits: { monthlyRoadmaps: 20 },
+    },
+    conversion: {
+      requiresSeparateConsent: true,
+      plan: { id: "paid-plan-fixture", name: "Premium Monthly", price: 299, currency: "INR", billingInterval: "monthly" },
+    },
+    payment: { paymentMethodRequired: false, paymentOrderCreated: false, autopayAuthorized: false },
+  },
+  eligibility: { eligible: true, reasonCodes: [], reasons: [] },
+};
+
+test.describe("self-serve trial offer", () => {
+  test("Not now dismisses without claiming and suppresses the same offer for 24 hours", async ({ page }) => {
+    const claimRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/claim")) claimRequests.push(request.url());
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("No payment method required")).toBeVisible();
+    await expect(dialog.getByText(/does not create a payment order or authorize recurring payments/i)).toBeVisible();
+    await dialog.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(claimRequests).toHaveLength(0);
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
+
+  test("claim activates the trial, sends an idempotency key, and does not prompt again", async ({ page }) => {
+    const claimKeys: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/claim")) {
+        claimKeys.push(request.headers()["idempotency-key"] || "");
+      }
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Claim free trial", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your trial is active" })).toBeVisible();
+    await expect(page.getByText(/No payment method or recurring authorization was created/i)).toBeVisible();
+    await expect.poll(() => claimKeys.length).toBe(1);
+    expect(claimKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,119}$/);
+    await page.getByRole("button", { name: "Continue learning", exact: true }).click();
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
 });

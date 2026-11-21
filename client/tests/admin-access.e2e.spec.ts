@@ -842,7 +842,8 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("heading", { name: "4. Availability and catalogue display" })).toBeVisible();
 
     await page.getByRole("tab", { name: "Create plan" }).click();
-    await expect(page.getByRole("heading", { name: "Create subscription plan · Step 1 of 4" })).toBeVisible();
+    await expect(page.getByText("Create subscription plan · Step 1 of 4", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Basics" })).toBeVisible();
     await expect(page.getByLabel("Plan name")).toBeVisible();
   });
 

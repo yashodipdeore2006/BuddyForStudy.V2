@@ -112,5 +112,5 @@ test("publishing a trial campaign requires explicit confirmation and preserves p
   assert.match(source, /setPublishTarget\(campaign\)/);
   assert.match(source, /runCampaignLifecycleAction\(publishTarget\._id, "publish"\)/);
   assert.match(source, /makes this offer available to eligible learners during its configured campaign window/);
-  assert.match(source, /Publishing or saving this campaign does not create a payment/);
+  assert.match(source, /Saving or publishing this campaign does not create a payment/);
 });

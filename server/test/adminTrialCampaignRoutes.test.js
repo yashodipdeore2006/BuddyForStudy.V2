@@ -83,3 +83,16 @@ test("explicit trials.manage permission override is honoured by the campaign rou
   const result = runPermission(route.permissionHandlers[0], "support_manager", ["trials.manage"]);
   assert.equal(result.nextCalled, true);
 });
+
+
+test("campaign claim ledger endpoint is registered and protected by trials.manage", () => {
+  const route = getRoutes().find((item) => item.path === "/claims" && item.methods.includes("get"));
+  assert.ok(route, "missing campaign claims ledger route");
+  assert.equal(route.permissionHandlers.length, 1);
+  for (const role of Object.keys(ADMIN_ROLE_PROFILES)) {
+    const result = runPermission(route.permissionHandlers[0], role);
+    const allowed = ["super_admin", "platform_admin", "finance_manager"].includes(role);
+    assert.equal(result.nextCalled, allowed, role + " on /claims");
+    if (!allowed) assert.equal(result.statusCode, 403);
+  }
+});

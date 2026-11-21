@@ -40,3 +40,12 @@ test("list filtering accepts only named status values and escapes free-text sear
   assert.match(source, /escapeRegex\(query\)/);
   assert.doesNotMatch(source, /TrialCampaign\.find\(req\.query/);
 });
+
+
+test("campaign claim ledger validates status and campaign filters and bounds pagination", () => {
+  assert.match(source, /\["reserved", "active", "failed", "expired", "revoked"\]\.includes\(status\)/);
+  assert.match(source, /isValidObjectId\(campaignId\)/);
+  assert.match(source, /Math\.min\(100, Math\.max\(1, Number\(req\.query\.limit\) \|\| 25\)\)/);
+  assert.match(source, /TrialCampaignClaim\.find\(filter\)/);
+  assert.match(source, /TrialCampaignClaim\.countDocuments\(filter\)/);
+});

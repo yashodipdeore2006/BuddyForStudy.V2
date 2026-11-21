@@ -156,13 +156,13 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 12 | Implement quick-trial presets | Safe 7/14/30-day defaults with editable values | DONE |
 | 13 | Implement eligibility engine | Deterministic eligibility and skipped reasons | DONE |
 | 14 | Implement claim API | Idempotent, atomic, duplicate-safe, capacity-safe claim operation | DONE |
-| 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | IN_PROGRESS |
+| 15 | Integrate trial entitlements | Free claim activates entitlement without a payment order or provider call | DONE |
 
 ### Phase 4 — Learner trial experience
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | NOT_STARTED |
+| 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | IN_PROGRESS |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | NOT_STARTED |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | NOT_STARTED |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
@@ -404,7 +404,7 @@ Implemented on buddy-for-study-v2.2:
 - Task 13's database-backed eligibility reads now accept the same transaction session so campaign, user, subscription, and prior-trial facts are evaluated consistently with the claim write.
 - Added service, model-index, and route tests. Fixed the browser test's unscoped checkbox selector so it targets the manual-grant confirmation control after separate campaign eligibility controls were added.
 
-**Verification state:** implementation and regression tests are committed; Task 14 remains in progress pending exact-SHA backend, frontend, browser, and release-gate CI. Transactional claims require a MongoDB deployment that supports multi-document transactions (replica set or sharded cluster). The API reserves a claim only; Task 15 performs the entitlement mutation. No staging or production deployment has been performed.
+**Verification:** Task 14 claim protections and Task 15 entitlement activation passed backend, frontend, Playwright browser smoke tests, and the Production release gate on exact branch commit `c2c79881d6d6b4ffb460aeed9f9f3efb2d5fc12f` (run [44871892402](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44871892402)). Transactional claims require a MongoDB deployment that supports multi-document transactions (replica set or sharded cluster). No staging or production deployment has been performed.
 
 
 Task 14 concurrency hardening: a partial unique active-claim key prevents a learner from reserving two different campaigns concurrently. Lifecycle expiry/revocation must unset this key without deleting claim history.
@@ -425,4 +425,22 @@ Implemented on buddy-for-study-v2.2:
 - The learner claim response now confirms activation and includes the claim ID, entitlement references, and trial end timestamp.
 - Added claim activation, free-plan replacement, paid-subscription protection, campaign provenance, and no-payment regression tests.
 
-**Verification state:** Task 15 implementation and tests are committed; exact-SHA backend, frontend, browser, and release-gate CI are pending. This verifies repository behaviour only; live MongoDB transaction/index rollout and staging activation remain release tasks.
+**Verification:** exact-SHA backend lint and full backend tests, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `c2c79881d6d6b4ffb460aeed9f9f3efb2d5fc12f` (run [44871892402](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44871892402)). This verifies repository behaviour only; live MongoDB transaction/index rollout and staging activation remain release tasks.
+
+
+## 17. Task 16 implementation candidate — authenticated learner offer API
+
+**Scope:** Add a read-only learner endpoint that surfaces one currently available published campaign only after rechecking eligibility from persisted account, subscription, trial-history, and claim-ledger facts.
+
+Implemented on `buddy-for-study-v2.2`:
+
+- `GET /api/trials/offer` is mounted behind the existing authentication middleware and rejects non-learner roles.
+- `server/src/services/trialCampaignOffer.service.js` queries only published campaigns whose start/end window is current and whose campaign cap has remaining capacity. Candidate evaluation is bounded to the 50 most recently published campaigns.
+- Eligibility is calculated from fresh MongoDB reads for learner role/account state/email verification, current subscription and populated plan, prior TrialGrant history, campaign-specific claim history, a live cross-campaign claim lock, and an active trial grant.
+- The service hard-enforces the global no-active-paid-subscription-or-trial invariant even when a campaign's configurable eligibility flag is relaxed. A known free/default plan does not block an otherwise eligible offer; an active trial does.
+- The endpoint skips campaigns already claimed by the learner and can return a later eligible campaign. It fails closed for missing/inactive trial plans and returns stable eligibility reason codes when no candidate is eligible.
+- The learner response is a narrow allowlist: offer copy, campaign window, duration, trial-plan features/limits, optional paid conversion-plan details with a separate-consent flag, and explicit payment-method/payment-order/autopay false values. Internal campaign name/reason, counters, audit actors, and persistence fields are not exposed.
+- The endpoint is read-only. It does not reserve campaign capacity, create a claim, create a TrialGrant/UserSubscription, or invoke a payment provider. Task 15 claim-time revalidation and transactional capacity protection remain authoritative.
+- Added service regression coverage for no active offer, safe response shaping, free-plan handling, paid-subscription exclusion, prior claims, live claims, active administrator trials, inactive plans, and unverified email.
+
+**Verification state:** Task 16 implementation and tests are committed; exact-SHA backend, frontend, browser, and Production release-gate CI are pending. No staging or production deployment has been performed.

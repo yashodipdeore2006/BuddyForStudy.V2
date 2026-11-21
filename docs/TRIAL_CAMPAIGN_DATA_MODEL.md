@@ -87,10 +87,10 @@ Implemented in the current V2.2 candidate:
 - campaign CRUD/publish APIs and permission tests (Task 11)
 - 7/14/30-day presets and administrator quick-create integration (Task 12; CI verification pending)
 - deterministic eligibility engine and database-backed evaluator (Task 13; CI verification pending)
-- server/src/models/TrialCampaignClaim.js, transactional reservation service, authenticated claim route, and claim tests (Task 14; CI verification pending)
+- server/src/models/TrialCampaignClaim.js, transactional claim/entitlement service, authenticated claim route, and learner offer route/service (Tasks 14–16; exact-SHA CI verification pending for Task 16)
 
 Not implemented here:
-- learner offer API, popup, and expiry UI (Tasks 16–19)
+- learner offer API is implemented in Task 16; popup and expiry UI remain in Tasks 17–19
 - admin campaign dashboard redesign (Tasks 20–21)
 
 The Task 14–15 claim and entitlement API requires MongoDB transaction support. Before enabling it in an environment with automatic index creation disabled, initialize and verify both TrialCampaign.init() and TrialCampaignClaim.init(). Do not run claims against a standalone MongoDB server that cannot provide multi-document transactions.

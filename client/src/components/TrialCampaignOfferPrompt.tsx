@@ -69,7 +69,7 @@ export default function TrialCampaignOfferPrompt() {
     if (!claimed && userId && offer?.campaignId) rememberTrialOfferDismissal(userId, offer.campaignId);
     setVisible(false);
     setError("");
-  }, [claiming, claimed, userId, offer?.campaignId]);
+  }, [claiming, claimed, userId, offer]);
 
   useEffect(() => {
     if (!visible) return;

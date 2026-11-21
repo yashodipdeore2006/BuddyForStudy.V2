@@ -165,7 +165,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | DONE |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | DONE |
-| 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | IN_PROGRESS |
+| 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | DONE |
 
 ### Phase 5 — Admin experience
 
@@ -481,7 +481,7 @@ Implemented on \`buddy-for-study-v2.2\`:
 **Verification:** exact-SHA backend lint and full test suite, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `5922a8bea8da489cb2bcea2b06b9c1e2c45c3747` (run [44876841654](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44876841654)). No staging or production deployment has been performed.
 
 
-## Task 19 implementation candidate — in progress
+## Task 19 implementation — verified
 
 **Scope:** Make the learner's latest started trial understandable from Billing, including lifecycle state, dates, remaining duration, and whether any recurring payment was separately authorized.
 
@@ -495,4 +495,4 @@ Changes prepared on `buddy-for-study-v2.2`:
 - Manual trial subscriptions no longer display the Razorpay auto-renewal cancellation action; that action is reserved for provider-backed subscriptions.
 - Regression tests cover duration formatting, lifecycle labels, safe API serialization, no-autopay semantics, and cancellation-action provider gating.
 
-**Status:** implementation in progress. Exact-SHA CI and the Production release gate are still required before Task 19 can be marked DONE. No staging or production deployment has been performed.
+**Verification:** exact-SHA backend lint and full backend tests, frontend lint/typecheck/unit tests/production build, Playwright browser navigation smoke tests, and the Production release gate all passed on implementation candidate `8d3bdca9a7a2bb843d4d7eeb7d2603a163827e1a` (run [44878605895](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44878605895)). The learner Billing API and UI are verified for this repository candidate. No staging or production deployment has been performed.

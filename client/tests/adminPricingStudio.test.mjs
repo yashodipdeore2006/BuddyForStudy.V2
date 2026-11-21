@@ -38,8 +38,8 @@ test("bulk pricing always previews selected scope before applying", () => {
 
 test("rule management includes edit, enable-disable and guarded manual execution", () => {
   assert.match(source, /method: editingRuleId \? "PUT" : "POST"/);
-  assert.match(source, /function editRule/);
-  assert.match(source, /function toggleRule/);
+  assert.match(source, /const editRule =/);
+  assert.match(source, /const toggleRule =/);
   assert.match(source, /method: "PUT"/);
   assert.match(source, /Execute enabled automatic rules/);
   assert.match(source, /there is no background repricing worker/);

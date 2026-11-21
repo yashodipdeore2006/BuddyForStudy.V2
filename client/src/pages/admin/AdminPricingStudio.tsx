@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowDownUp, BookOpen, CheckCircle2, Clock3, LayoutDashboard, ListFilter,
+  ArrowDownUp, BookOpen, CheckCircle2, Clock3,
   Pencil, RefreshCw, ShieldCheck, Sparkles, Tags, Trash2
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
@@ -38,7 +38,6 @@ const defaultBands: Record<string, Band> = {
   Beginner: { min: 199, max: 499 }, Intermediate: { min: 499, max: 999 }, Advanced: { min: 999, max: 1999 }
 };
 const inputClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100";
-const cardClass = "rounded-2xl border border-slate-200 bg-white p-5 md:p-6";
 const money = (amount?: number, currency = "INR") =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
 const operationLabels: Record<string, string> = {
@@ -504,7 +503,7 @@ export default function AdminPricingStudio() {
                   <label className="text-xs font-semibold text-slate-600">Price ceiling (optional)<input className={inputClass} type="number" min="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} /></label>
                 </div>
                 <label className="block text-xs font-semibold text-slate-600">Active sale handling<select className={inputClass} value={saleHandling} onChange={(e) => setSaleHandling(e.target.value)}><option value="preserve">Preserve (skip invalid sale states)</option><option value="clear">Clear active sale pricing</option><option value="adjust">Adjust sale price below the new base price</option></select></label>
-                <AdminButton block onClick={() => void makePreview("bulk")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<ArrowDownUp size={16} />}>Generate bulk preview</AdminButton>
+                <AdminButton className="w-full" onClick={() => void makePreview("bulk")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<ArrowDownUp size={16} />}>Generate bulk preview</AdminButton>
               </div>
             </AdminCard>
             <AdminCard>
@@ -524,7 +523,7 @@ export default function AdminPricingStudio() {
                 <label className="text-xs font-semibold text-slate-600">Adjustment per project (%)<input className={inputClass} type="number" min="0" max="50" value={projectAdjustment} onChange={(e) => setProjectAdjustment(e.target.value)} /></label>
               </div>
               {filters.category && <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">Recommendation bands will target category “{filters.category}”.</p>}
-              <AdminButton block variant="secondary" className="mt-4" onClick={() => void makePreview("recommend")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<Sparkles size={16} />}>Generate recommendation preview</AdminButton>
+              <AdminButton className="w-full" variant="secondary" className="mt-4" onClick={() => void makePreview("recommend")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<Sparkles size={16} />}>Generate recommendation preview</AdminButton>
             </AdminCard>
           </div>
           <AdminCard>

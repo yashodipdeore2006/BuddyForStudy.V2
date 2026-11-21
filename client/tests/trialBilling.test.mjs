@@ -1,11 +1,13 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-const ts = require("typescript");
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import ts from "typescript";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(__dirname, "..");
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "..");
 const source = fs.readFileSync(path.join(root, "src/lib/trialBilling.ts"), "utf8");
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },

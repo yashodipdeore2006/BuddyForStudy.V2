@@ -595,6 +595,54 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
   });
 
+  test("admin navigation groups and labels make the main workspaces easy to locate", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "analytics.read",
+        "users.read", "courses.read", "ai.manage",
+        "plans.read", "trials.manage", "pricing.manage", "billing.read", "coupons.read",
+        "operations.read", "communications.send", "notifications.read",
+        "audit.read", "settings.read", "legal.manage", "admin_roles.manage",
+      ],
+    });
+    await page.goto(baseURL + "/admin");
+
+    const navigation = page.getByRole("navigation", { name: "Admin navigation" });
+    const groupHeadings = await navigation.locator(".admin-nav-heading").allTextContents();
+    expect(groupHeadings.map((heading) => heading.trim())).toEqual([
+      "Overview",
+      "Learning & content",
+      "Growth & monetization",
+      "Operations",
+      "Governance & access",
+    ]);
+
+    const groups = navigation.locator(".admin-nav-group");
+    await expect(groups.nth(1).getByRole("link", { name: "AI & content controls" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Subscription plans" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Trial campaigns & grants" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Course Pricing Studio" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Billing & refunds" })).toBeVisible();
+    await expect(groups.nth(3).getByRole("link", { name: "Payment and access cases" })).toBeVisible();
+    await expect(groups.nth(4).getByRole("link", { name: "Administrator roles" })).toBeVisible();
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }));
+    });
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await search.fill("Trial campaigns & grants");
+    const trialResult = dialog.getByRole("option", { name: /Trial campaigns & grants/ });
+    await expect(trialResult).toBeVisible();
+    await trialResult.click();
+
+    await expect(page).toHaveURL(/\\/admin\\/trials$/);
+    await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Trial campaigns & grants");
+  });
+
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {
     await mockAdminApi(page, {
       user: analystUser,

@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(root, "src/lib/trialOffer.ts"), "utf8")
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
-const module = { exports: {} };
+const loadedModule = { exports: {} };
 vm.runInNewContext(js, {
   exports: module.exports, module,
   globalThis: { crypto: { randomUUID: () => "123e4567-e89b-12d3-a456-426614174000" } },
@@ -19,7 +19,7 @@ const {
   TRIAL_OFFER_DISMISSAL_COOLDOWN_MS, trialOfferDismissalStorageKey,
   getTrialOfferDismissalRemainingMs, isTrialOfferDismissed,
   rememberTrialOfferDismissal, createTrialClaimIdempotencyKey,
-} = module.exports;
+} = loadedModule.exports;
 function fakeStorage() {
   const values = new Map();
   return {

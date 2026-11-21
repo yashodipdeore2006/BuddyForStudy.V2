@@ -164,7 +164,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 |---:|---|---|---|
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | DONE |
-| 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | IN_PROGRESS |
+| 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | DONE |
 | 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
 
 ### Phase 5 — Admin experience
@@ -463,7 +463,7 @@ Implemented on \`buddy-for-study-v2.2\`:
 **Verification:** exact-SHA frontend lint, typecheck, unit tests, production build, Playwright browser navigation smoke tests, backend lint and full test suite, production-config preflight, server JavaScript syntax validation, and the Production release gate all passed on implementation candidate `9d5e7d7a0ec75dbbde36ff88270b019f777ee37f` (run [44873843558](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44873843558)). No staging or production deployment has been performed.
 
 
-## 19. Task 18 implementation candidate — trial expiry, revocation and free-plan restoration
+## 19. Task 18 implementation — trial expiry, revocation and free-plan restoration
 
 **Scope:** Keep the durable TrialGrant, UserSubscription and campaign claim ledger in agreement as a trial ends or is revoked, without touching a newer provider-backed subscription or creating a payment action.
 
@@ -478,4 +478,4 @@ Implemented on \`buddy-for-study-v2.2\`:
 - Added \`POST /api/admin/trials/grants/:grantId/revoke\`, guarded by \`trials.manage\`, with a required administrator reason and an audit event. The existing grant workspace exposes a revoke action for currently trialing grants.
 - \`GET /api/billing/me\` synchronizes an ended learner trial before returning subscription details, so the Billing page does not depend only on the next worker interval to show free-plan fallback.
 
-**Verification state:** Task 18 implementation and regression tests are committed; exact-SHA backend, frontend, Playwright, and Production release-gate CI are pending. No staging or production deployment has been performed.
+**Verification:** exact-SHA backend lint and full test suite, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `5922a8bea8da489cb2bcea2b06b9c1e2c45c3747` (run [44876841654](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44876841654)). No staging or production deployment has been performed.

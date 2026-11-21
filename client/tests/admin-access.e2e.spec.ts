@@ -639,7 +639,7 @@ test.describe("administrator route and permission UX", () => {
     await expect(trialResult).toBeVisible();
     await trialResult.click();
 
-    await expect(page).toHaveURL(/\\/admin\\/trials$/);
+    await expect(page).toHaveURL(new RegExp("/admin/trials$"));
     await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Trial campaigns & grants");
   });
 

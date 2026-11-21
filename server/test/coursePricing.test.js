@@ -6,6 +6,7 @@ import {
   getEffectiveCoursePrice,
   hasValidActiveCourseSale,
   parsePricingFilters,
+  parsePricingSelection,
   recommendBandPrice,
   validatePricingOperation
 } from "../src/utils/coursePricing.js";
@@ -227,4 +228,40 @@ test("course details enrollment lookup hides inaccessible paid and expired subsc
   assert.match(lookup, /isEnrollmentCourseAccessAllowed\(/);
   assert.match(lookup, /status: \{ \$in: \["paid", "partially_refunded"\] \}/);
   assert.match(lookup, /return null/);
+});
+
+test("pricing selection accepts bounded explicit IDs and all-matching scope", () => {
+  assert.deepEqual(parsePricingSelection({ mode: "all_matching" }), { mode: "all_matching" });
+  assert.deepEqual(parsePricingSelection({ mode: "selected", courseIds: ["507f1f77bcf86cd799439011"] }), {
+    mode: "selected", courseIds: ["507f1f77bcf86cd799439011"]
+  });
+  assert.throws(() => parsePricingSelection({ mode: "selected", courseIds: [] }), /between 1 and 500/);
+  assert.throws(() => parsePricingSelection({ mode: "selected", courseIds: ["not-an-id"] }), /valid object ID/);
+  assert.throws(() => parsePricingSelection({ mode: "selected", courseIds: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439011"] }), /Duplicate/);
+  assert.throws(() => parsePricingSelection({ mode: "all_matching", courseIds: [] }), /only accepted/);
+  assert.throws(() => parsePricingSelection({ mode: "selected", courseIds: ["507f1f77bcf86cd799439011"], "$where": "true" }), /Unsupported pricing selection field/);
+});
+
+test("pricing preview selection intersects explicit IDs with validated catalogue filters", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const controller = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
+  assert.match(controller, /parsePricingSelection\(req\.body\?\.selection/);
+  assert.match(controller, /\$and: \[baseFilter, \{ _id: \{ \$in:/);
+  assert.match(controller, /selection \}, profile/);
+  assert.match(controller, /MAX_PREVIEW_COURSES/);
+});
+
+test("pricing history exposes a protected batch-detail route with per-course snapshots", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const routes = fs.readFileSync(path.join(here, "../src/routes/adminPricing.routes.js"), "utf8");
+  const controller = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
+  assert.match(routes, /router\.get\("\/history\/:batchId", adminPermissionMiddleware\("pricing\.manage"\), controller\.historyDetail\)/);
+  assert.match(controller, /PricingBatch\.findOne\(\{ _id: batchId, kind: "batch" \}\)/);
+  assert.match(controller, /populate\("actor", "name email"\)/);
 });

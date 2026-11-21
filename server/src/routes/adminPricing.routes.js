@@ -15,5 +15,6 @@ router.put("/rules/:ruleId", adminPermissionMiddleware("pricing.manage"), contro
 router.delete("/rules/:ruleId", adminPermissionMiddleware("pricing.manage"), controller.deleteRule);
 router.post("/rules/run", adminPermissionMiddleware("pricing.manage"), controller.runEnabledRules);
 router.get("/history", adminPermissionMiddleware("pricing.manage"), controller.history);
+router.get("/history/:batchId", adminPermissionMiddleware("pricing.manage"), controller.historyDetail);
 router.post("/history/:batchId/rollback", adminPermissionMiddleware("pricing.manage"), controller.rollback);
 export default router;

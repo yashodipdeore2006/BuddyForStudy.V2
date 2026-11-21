@@ -198,3 +198,27 @@ export function recommendBandPrice(course, profile) {
     factors: { moduleCount: modules.length, projectCount, depthAdjustmentPercent: depthAdjustment, projectAdjustmentPercent: projectAdjustment }
   };
 }
+
+
+/**
+ * Strictly normalizes the course scope for a pricing preview. Explicit IDs are
+ * bounded and de-duplicated so callers cannot bypass the batch-size limit.
+ */
+export function parsePricingSelection(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A valid pricing selection is required.");
+  const allowed = ["mode", "courseIds"];
+  for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported pricing selection field: " + key);
+  const mode = input.mode || "all_matching";
+  if (!["selected", "all_matching"].includes(mode)) throw new Error("Choose selected courses or all matching courses.");
+  if (mode === "all_matching") {
+    if (input.courseIds !== undefined) throw new Error("Course IDs are only accepted for a selected-course scope.");
+    return { mode };
+  }
+  if (!Array.isArray(input.courseIds) || input.courseIds.length < 1 || input.courseIds.length > 500) {
+    throw new Error("Select between 1 and 500 course IDs.");
+  }
+  const ids = input.courseIds.map((id) => String(id));
+  if (ids.some((id) => !/^[a-fA-F0-9]{24}$/.test(id))) throw new Error("Every selected course ID must be a valid object ID.");
+  if (new Set(ids).size !== ids.length) throw new Error("Duplicate course IDs are not allowed in a pricing selection.");
+  return { mode, courseIds: ids };
+}

@@ -35,7 +35,8 @@ test("admin campaign workspace loads editable quick-trial presets and creates a 
 test("campaign lifecycle actions use the separate publish, pause and disable endpoints", () => {
   assert.match(source, /"publish" \| "pause" \| "disable"/);
   assert.match(source, /campaigns\/" \+ encodeURIComponent\(campaignId\) \+ "\/" \+ action/);
-  assert.match(source, /runCampaignLifecycleAction\(campaign\._id, "publish"\)/);
+  assert.match(source, /setPublishTarget\(campaign\)/);
+  assert.match(source, /runCampaignLifecycleAction\(publishTarget\._id, "publish"\)/);
   assert.match(source, /runCampaignLifecycleAction\(campaign\._id, "pause"\)/);
   assert.match(source, /runCampaignLifecycleAction\(campaign\._id, "disable"\)/);
 });
@@ -69,4 +70,47 @@ test("active trial grants and terminal trial history are separate dashboard work
   assert.match(source, /historicalGrants\.map/);
   assert.match(source, /No expired, revoked or converted trials yet/);
   assert.match(source, /\["expired", "revoked", "converted"\]/);
+});
+
+
+test("self-serve campaign creation uses a validated three-step wizard", () => {
+  assert.match(source, /aria-label="Campaign creation steps"/);
+  assert.match(source, /title: "Trial setup"/);
+  assert.match(source, /title: "Campaign details"/);
+  assert.match(source, /title: "Review and save"/);
+  assert.match(source, /function campaignStepError\(step: number\)/);
+  assert.match(source, /function continueCampaignStep\(\)/);
+  assert.match(source, /function goBackCampaignStep\(\)/);
+  assert.match(source, /campaignStepError\(0\)/);
+  assert.match(source, /campaignStepError\(1\)/);
+  assert.match(source, /setCampaignStep\(current => Math\.min\(current \+ 1, 2\)\)/);
+  assert.match(source, /Advanced configuration/);
+});
+
+test("campaign review exposes settings, eligibility and no-autopay disclosure before draft creation", () => {
+  const review = source.slice(source.indexOf('aria-labelledby="campaign-review-title"'), source.indexOf('className="mt-6 flex flex-col-reverse'));
+  for (const content of [
+    "Internal campaign",
+    "Learner-facing offer",
+    "Trial entitlement plan",
+    "Trial duration",
+    "Maximum claims",
+    "Campaign schedule",
+    "Eligibility rules",
+    "Paid conversion",
+    "No autopay or payment authorization",
+    "does not create a payment, recurring subscription or payment mandate",
+    "saves a draft only"
+  ]) assert.ok(review.includes(content), "review is missing " + content);
+  assert.match(source, /Save campaign as draft/);
+  assert.match(source, /method: "POST"/);
+});
+
+test("publishing a trial campaign requires explicit confirmation and preserves payment safety", () => {
+  assert.match(source, /<AdminConfirmDialog/);
+  assert.match(source, /title="Publish trial campaign\?"/);
+  assert.match(source, /setPublishTarget\(campaign\)/);
+  assert.match(source, /runCampaignLifecycleAction\(publishTarget\._id, "publish"\)/);
+  assert.match(source, /makes this offer available to eligible learners during its configured campaign window/);
+  assert.match(source, /Publishing or saving this campaign does not create a payment/);
 });

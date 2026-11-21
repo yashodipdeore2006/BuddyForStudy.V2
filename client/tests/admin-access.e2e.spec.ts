@@ -611,6 +611,7 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin");
 
     const navigation = page.getByRole("navigation", { name: "Admin navigation" });
+    await expect(navigation.getByRole("link", { name: "Dashboard" })).toBeVisible();
     const groupHeadings = await navigation.locator(".admin-nav-heading").allTextContents();
     expect(groupHeadings.map((heading) => heading.trim())).toEqual([
       "Overview",

@@ -270,15 +270,16 @@ export default function AdminPricingStudio() {
   };
   const toggleRule = async (rule: Rule) => {
     setBusy(true); setError(""); setNotice("");
+    const nextEnabled = !rule.enabled;
     try {
       await adminFetch("/api/admin/pricing/rules/" + rule._id, {
         method: "PUT",
         body: JSON.stringify({
-          name: rule.name, enabled: !rule.enabled, autoApply: Boolean(rule.autoApply),
+          name: rule.name, enabled: nextEnabled, autoApply: nextEnabled && Boolean(rule.autoApply),
           priority: rule.priority, filters: rule.filters, operation: rule.operation
         })
       });
-      setNotice(rule.enabled ? "Rule disabled." : "Rule enabled.");
+      setNotice(rule.enabled ? "Rule disabled. Its auto-apply opt-in was cleared." : "Rule enabled.");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Could not change rule status."); }
     finally { setBusy(false); }
@@ -497,7 +498,7 @@ export default function AdminPricingStudio() {
                   ["amount_increase", "Increase by amount"], ["amount_decrease", "Decrease by amount"], ["set_free", "Set as free"],
                   ["set_paid", "Set as paid"], ["set_compare_at", "Set comparison-at price (0 clears)"]
                 ].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                {!["set_free", "set_paid"].includes(operationType) && <label className="block text-xs font-semibold text-slate-600">Amount / percentage<input className={inputClass} type="number" min="0" max={operationType.startsWith("percent") ? 100 : 1000000} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
+                {operationType !== "set_free" && <label className="block text-xs font-semibold text-slate-600">Amount / percentage<input className={inputClass} type="number" min="0" max={operationType.startsWith("percent") ? 100 : 1000000} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-slate-600">Price floor (optional)<input className={inputClass} type="number" min="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} /></label>
                   <label className="text-xs font-semibold text-slate-600">Price ceiling (optional)<input className={inputClass} type="number" min="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} /></label>
@@ -586,6 +587,9 @@ export default function AdminPricingStudio() {
               <div><h2 className="text-lg font-bold text-slate-950">Configured rules</h2><p className="mt-1 text-sm text-slate-600">{rules.length} rules · {activeAutoRules} enabled for manual execution</p></div>
               <AdminButton variant="secondary" disabled={busy || activeAutoRules === 0} onClick={() => void runRules()}>Execute enabled automatic rules</AdminButton>
             </div>
+            <label className="mt-4 block text-xs font-semibold text-slate-600">Reason for automatic rule execution (required, 10–500 characters)
+              <textarea className={inputClass + " min-h-20"} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Explain why these automatic pricing rules are being executed." />
+            </label>
             <div className="mt-4 space-y-2">
               {rules.length ? rules.map((rule) => <div key={rule._id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">

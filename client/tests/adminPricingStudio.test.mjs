@@ -42,6 +42,8 @@ test("rule management includes edit, enable-disable and guarded manual execution
   assert.match(source, /const toggleRule =/);
   assert.match(source, /method: "PUT"/);
   assert.match(source, /Execute enabled automatic rules/);
+  assert.match(source, /autoApply: nextEnabled && Boolean\(rule\.autoApply\)/);
+  assert.match(source, /Reason for automatic rule execution/);
   assert.match(source, /there is no background repricing worker/);
 });
 

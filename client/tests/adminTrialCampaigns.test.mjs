@@ -41,8 +41,19 @@ test("campaign lifecycle actions use the separate publish, pause and disable end
 });
 
 test("self-serve campaigns remain separate from the existing manual grant flow", () => {
-  assert.match(source, /\/api\/admin\/trials\/grants\?limit=25/);
+  assert.match(source, /\/api\/admin\/trials\/grants\?limit=50/);
   assert.match(source, /\/api\/admin\/trials\/preview/);
   assert.match(source, /\/api\/admin\/trials\/grant/);
-  assert.match(source, /Recent trial grants/);
+  assert.match(source, /Trial grant history/);
+});
+
+
+test("trial dashboard separates claims from grant history and exposes operations sections", () => {
+  assert.match(source, /trial-overview/);
+  assert.match(source, /trial-campaigns/);
+  assert.match(source, /trial-claims/);
+  assert.match(source, /trial-grants/);
+  assert.match(source, /trial-history/);
+  assert.match(source, /Campaign claims/);
+  assert.match(source, /Trial grant history/);
 });

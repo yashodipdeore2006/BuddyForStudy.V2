@@ -524,7 +524,7 @@ export default function AdminPricingStudio() {
                 <label className="text-xs font-semibold text-slate-600">Adjustment per project (%)<input className={inputClass} type="number" min="0" max="50" value={projectAdjustment} onChange={(e) => setProjectAdjustment(e.target.value)} /></label>
               </div>
               {filters.category && <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">Recommendation bands will target category “{filters.category}”.</p>}
-              <AdminButton className="w-full" variant="secondary" className="mt-4" onClick={() => void makePreview("recommend")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<Sparkles size={16} />}>Generate recommendation preview</AdminButton>
+              <AdminButton className="w-full mt-4" variant="secondary" onClick={() => void makePreview("recommend")} disabled={busy || !selectedWithinLimit} loading={busy} icon={<Sparkles size={16} />}>Generate recommendation preview</AdminButton>
             </AdminCard>
           </div>
           <AdminCard>

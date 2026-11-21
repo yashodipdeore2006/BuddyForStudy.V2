@@ -15,52 +15,59 @@ type AdminLink = {
   to: string;
   label: string;
   permission: string;
-  group: "Overview" | "Learning" | "Operations" | "Finance & governance";
+  group: "Overview" | "Learning & content" | "Growth & monetization" | "Operations" | "Governance & access";
   icon: typeof LayoutDashboard;
   description: string;
 };
 type CommandItem = { to: string; label: string; description: string; icon: typeof LayoutDashboard; kind: "Recent" | "Page" | "Action" };
 
 const links: AdminLink[] = [
-  { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operational priorities" },
-  { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Overview", icon: Activity, description: "Learner growth, revenue and learning outcomes" },
+  { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Monitor platform activity and operational priorities" },
+  { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Overview", icon: Activity, description: "Measure learner growth, revenue and learning outcomes" },
 
-  { to: "/admin/users", label: "Users", permission: "users.read", group: "Learning", icon: Users, description: "Accounts, access and learner activity" },
-  { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Course catalogue and learning resources" },
-  { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Reviews, revisions, moderation and link health" },
-  { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Generated roadmaps and learner progress" },
+  { to: "/admin/users", label: "Users", permission: "users.read", group: "Learning & content", icon: Users, description: "Review learner accounts, access and activity" },
+  { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Create and manage the course catalogue and resources" },
+  { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Review content quality, revisions, moderation and links" },
+  { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Inspect generated roadmaps and learner progress" },
+  { to: "/admin/ai-content", label: "AI & content controls", permission: "ai.manage", group: "Learning & content", icon: BrainCircuit, description: "Configure AI generation limits and content discovery rules" },
 
-  { to: "/admin/support", label: "Support cases", permission: "billing.read", group: "Operations", icon: Headset, description: "Review learner payment and access issues" },
-  { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Operations", icon: ServerCog, description: "Service health, queues, webhooks and alerts" },
-  { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Operations", icon: Megaphone, description: "Announcements, templates and notifications" },
-  { to: "/admin/notifications", label: "Admin notifications", permission: "notifications.read", group: "Operations", icon: Bell, description: "Operational alerts and unread notifications" },
-  { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Operations", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
+  { to: "/admin/plans", label: "Subscription plans", permission: "plans.read", group: "Growth & monetization", icon: CreditCard, description: "Configure plan features, usage limits and availability" },
+  { to: "/admin/trials", label: "Trial campaigns & grants", permission: "trials.manage", group: "Growth & monetization", icon: Gift, description: "Create trial offers, check eligibility and review learner grants" },
+  { to: "/admin/pricing", label: "Course Pricing Studio", permission: "pricing.manage", group: "Growth & monetization", icon: Tag, description: "Set course prices, review recommendations and manage pricing rules" },
+  { to: "/admin/billing", label: "Billing & refunds", permission: "billing.read", group: "Growth & monetization", icon: CreditCard, description: "Review payments, refunds and payment issue reports" },
+  { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Growth & monetization", icon: CreditCard, description: "Review subscriber status, plan assignments and billing periods" },
+  { to: "/admin/coupons", label: "Coupons & promotions", permission: "coupons.read", group: "Growth & monetization", icon: Tag, description: "Create and manage discount codes and promotions" },
 
-  { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Finance & governance", icon: CreditCard, description: "Subscription plans and entitlements" },
-  { to: "/admin/trials", label: "Free trial campaigns", permission: "trials.manage", group: "Finance & governance", icon: Gift, description: "Target learners, preview eligibility and grant free trials" },
-  { to: "/admin/pricing", label: "Course Pricing Studio", permission: "pricing.manage", group: "Finance & governance", icon: Tag, description: "Bulk course pricing, recommendations and pricing rules" },
-  { to: "/admin/billing", label: "Billing and refunds", permission: "billing.read", group: "Finance & governance", icon: CreditCard, description: "Payments, refunds and payment issue reports" },
-  { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Finance & governance", icon: CreditCard, description: "Subscriber status and billing periods" },
-  { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Finance & governance", icon: Tag, description: "Discounts and promotions" },
-  { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Finance & governance", icon: BrainCircuit, description: "AI controls and discovery settings" },
-  { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Finance & governance", icon: ScrollText, description: "Sensitive actions and accountability" },
-  { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Finance & governance", icon: Settings, description: "Platform configuration" },
-  { to: "/admin/legal", label: "Legal & policies", permission: "legal.manage", group: "Finance & governance", icon: ScrollText, description: "Publish policies, terms and platform rules" },
-  { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Finance & governance", icon: ShieldCheck, description: "Administrator access and invitations" },
+  { to: "/admin/support", label: "Payment and access cases", permission: "billing.read", group: "Operations", icon: Headset, description: "Resolve learner payment, subscription and access issues" },
+  { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Operations", icon: ServerCog, description: "Monitor service health, queues, webhooks and alerts" },
+  { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Operations", icon: Megaphone, description: "Prepare announcements, message templates and campaigns" },
+  { to: "/admin/notifications", label: "Admin notifications", permission: "notifications.read", group: "Operations", icon: Bell, description: "Review operational alerts and unread notifications" },
+  { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Operations", icon: MailCheck, description: "Inspect notification delivery attempts and retry eligible failures" },
+
+  { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Governance & access", icon: ScrollText, description: "Trace sensitive administrator actions and accountability records" },
+  { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Governance & access", icon: Settings, description: "Manage typed platform configuration and operational defaults" },
+  { to: "/admin/legal", label: "Legal & policies", permission: "legal.manage", group: "Governance & access", icon: ScrollText, description: "Maintain published policies, terms and platform rules" },
+  { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Governance & access", icon: ShieldCheck, description: "Manage administrator invitations, roles and scoped permissions" },
 ];
 
-const groupOrder: AdminLink["group"][] = ["Overview", "Learning", "Operations", "Finance & governance"];
+const groupOrder: AdminLink["group"][] = [
+  "Overview",
+  "Learning & content",
+  "Growth & monetization",
+  "Operations",
+  "Governance & access",
+];
 // Keep routes that aren't in the primary navigation under an explicit page permission too.
 const routePermissionOverrides: Record<string, string> = {
   "/admin/design-system": "settings.read",
 };
-const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system", "/admin/trials": "Free trial campaigns", "/admin/legal": "Legal & policies", "/admin/pricing": "Course Pricing Studio" };
+const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system", "/admin/trials": "Trial campaigns & grants", "/admin/legal": "Legal & policies", "/admin/pricing": "Course Pricing Studio" };
 const quickActions = [
-  { to: "/admin/courses", label: "Open course management", description: "Create and update learning content", permission: "courses.read", icon: BookOpen },
-  { to: "/admin/plans", label: "Open subscription plans", description: "Manage pricing and entitlements", permission: "plans.read", icon: CreditCard },
-  { to: "/admin/coupons", label: "Open coupons and promotions", description: "Manage discount rules", permission: "coupons.read", icon: Tag },
-  { to: "/admin/communications", label: "Compose communication", description: "Create an announcement or message", permission: "communications.send", icon: Megaphone },
-  { to: "/admin/roles", label: "Invite administrator", description: "Invite a teammate with scoped access", permission: "admin_roles.manage", icon: Users },
+  { to: "/admin/courses", label: "Open course management", description: "Manage the course catalogue and learning resources", permission: "courses.read", icon: BookOpen },
+  { to: "/admin/plans", label: "Open subscription plans", description: "Configure plan features, limits and availability", permission: "plans.read", icon: CreditCard },
+  { to: "/admin/coupons", label: "Open coupons and promotions", description: "Create and manage discount campaigns", permission: "coupons.read", icon: Tag },
+  { to: "/admin/communications", label: "Compose communication", description: "Draft and send learner or admin communications", permission: "communications.send", icon: Megaphone },
+  { to: "/admin/roles", label: "Invite administrator", description: "Assign an administrator role with scoped permissions", permission: "admin_roles.manage", icon: Users },
 ];
 
 function savedBoolean(key: string, fallback: boolean) {

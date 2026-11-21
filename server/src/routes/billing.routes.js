@@ -17,6 +17,7 @@ import { sendBillingNotificationSafely } from "../services/billingNotification.s
 import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
 import { getOrCreateFreePlanSubscription } from "../services/freePlanAssignment.service.js";
 import { expireUserTrialIfDue } from "../services/trialLifecycle.service.js";
+import { toLearnerTrialBillingSummary } from "../services/trialBillingSummary.service.js";
 
 const router = Router();
 
@@ -305,13 +306,21 @@ router.post("/refunds", async (req,res,next)=>{ try {
 router.get("/trial", async (req, res, next) => {
   try {
     const now = new Date();
-    const trial = await TrialGrant.findOne({
+    // Keep this endpoint correct when it is requested independently of /billing/me.
+    await expireUserTrialIfDue(req.user.userId, { now, maxItems: 10 });
+    const grant = await TrialGrant.findOne({
       user: req.user.userId,
-      status: "trialing",
-      startsAt: { $lte: now },
-      endsAt: { $gt: now }
-    }).populate("plan", "name features limits").populate("conversionPlan", "name price currency billingInterval").sort({ endsAt: -1 }).lean();
-    return success(res, { trial });
+      $or: [
+        { status: "trialing", startsAt: { $lte: now } },
+        { status: { $in: ["converted", "expired", "revoked"] } }
+      ]
+    })
+      .select("startsAt endsAt status conversionConsentStatus providerSubscriptionId plan conversionPlan")
+      .populate("plan", "name")
+      .populate("conversionPlan", "name price currency billingInterval")
+      .sort({ startsAt: -1, createdAt: -1 })
+      .lean();
+    return success(res, { trial: toLearnerTrialBillingSummary(grant), asOf: now.toISOString() });
   } catch (error) { next(error); }
 });
 

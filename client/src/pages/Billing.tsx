@@ -5,6 +5,7 @@ import ErrorState from "@/components/ErrorState";
 import { apiFetch } from "@/lib/api";
 import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight, MessageSquareWarning } from "lucide-react";
 import { routes } from "@/lib/routes";
+import { formatTrialRemaining, getTrialStatusLabel, isTrialCurrentlyActive } from "@/lib/trialBilling";
 
 type RefundRequest = {
   _id: string;
@@ -58,11 +59,20 @@ function statusClass(status: string) {
   return styles[status] || "bg-slate-100 text-slate-700 ring-slate-500/15";
 }
 
-type TrialSummary = { _id: string; campaignName: string; startsAt: string; endsAt: string; conversionConsentStatus: string; plan?: { name?: string } | null; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string } | null };
+type TrialSummary = {
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  conversionConsentStatus: string;
+  plan?: { name?: string } | null;
+  conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string } | null;
+  payment?: { paymentMethodRequired: boolean; paymentOrderCreated: boolean; autopayAuthorized: boolean };
+};
 
 type SubscriptionSummary = {
   status: string;
-  plan?: { name?: string; billingInterval?: string } | null;
+  provider?: string;
+  plan?: { name?: string; slug?: string; price?: number; billingInterval?: string } | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
 };
@@ -87,12 +97,20 @@ export default function Billing() {
   const [cancelling, setCancelling] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
   async function loadBilling() {
     setLoading(true);
     setLoadError("");
     try {
-      const [paymentData, subscriptionData, refundData, issueData, trialData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues"), apiFetch("/api/billing/trial")]);
+      // Synchronize a due trial before requesting its learner-facing status.
+      const subscriptionData = await apiFetch("/api/billing/me");
+      const [paymentData, refundData, issueData, trialData] = await Promise.all([
+        apiFetch("/api/billing/payments"),
+        apiFetch("/api/billing/refunds"),
+        apiFetch("/api/billing/issues"),
+        apiFetch("/api/billing/trial")
+      ]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
       setTrial(trialData.trial || null);
@@ -104,6 +122,10 @@ export default function Billing() {
     } finally { setLoading(false); }
   }
   useEffect(() => { void loadBilling(); }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const filteredPayments = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -123,6 +145,9 @@ export default function Billing() {
     }, {});
   const pendingCount = payments.filter((p) => ["created", "pending"].includes(p.status)).length;
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
+  const trialIsActive = Boolean(trial && isTrialCurrentlyActive(trial.status, trial.endsAt, clockNow));
+  const trialStatusLabel = trial ? getTrialStatusLabel(trial.status, trial.endsAt, clockNow) : "";
+  const currentPlanIsFree = subscription?.plan?.slug === "free" || Number(subscription?.plan?.price) === 0;
 
   async function submitRefund(paymentId: string) {
     if (submittingRefund) return;
@@ -181,18 +206,71 @@ export default function Billing() {
 
       {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
 
-      {trial && <section className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
+      {trial && <section aria-labelledby="trial-billing-heading" className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Free trial</p><h2 className="mt-1 text-lg font-extrabold text-slate-950">{trial.plan?.name || "Premium trial"}</h2><p className="mt-1 text-sm text-slate-700">Your trial ends {date(trial.endsAt)}. You will not be charged automatically unless you separately authorize recurring payments.</p></div>
-          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-700">Trial active</span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Trial summary</p>
+            <h2 id="trial-billing-heading" className="mt-1 text-lg font-extrabold text-slate-950">{trial.plan?.name || "Premium trial"}</h2>
+            <p className="mt-1 text-sm text-slate-700">
+              {trialIsActive
+                ? "Your trial access is active. Review the dates and remaining duration below."
+                : trial.status === "revoked"
+                  ? "This trial was revoked. Your current entitlement is shown in the Subscription section."
+                  : trial.status === "converted"
+                    ? "This trial was converted after a separate paid-subscription authorization."
+                    : currentPlanIsFree
+                      ? "Your trial has ended and your Free plan is now active."
+                      : "Your trial has ended. Your current entitlement is shown in the Subscription section."}
+            </p>
+          </div>
+          <span className={"rounded-full px-3 py-1.5 text-xs font-bold " + (trialStatusLabel === "Active" ? "bg-emerald-100 text-emerald-800" : trialStatusLabel === "Ending soon" ? "bg-amber-100 text-amber-800" : "bg-white text-violet-700")}>
+            {trialStatusLabel}
+          </span>
         </div>
-        {trial.conversionPlan && trial.conversionConsentStatus === "pending_user_consent" && <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Start date</p>
+            <p className="mt-1 font-bold text-slate-900">{date(trial.startsAt)}</p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">End date</p>
+            <p className="mt-1 font-bold text-slate-900">{date(trial.endsAt)}</p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Remaining duration</p>
+            <p className="mt-1 font-bold text-slate-900">{trialIsActive ? formatTrialRemaining(trial.endsAt, clockNow) : trialStatusLabel}</p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold text-slate-900">Automatic payments</p>
+            <span className={"rounded-full px-2.5 py-1 text-xs font-bold " + (trial.payment?.autopayAuthorized ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800")}>
+              {trial.payment?.autopayAuthorized ? "Separately authorised" : "Auto-pay off"}
+            </span>
+          </div>
+          {trial.payment?.autopayAuthorized
+            ? <p className="mt-2 text-sm text-slate-600">A paid subscription was authorised separately. Review its current status in the Subscription section.</p>
+            : <p className="mt-2 text-sm text-slate-600">This trial did not require a payment method or create a payment order. Auto-pay is off, and trial expiry will not initiate a charge.</p>}
+        </div>
+        {trialIsActive && trial.conversionPlan && trial.conversionConsentStatus === "pending_user_consent" && <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
           <p className="font-bold text-slate-900">Optional renewal offer: {trial.conversionPlan.name}</p>
           <p className="mt-1 text-sm text-slate-600">{money(Number(trial.conversionPlan.price || 0), trial.conversionPlan.currency || "INR")} / {trial.conversionPlan.billingInterval || "billing period"}. This offer does not authorize payment.</p>
           <p className="mt-2 text-xs text-slate-500">To enable renewal, choose this plan on Pricing and complete the payment provider's subscription authorization. If you do nothing, this trial does not initiate a charge.</p>
-          <div className="mt-3 flex flex-wrap gap-2"><Link to={routes.pricing()} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800">Review plans and authorize</Link><button type="button" disabled={decliningConversion} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={async()=>{setDecliningConversion(true);try{await apiFetch("/api/billing/trial/decline-conversion",{method:"POST",body:JSON.stringify({})});setTrial({...trial,conversionConsentStatus:"declined"});setRefundMessage("You declined the paid conversion offer. No recurring payment has been authorized.");}catch(error){setRefundMessage(error instanceof Error?error.message:"Unable to decline the offer.");}finally{setDecliningConversion(false);}}}>{decliningConversion?"Saving…":"Decline offer"}</button></div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link to={routes.pricing()} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800">Review plans and authorize</Link>
+            <button type="button" disabled={decliningConversion} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={async () => {
+              setDecliningConversion(true);
+              try {
+                await apiFetch("/api/billing/trial/decline-conversion", { method: "POST", body: JSON.stringify({}) });
+                setTrial({ ...trial, conversionConsentStatus: "declined" });
+                setRefundMessage("You declined the paid conversion offer. No recurring payment has been authorized.");
+              } catch (error) {
+                setRefundMessage(error instanceof Error ? error.message : "Unable to decline the offer.");
+              } finally { setDecliningConversion(false); }
+            }}>{decliningConversion ? "Saving…" : "Decline offer"}</button>
+          </div>
         </div>}
-        {trial.conversionConsentStatus === "declined" && <p className="mt-3 text-sm font-semibold text-slate-700">You declined the paid conversion offer. No recurring payment has been authorized.</p>}
+        {trialIsActive && trial.conversionConsentStatus === "declined" && <p className="mt-3 text-sm font-semibold text-slate-700">You declined the paid conversion offer. No recurring payment has been authorized.</p>}
       </section>}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -210,7 +288,7 @@ export default function Billing() {
         {subscription ? <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div><p className="font-bold text-slate-950">{subscription.plan?.name || "Subscription"}</p><p className="mt-1 text-sm capitalize text-slate-600">{subscription.status} · {subscription.plan?.billingInterval || "recurring"}</p>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-slate-500">Current period ends {date(subscription.currentPeriodEnd)}</p>}{subscription.cancelAtPeriodEnd && <p className="mt-1 text-xs font-semibold text-amber-700">Auto-renewal is scheduled to stop at period end.</p>}</div>
           <div className="flex flex-wrap items-center gap-2"><span className={"inline-flex rounded-full px-3 py-1.5 text-xs font-bold capitalize " + (subscription.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700")}>{subscription.status}</span>
-          {["trialing", "active", "past_due"].includes(subscription.status) && !subscription.cancelAtPeriodEnd && <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={cancelling} onClick={async () => {
+          {subscription.provider === "razorpay" && ["trialing", "active", "past_due"].includes(subscription.status) && !subscription.cancelAtPeriodEnd && <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={cancelling} onClick={async () => {
             if (!window.confirm("Cancel auto-renewal? Your plan access remains active through the current billing period.")) return;
             setCancelling(true);
             try { const data = await apiFetch("/api/billing/subscription/cancel", { method: "POST" }); setSubscription(data.subscription || subscription); setRefundMessage("Auto-renewal cancelled. Your access remains active through the current billing period."); }

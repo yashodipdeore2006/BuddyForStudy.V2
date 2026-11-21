@@ -165,7 +165,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 16 | Implement learner offer API | Authenticated, server-calculated offer and eligibility response | DONE |
 | 17 | Build trial claim popup | Claim and dismiss paths work; no duplicate prompt after claim | DONE |
 | 18 | Implement trial lifecycle handling | Start, expiry, revocation, and free-plan fallback are consistent | DONE |
-| 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | NOT_STARTED |
+| 19 | Update learner Billing experience | Trial plan, start/end, remaining duration, and no-autopay status are clear | IN_PROGRESS |
 
 ### Phase 5 — Admin experience
 
@@ -247,8 +247,8 @@ This map was refreshed against source candidate `9d5e7d7a0ec75dbbde36ff88270b019
 |---|---|---|
 | Grant record | `server/src/models/TrialGrant.js` | Records learner, entitlement plan, campaignName, reason, actor, start/end, status, conversion state, provider reference, and idempotency key. Unique user/campaignName and idempotency protections exist. |
 | Admin grant flow | `client/src/pages/admin/AdminTrialCampaigns.tsx`, `server/src/controllers/adminTrials.controller.js`, `server/src/routes/adminTrials.routes.js` | Supports choosing a learner or filtered group, previewing eligibility, granting, and viewing recent grants. |
-| Learner trial status | `GET /api/billing/trial` in `server/src/routes/billing.routes.js` | Returns a learner's current active TrialGrant and optional conversion plan. |
-| Learner trial UI | `client/src/pages/Billing.tsx` and `client/src/pages/Pricing.tsx` | Displays an active trial and, when configured, a paid conversion offer with explicit consent. |
+| Learner trial status | `GET /api/billing/trial` in `server/src/routes/billing.routes.js` | Returns a sanitized summary of the latest started trial, including lifecycle status, start/end dates, optional conversion terms, and explicit payment/autopay flags; synchronizes due expiry before reading. |
+| Learner trial UI | `client/src/pages/Billing.tsx` and `client/src/pages/Pricing.tsx` | Displays trial status, start/end dates, live remaining duration, auto-pay state, and the optional paid conversion offer; manual trials do not show provider cancellation controls. |
 | Campaign configuration | `server/src/models/TrialCampaign.js`, protected admin trial routes/controller, and `client/src/pages/admin/AdminTrialCampaigns.tsx` | Administrators configure reusable published campaigns separately from one-off manual grants. |
 | Self-serve offer and claim | `GET /api/trials/offer` and `POST /api/trials/campaigns/:campaignId/claim` in `server/src/routes/trialCampaign.routes.js` | The offer API is authenticated, read-only, and server-calculated; the claim API rechecks eligibility and atomically activates the entitlement. The learner popup is implemented in Task 17 and presents explicit Claim and Not now actions. |
 
@@ -479,3 +479,20 @@ Implemented on \`buddy-for-study-v2.2\`:
 - \`GET /api/billing/me\` synchronizes an ended learner trial before returning subscription details, so the Billing page does not depend only on the next worker interval to show free-plan fallback.
 
 **Verification:** exact-SHA backend lint and full test suite, frontend lint/typecheck/unit tests/build, Playwright browser navigation smoke tests, and the Production release gate all passed on `5922a8bea8da489cb2bcea2b06b9c1e2c45c3747` (run [44876841654](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44876841654)). No staging or production deployment has been performed.
+
+
+## Task 19 implementation candidate — in progress
+
+**Scope:** Make the learner's latest started trial understandable from Billing, including lifecycle state, dates, remaining duration, and whether any recurring payment was separately authorized.
+
+Changes prepared on `buddy-for-study-v2.2`:
+
+- `GET /api/billing/trial` synchronizes any due trial expiry/revocation for that learner, then returns the latest started trial in active or terminal lifecycle states.
+- The endpoint returns a narrow learner-safe summary. It omits administrator actor/reason, learner IDs, internal grant IDs, and idempotency keys while including the trial plan, start/end timestamps, status, optional conversion terms, and explicit payment flags.
+- A trial claim remains payment-free: the response states that no payment method or payment order was required for the trial. Auto-pay is only reported as authorized when a separate conversion authorization/provider subscription is recorded.
+- Billing displays the trial's start date, end date, a live remaining-duration value refreshed every minute, and distinct Active, Ending soon, Ended, Revoked, or Converted states.
+- The Billing load sequence synchronizes `/api/billing/me` before reading the trial summary. The optional conversion offer is only actionable during an active trial.
+- Manual trial subscriptions no longer display the Razorpay auto-renewal cancellation action; that action is reserved for provider-backed subscriptions.
+- Regression tests cover duration formatting, lifecycle labels, safe API serialization, no-autopay semantics, and cancellation-action provider gating.
+
+**Status:** implementation in progress. Exact-SHA CI and the Production release gate are still required before Task 19 can be marked DONE. No staging or production deployment has been performed.

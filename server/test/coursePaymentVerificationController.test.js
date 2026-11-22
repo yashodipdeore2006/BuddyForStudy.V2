@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { verifyCoursePayment } from "../src/controllers/payment.controller.js";
+import { env } from "../src/config/env.js";
 
 const userId = "507f191e810c19729de860ea";
 const courseId = "507f1f77bcf86cd799439011";
@@ -170,4 +171,47 @@ test("refunded course payments cannot be reactivated by payment verification", a
   assert.equal(res.result.body.message, "Payment is already refunded");
   assert.equal(providerFetchCalls, 0);
   assert.equal(enrollCalls, 0);
+});
+
+
+test("an already-created course payment can still be verified and enrolled after new payments are disabled", async () => {
+  const previousPaymentsEnabled = env.paymentsEnabled;
+  env.paymentsEnabled = false;
+  const payment = makePayment();
+  const enrollment = { _id: "enrollment-after-checkout-disabled" };
+  let providerFetchCalls = 0;
+  let enrollCalls = 0;
+  const res = makeResponse();
+
+  try {
+    await verifyCoursePayment(request("pay_existing"), res, (error) => { throw error; }, {
+      Payment: { findOne: async () => payment },
+      verifyPaymentSignature: () => true,
+      fetchPayment: async () => {
+        providerFetchCalls += 1;
+        return {
+          order_id: "order_123",
+          status: "captured",
+          amount: 49900,
+          currency: "INR"
+        };
+      },
+      enroll: async (actualUserId, actualCourseId) => {
+        enrollCalls += 1;
+        assert.equal(actualUserId, userId);
+        assert.equal(actualCourseId, courseId);
+        return enrollment;
+      }
+    });
+
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(res.result.body.message, "Payment verified and course access granted");
+    assert.equal(payment.status, "paid");
+    assert.equal(payment.providerPaymentId, "pay_existing");
+    assert.equal(providerFetchCalls, 1);
+    assert.equal(enrollCalls, 1);
+    assert.deepEqual(res.result.body.enrollment, enrollment);
+  } finally {
+    env.paymentsEnabled = previousPaymentsEnabled;
+  }
 });

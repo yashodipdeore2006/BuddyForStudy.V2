@@ -34,6 +34,14 @@ test("subscription plan validation enforces trial, sort, feature and limit types
   assert.ok(result.errors.some((error) => error.field === "limits.monthly"));
 });
 
+test("default Free assignment requires an active zero-priced plan", () => {
+  const base = { name: "Free", slug: "free", price: 0, currency: "INR", billingInterval: "monthly", isActive: true };
+  assert.equal(validateSubscriptionPlanAdminInput({ isDefaultFree: true }, base).valid, true);
+  assert.equal(validateSubscriptionPlanAdminInput({ isDefaultFree: true }, { ...base, price: 99 }).valid, false);
+  assert.equal(validateSubscriptionPlanAdminInput({ isDefaultFree: true }, { ...base, isActive: false }).valid, false);
+  assert.equal(validateSubscriptionPlanAdminInput({ isDefaultFree: "true" }, base).valid, false);
+});
+
 test("subscription plan partial updates validate against existing plan values", () => {
   assert.deepEqual(validateSubscriptionPlanAdminInput({ isActive: false }, {
     name: "Pro", slug: "pro", price: 199, currency: "INR",

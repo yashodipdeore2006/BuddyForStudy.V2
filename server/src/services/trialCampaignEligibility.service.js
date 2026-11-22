@@ -240,7 +240,8 @@ export async function getTrialCampaignEligibilityForUser({ campaign, userId, now
   const UserSubscriptionModel = dependencies.UserSubscriptionModel || UserSubscription;
   const TrialGrantModel = dependencies.TrialGrantModel || TrialGrant;
   const PlanModel = dependencies.SubscriptionPlanModel || SubscriptionPlan;
-  if (typeof PlanModel.updateMany === "function") {
+  if ((dependencies.SubscriptionPlanModel || !dependencies.UserSubscriptionModel)
+    && typeof PlanModel.updateMany === "function") {
     await getDefaultFreePlan({ PlanModel, session: dependencies.session });
   }
 

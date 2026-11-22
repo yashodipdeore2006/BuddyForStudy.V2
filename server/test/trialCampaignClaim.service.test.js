@@ -180,7 +180,7 @@ test("an existing free-plan subscription is conditionally upgraded to the trial 
   const freeSubscription = {
     _id: "free-subscription",
     user: learnerId,
-    plan: { _id: "free-plan-id", slug: "free", price: 0 },
+    plan: { _id: "free-plan-id", slug: "free", price: 0, isDefaultFree: true },
     status: "active",
     currentPeriodEnd: null
   };

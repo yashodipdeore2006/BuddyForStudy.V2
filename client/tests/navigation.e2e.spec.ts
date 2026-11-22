@@ -2790,6 +2790,8 @@ test.describe("learner WCAG 2.2 AA accessibility scans", () => {
             help: violation.help,
             nodes: violation.nodes.map((node) => ({
               target: node.target,
+              html: node.html,
+              checks: node.any.map((check) => ({ id: check.id, message: check.message, data: check.data })),
               summary: node.failureSummary,
             })),
           })),

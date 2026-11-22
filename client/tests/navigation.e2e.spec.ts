@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 
@@ -2344,10 +2345,15 @@ test.describe("learner responsive viewport regressions", () => {
     const viewports = [360, 390, 768, 1024, 1440];
     const routes = [
       "/home",
-      "/courses",
+      "/explore",
       "/courses/course-fixture",
       "/my-learning",
       "/learn/course-fixture",
+      "/pricing",
+      "/billing",
+      "/profile",
+      "/settings",
+      "/notifications",
     ];
 
     for (const width of viewports) {
@@ -2743,5 +2749,54 @@ test.describe("self-serve trial offer", () => {
     await page.getByRole("button", { name: "Continue learning", exact: true }).click();
     await page.reload();
     await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
+});
+
+test.describe("learner WCAG 2.2 AA accessibility scans", () => {
+  test("public and authenticated learner workspaces have no WCAG A/AA violations", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(courseFixture("course-fixture"), "in-progress")],
+    });
+
+    const routes = [
+      "/about",
+      "/home",
+      "/explore",
+      "/courses/course-fixture",
+      "/my-learning",
+      "/saved",
+      "/pricing",
+      "/billing",
+      "/profile",
+      "/settings",
+      "/notifications",
+    ];
+    const violations: Array<Record<string, unknown>> = [];
+
+    for (const path of routes) {
+      await page.goto(baseURL + path);
+      await expect(page.locator("body")).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+
+      if (results.violations.length) {
+        violations.push({
+          path,
+          violations: results.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.map((node) => ({
+              target: node.target,
+              summary: node.failureSummary,
+            })),
+          })),
+        });
+      }
+    }
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 });

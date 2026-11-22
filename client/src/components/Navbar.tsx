@@ -310,7 +310,7 @@ export default function Navbar() {
             {profile && !isAdmin && <NotificationMenu />}
             {profile ? (
               <div className="bfs-avatar-menu" ref={menuRef}>
-                <button ref={accountTriggerRef} type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={"Open account menu for " + avatarName}>
+                <button ref={accountTriggerRef} type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={avatarInitial + " " + avatarName + " Open account menu for " + avatarName}>
                   <span className="bfs-avatar" aria-hidden="true">{avatarInitial}</span>
                   <span className="bfs-avatar-trigger__name">{avatarName}</span>
                 </button>

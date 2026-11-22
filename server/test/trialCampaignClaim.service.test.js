@@ -316,3 +316,47 @@ test("claim service does not import or call a payment provider", async () => {
   const source = await readFile(new URL("../src/services/trialCampaignClaim.service.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /razorpay|createOrder|createSubscription|paymentOrder/i);
 });
+
+test("an idempotency key already used for another campaign is rejected without writes", async () => {
+  const otherCampaignId = "507f1f77bcf86cd799439088";
+  const f = fixture({
+    priorByKey: {
+      _id: "507f1f77bcf86cd799439089",
+      campaign: otherCampaignId,
+      idempotencyKey,
+      status: "active",
+      trialDays: 7,
+      trialPlan: "plan-existing",
+      conversionMode: "none"
+    }
+  });
+  const result = await claimTrialCampaign({ campaignId, userId: learnerId, idempotencyKey, now }, f.dependencies);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 409);
+  assert.equal(result.code, "IDEMPOTENCY_KEY_REUSED");
+  assert.equal(f.recorded.filters.length, 0);
+  assert.equal(f.recorded.grantCreated, null);
+  assert.equal(f.recorded.subscriptionCreated, null);
+});
+
+test("a prior claim for the same campaign is rejected even with a different key", async () => {
+  const f = fixture({
+    priorByCampaign: {
+      _id: "507f1f77bcf86cd799439086",
+      campaign: campaignId,
+      idempotencyKey: "learner-trial-claim-previous",
+      status: "active"
+    }
+  });
+  const result = await claimTrialCampaign({
+    campaignId,
+    userId: learnerId,
+    idempotencyKey: "learner-trial-claim-newer",
+    now
+  }, f.dependencies);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 409);
+  assert.equal(result.code, "CAMPAIGN_ALREADY_CLAIMED");
+  assert.equal(f.recorded.filters.length, 0);
+  assert.equal(f.recorded.grantCreated, null);
+});

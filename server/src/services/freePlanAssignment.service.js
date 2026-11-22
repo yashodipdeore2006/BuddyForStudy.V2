@@ -13,12 +13,18 @@ export async function getOrCreateFreePlanSubscription(userId, dependencies = {})
   const UserSubscriptionModel = dependencies.UserSubscription || UserSubscription;
   const now = typeof dependencies.now === "function" ? dependencies.now() : new Date();
 
-  // Resolve the configured Free plan first so legacy zero-price plans are
-  // migrated to the explicit default marker before they are used elsewhere.
-  const freePlan = await getDefaultFreePlan({ PlanModel: SubscriptionPlanModel });
   const findForUser = () => UserSubscriptionModel.findOne({ user: userId }).populate("plan").lean();
   const existing = await findForUser();
-  if (existing) return existing;
+  if (existing) {
+    // Migrate only when the stored subscription could be a legacy Free
+    // assignment. Paid subscribers do not need a Free-plan lookup.
+    if (existing.plan?.slug === "free" || Number(existing.plan?.price) === 0) {
+      await getDefaultFreePlan({ PlanModel: SubscriptionPlanModel });
+    }
+    return existing;
+  }
+
+  const freePlan = await getDefaultFreePlan({ PlanModel: SubscriptionPlanModel });
 
   if (!freePlan) return null;
 

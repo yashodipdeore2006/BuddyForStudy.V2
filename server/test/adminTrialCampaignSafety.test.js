@@ -27,3 +27,8 @@ test("paid conversion remains pending explicit learner consent and trial grant i
   assert.match(grant, /No recurring payment was initiated/);
   assert.match(grant, /paid conversion requires the learner's explicit authorization/);
 });
+
+
+test("manual trial grant revalidates the recurring paid conversion plan at grant time", () => {
+  assert.match(grant, /if \(input\.conversionPlanId\) \{[\s\S]*?price: \{ \$gt: 0 \}[\s\S]*?billingInterval: \{ \$in: \["monthly", "quarterly", "yearly"\] \}/);
+});

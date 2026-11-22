@@ -77,11 +77,19 @@ type SubscriptionSummary = {
   cancelAtPeriodEnd?: boolean;
 };
 
+type EffectivePlanSummary = {
+  name?: string;
+  slug?: string;
+  price?: number;
+  billingInterval?: string;
+};
+
 export default function Billing() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
+  const [effectivePlan, setEffectivePlan] = useState<EffectivePlanSummary | null>(null);
   const [trial, setTrial] = useState<TrialSummary | null>(null);
   const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -113,6 +121,7 @@ export default function Billing() {
       ]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
+      setEffectivePlan(subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null);
       setTrial(trialData.trial || null);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
@@ -147,7 +156,7 @@ export default function Billing() {
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
   const trialIsActive = Boolean(trial && isTrialCurrentlyActive(trial.status, trial.endsAt, clockNow));
   const trialStatusLabel = trial ? getTrialStatusLabel(trial.status, trial.endsAt, clockNow) : "";
-  const currentPlanIsFree = subscription?.plan?.slug === "free" || Number(subscription?.plan?.price) === 0;
+  const currentPlanIsFree = effectivePlan?.slug === "free" || Number(effectivePlan?.price) === 0;
 
   async function submitRefund(paymentId: string) {
     if (submittingRefund) return;
@@ -274,7 +283,7 @@ export default function Billing() {
       </section>}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{subscription?.plan?.name || "Free"}</p><p className="mt-1 text-xs capitalize text-slate-500">{subscription?.status ? subscription.status.replace(/_/g, " ") : "No paid subscription"}</p></div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{effectivePlan?.name || "No active plan"}</p><p className="mt-1 text-xs capitalize text-slate-500">{effectivePlan ? "Current entitlement" : "No active entitlement"}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid transactions</span><ReceiptText className="h-5 w-5 text-emerald-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{payments.filter((p) => ["paid", "partially_refunded", "refunded"].includes(p.status)).length}</p><p className="mt-1 text-xs text-slate-500">Recorded successful payments</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid amount</span><ShieldCheck className="h-5 w-5 text-violet-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{Object.entries(paidTotalsByCurrency).sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => money(amount, currency)).join(" · ") || money(0)}</p><p className="mt-1 text-xs text-slate-500">Gross paid value before refunds, shown separately by currency</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Needs attention</span><Clock3 className="h-5 w-5 text-amber-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{pendingCount + failedCount}</p><p className="mt-1 text-xs text-slate-500">{pendingCount} pending · {failedCount} failed/cancelled</p></div>

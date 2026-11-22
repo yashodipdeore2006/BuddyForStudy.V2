@@ -36,10 +36,18 @@ export async function getDefaultFreePlan({ PlanModel = SubscriptionPlan, session
     isActive: true,
     price: 0
   }, session);
-  const candidate = legacySlugPlan || await findPlan(PlanModel, {
-    isActive: true,
-    price: 0
-  }, session);
+  let candidate = legacySlugPlan;
+  if (!candidate) {
+    // A single remaining zero-priced plan can be migrated safely. When several
+    // candidates exist there is no reliable way to infer the administrator's
+    // intent, so leave assignment disabled until an administrator chooses one.
+    const candidateFilter = { isActive: true, price: 0 };
+    if (typeof PlanModel.countDocuments === "function") {
+      const candidateCount = await PlanModel.countDocuments(candidateFilter);
+      if (candidateCount !== 1) return null;
+    }
+    candidate = await findPlan(PlanModel, candidateFilter, session);
+  }
   if (!candidate) return null;
 
   // Test doubles and legacy model adapters may be read-only. In that case the

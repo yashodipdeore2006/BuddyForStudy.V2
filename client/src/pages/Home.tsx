@@ -117,7 +117,7 @@ function mapEnrollment(raw: RawHomeEnrollment): EnrollmentRecord | null {
   };
 }
 function SkeletonResume() {
-  return <div className="user-home__panel user-home__resume" aria-label="Loading your learning" aria-busy="true">
+  return <div className="user-home__panel user-home__resume" role="status" aria-label="Loading your learning" aria-busy="true">
     <div className="user-home__skeleton user-home__skeleton--cover" />
     <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
   </div>;
@@ -134,7 +134,7 @@ function Cover({ course, className = '' }: { course: Course; className?: string 
   return <div className={className}>
     {course.thumbnail && !failed
       ? <img src={course.thumbnail} alt="" loading="lazy" onError={() => setFailed(true)} />
-      : <div className={'user-home__image-fallback user-home__image-fallback--' + palette} aria-label={course.title}>
+      : <div className={'user-home__image-fallback user-home__image-fallback--' + palette} role="img" aria-label={course.title}>
           <BookOpen className="user-home__fallback-icon" aria-hidden="true" size={40} />
           <span className="user-home__fallback-title">{coverWords}</span>
         </div>}

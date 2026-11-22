@@ -147,7 +147,7 @@ test("an existing free/default subscription does not block a trial offer", async
     subscription: {
       status: "active",
       currentPeriodEnd: null,
-      plan: { slug: "free", price: 0 }
+      plan: { slug: "free", price: 0, isDefaultFree: true }
     }
   });
   const result = await getLearnerTrialOffer({ userId: USER_ID, now: NOW }, f.dependencies);

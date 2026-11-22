@@ -115,8 +115,8 @@ test("current subscription statuses and period boundaries are checked consistent
 
 test("a configured free/default plan is not treated as an active paid subscription", () => {
   for (const plan of [
-    { slug: "free", price: 0 },
-    { slug: "starter-free", price: 0 }
+    { slug: "free", price: 0, isDefaultFree: true },
+    { slug: "starter-free", price: 0, isDefaultFree: true }
   ]) {
     assert.equal(isTrialCampaignSubscriptionActive({
       status: "active",
@@ -129,6 +129,11 @@ test("a configured free/default plan is not treated as an active paid subscripti
     currentPeriodEnd: "2026-11-20T10:00:01.000Z",
     plan: { slug: "free", price: 0 }
   }, NOW), true);
+  assert.equal(isTrialCampaignSubscriptionActive({
+    status: "active",
+    currentPeriodEnd: null,
+    plan: { slug: "zero-price-promo", price: 0, isDefaultFree: false }
+  }, NOW), true, "other zero-priced plans are not implicitly the default Free plan");
   assert.equal(isTrialCampaignSubscriptionActive({
     status: "active",
     currentPeriodEnd: null,

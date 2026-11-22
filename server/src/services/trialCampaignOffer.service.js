@@ -104,7 +104,7 @@ export async function getLearnerTrialOffer({
   const Grants = dependencies.TrialGrantModel || TrialGrant;
   const UserModel = dependencies.UserModel || User;
   const SubscriptionModel = dependencies.UserSubscriptionModel || UserSubscription;
-  await getDefaultFreePlan();
+  if (!dependencies.UserSubscriptionModel) await getDefaultFreePlan();
 
   const candidates = await Campaign.find({
     status: "published",

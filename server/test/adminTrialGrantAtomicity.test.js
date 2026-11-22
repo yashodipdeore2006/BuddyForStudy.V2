@@ -19,3 +19,11 @@ test("a concurrent active-subscription conflict removes the unfulfilled trial gr
   assert.match(grantHandler, /await grant\.deleteOne\(\)/);
   assert.match(grantHandler, /if \(subscriptionError\?\.code === 11000\) \{\s*skipped\+\+;\s*continue;/);
 });
+
+
+test("manual trial grants allow replacement only of the configured default Free assignment", () => {
+  assert.match(grantHandler, /const defaultFreePlan = await getDefaultFreePlan\(\)/);
+  assert.match(grantHandler, /isDefaultFreeAssignment/);
+  assert.match(grantHandler, /provider: "manual",[\s\S]*?plan: defaultFreePlan\._id/);
+  assert.match(grantHandler, /hasActivePaidOrTrial/);
+});

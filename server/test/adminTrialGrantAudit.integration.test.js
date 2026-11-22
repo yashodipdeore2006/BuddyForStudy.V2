@@ -41,6 +41,8 @@ after(async () => {
   await mongoose.disconnect();
 });
 
+let canonicalFreePlan = null;
+
 async function createScenario(label) {
   const nonce = crypto.randomUUID();
   const learner = await User.create({
@@ -58,15 +60,18 @@ async function createScenario(label) {
     isActive: true,
     emailVerified: true,
   });
-  const defaultFreePlan = await SubscriptionPlan.create({
-    name: "Free " + label,
-    slug: "free-" + nonce,
-    price: 0,
-    currency: "INR",
-    billingInterval: "monthly",
-    isActive: true,
-    isDefaultFree: true,
-  });
+  if (!canonicalFreePlan) {
+    canonicalFreePlan = await SubscriptionPlan.create({
+      name: "Free default assignment",
+      slug: "free-default-assignment",
+      price: 0,
+      currency: "INR",
+      billingInterval: "monthly",
+      isActive: true,
+      isDefaultFree: true,
+    });
+  }
+  const defaultFreePlan = canonicalFreePlan;
   const plan = await SubscriptionPlan.create({
     name: "Integration Trial " + label,
     slug: "integration-trial-" + nonce,

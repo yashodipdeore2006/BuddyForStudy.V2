@@ -858,8 +858,8 @@ test.describe("administrator route and permission UX", () => {
     });
     await page.route("**/api/admin/plans", async (route) => json(route, {
       plans: [
-        { _id: "plan-free-first", name: "Free Starter", slug: "free", description: "Starter learning access", price: 0, currency: "INR", billingInterval: "monthly", features: ["Access published courses"], limits: { ai_course_builds_per_month: 0 }, isActive: true, isPopular: false, sortOrder: 10, createdAt: "2026-01-01T00:00:00.000Z" },
-        { _id: "plan-free-second", name: "Zero Price Legacy", slug: "legacy-free", description: "Older free offer", price: 0, currency: "INR", billingInterval: "monthly", features: [], limits: {}, isActive: true, isPopular: false, sortOrder: 20, createdAt: "2026-01-02T00:00:00.000Z" },
+        { _id: "plan-free-first", name: "Free Starter", slug: "free", description: "Starter learning access", price: 0, currency: "INR", billingInterval: "monthly", features: ["Access published courses"], limits: { ai_course_builds_per_month: 0 }, isActive: true, isDefaultFree: true, isPopular: false, sortOrder: 10, createdAt: "2026-01-01T00:00:00.000Z" },
+        { _id: "plan-free-second", name: "Zero Price Legacy", slug: "legacy-free", description: "Older free offer", price: 0, currency: "INR", billingInterval: "monthly", features: [], limits: {}, isActive: true, isDefaultFree: false, isPopular: false, sortOrder: 20, createdAt: "2026-01-02T00:00:00.000Z" },
         { _id: "plan-pro", name: "Pro", slug: "pro", description: "Paid recurring access", price: 199, currency: "INR", billingInterval: "monthly", features: ["Build with AI"], limits: { ai_course_builds_per_month: 10 }, isActive: true, isPopular: true, sortOrder: 30, providerPlanId: "razorpay-pro-plan", createdAt: "2026-01-03T00:00:00.000Z" },
         { _id: "plan-hidden", name: "Hidden Annual", slug: "hidden-annual", description: "Inactive plan", price: 999, currency: "INR", billingInterval: "yearly", features: [], limits: {}, isActive: false, sortOrder: 40, createdAt: "2026-01-04T00:00:00.000Z" },
       ],
@@ -872,7 +872,9 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText("Paid checkout disabled")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Default free-assignment plan" })).toBeVisible();
     await expect(page.getByText("Free Starter", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("2 active plans qualify. This plan wins under the current ordering.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Explicit default selected", { exact: true })).toBeVisible();
+    await expect(page.getByText("1 other active zero-priced plan(s) remain available but are not used for default assignment.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set as default" })).toBeVisible();
 
     await page.getByRole("tab", { name: /Catalogue/ }).click();
     await expect(page.getByText("Hidden Annual", { exact: true })).toBeVisible();

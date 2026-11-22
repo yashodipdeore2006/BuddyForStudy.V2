@@ -1,6 +1,8 @@
 import { User } from "../models/User.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { TrialGrant } from "../models/TrialGrant.js";
+import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
+import { getDefaultFreePlan } from "./defaultFreePlan.service.js";
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due"]);
 
@@ -42,8 +44,10 @@ function resolveNow(value) {
  */
 function isFreePlan(plan) {
   if (!plan || typeof plan !== "object") return false;
-  return String(plan.slug || "").trim().toLowerCase() === "free"
-    || (Number.isFinite(Number(plan.price)) && Number(plan.price) === 0);
+  return plan.isDefaultFree === true
+    || (String(plan.slug || "").trim().toLowerCase() === "free"
+      && Number.isFinite(Number(plan.price))
+      && Number(plan.price) === 0);
 }
 
 export function isTrialCampaignSubscriptionActive(subscription, now = new Date()) {
@@ -235,11 +239,15 @@ export async function getTrialCampaignEligibilityForUser({ campaign, userId, now
   const UserModel = dependencies.UserModel || User;
   const UserSubscriptionModel = dependencies.UserSubscriptionModel || UserSubscription;
   const TrialGrantModel = dependencies.TrialGrantModel || TrialGrant;
+  const PlanModel = dependencies.SubscriptionPlanModel || SubscriptionPlan;
+  if (typeof PlanModel.updateMany === "function") {
+    await getDefaultFreePlan({ PlanModel, session: dependencies.session });
+  }
 
   const learnerQuery = UserModel.findById(userId).select("role isActive emailVerified");
   const subscriptionQuery = UserSubscriptionModel.findOne({ user: userId })
-    .select("status currentPeriodEnd plan")
-    .populate("plan", "slug price");
+    .select("status currentPeriodEnd plan provider")
+    .populate("plan", "slug price isDefaultFree");
   const previousTrialQuery = TrialGrantModel.exists({ user: userId });
   if (dependencies.session) {
     learnerQuery.session(dependencies.session);

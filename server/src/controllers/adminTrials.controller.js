@@ -135,6 +135,10 @@ export async function preview(req, res, next) {
     if (!isValidObjectId(input.planId)) return failure(res, "Choose a valid trial entitlement plan.", 400);
     const plan = await SubscriptionPlan.findOne({ _id: input.planId, isActive: true });
     if (!plan) return failure(res, "Trial entitlement plan is unavailable.", 404);
+    const defaultFreePlan = await getDefaultFreePlan();
+    if (defaultFreePlan && String(defaultFreePlan._id) === String(plan._id)) {
+      return failure(res, "The default Free assignment cannot be used as a trial entitlement plan.", 400);
+    }
     if (input.conversionPlanId && !isValidObjectId(input.conversionPlanId)) return failure(res, "Choose a valid conversion plan.", 400);
     if (input.conversionPlanId && input.conversionPlanId === input.planId) return failure(res, "Trial and paid conversion plans must be different.", 400);
     if (input.conversionPlanId && !await SubscriptionPlan.exists({ _id: input.conversionPlanId, isActive: true, price: { $gt: 0 }, billingInterval: { $ne: "one_time" } })) return failure(res, "Conversion plan must be an active recurring paid plan.", 400);
@@ -171,6 +175,9 @@ export async function grant(req, res, next) {
       }
     }
     const defaultFreePlan = await getDefaultFreePlan();
+    if (defaultFreePlan && String(defaultFreePlan._id) === String(plan._id)) {
+      return failure(res, "The default Free assignment cannot be used as a trial entitlement plan.", 400);
+    }
     const audience = await resolveAudience(input.filters);
     if (!audience.eligible.length) return success(res, { granted: 0, skipped: audience.skipped.length }, "No eligible users to grant.");
     const now = new Date();

@@ -82,6 +82,7 @@ type EffectivePlanSummary = {
   slug?: string;
   price?: number;
   billingInterval?: string;
+  isDefaultFree?: boolean;
 };
 
 export default function Billing() {
@@ -156,7 +157,7 @@ export default function Billing() {
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
   const trialIsActive = Boolean(trial && isTrialCurrentlyActive(trial.status, trial.endsAt, clockNow));
   const trialStatusLabel = trial ? getTrialStatusLabel(trial.status, trial.endsAt, clockNow) : "";
-  const currentPlanIsFree = effectivePlan?.slug === "free" || Number(effectivePlan?.price) === 0;
+  const currentPlanIsFree = effectivePlan?.isDefaultFree === true;
 
   async function submitRefund(paymentId: string) {
     if (submittingRefund) return;

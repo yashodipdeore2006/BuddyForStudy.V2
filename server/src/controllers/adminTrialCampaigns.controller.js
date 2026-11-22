@@ -7,6 +7,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { getTrialCampaignPresets } from "../config/trialCampaignPresets.js";
+import { getDefaultFreePlan } from "../services/defaultFreePlan.service.js";
 import {
   TRIAL_CAMPAIGN_STATUSES,
   trialCampaignCreateSchema,
@@ -14,7 +15,7 @@ import {
 } from "../utils/trialCampaignAdminValidation.js";
 
 const populatedFields = [
-  { path: "trialPlan", select: "name price currency billingInterval isActive" },
+  { path: "trialPlan", select: "name price currency billingInterval isActive isDefaultFree" },
   { path: "conversionPlan", select: "name price currency billingInterval isActive" },
   { path: "createdBy", select: "name email" },
   { path: "updatedBy", select: "name email" },
@@ -81,6 +82,10 @@ async function validatePlanReferences({ trialPlanId, conversionMode, conversionP
   const trialPlan = await SubscriptionPlan.findOne({ _id: trialPlanId, isActive: true }).lean();
   if (!trialPlan) {
     return { valid: false, message: "Trial entitlement plan must exist and be active." };
+  }
+  const defaultFreePlan = await getDefaultFreePlan();
+  if (defaultFreePlan && String(defaultFreePlan._id) === String(trialPlan._id)) {
+    return { valid: false, message: "The default Free assignment cannot be used as a trial entitlement plan." };
   }
 
   if (conversionMode === "none") {

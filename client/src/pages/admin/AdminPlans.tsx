@@ -185,7 +185,7 @@ export default function AdminPlans() {
     setCreateStep((step) => Math.max(step - 1, 0));
   }
 
-  function openConfirmation(action: { kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan }) {
+  function openConfirmation(action: { kind: "create" | "toggle" | "details" | "limits" | "features" | "defaultFree"; plan?: Plan }) {
     if (!permissions.includes("plans.manage")) { setError("You do not have permission to manage subscription plans."); return; }
     setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
   }

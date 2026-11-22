@@ -141,7 +141,7 @@ export async function preview(req, res, next) {
     }
     if (input.conversionPlanId && !isValidObjectId(input.conversionPlanId)) return failure(res, "Choose a valid conversion plan.", 400);
     if (input.conversionPlanId && input.conversionPlanId === input.planId) return failure(res, "Trial and paid conversion plans must be different.", 400);
-    if (input.conversionPlanId && !await SubscriptionPlan.exists({ _id: input.conversionPlanId, isActive: true, price: { $gt: 0 }, billingInterval: { $ne: "one_time" } })) return failure(res, "Conversion plan must be an active recurring paid plan.", 400);
+    if (input.conversionPlanId && !await SubscriptionPlan.exists({ _id: input.conversionPlanId, isActive: true, price: { $gt: 0 }, billingInterval: { $in: ["monthly", "quarterly", "yearly"] } })) return failure(res, "Conversion plan must be an active recurring paid plan.", 400);
     const audience = await resolveAudience(input.filters);
     return success(res, {
       campaign: { campaignName: input.campaignName, trialDays: input.trialDays, plan: { id: String(plan._id), name: plan.name }, conversionPlanId: input.conversionPlanId || null },

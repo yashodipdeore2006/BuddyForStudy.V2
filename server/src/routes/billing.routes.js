@@ -18,6 +18,7 @@ import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATU
 import { getOrCreateFreePlanSubscription } from "../services/freePlanAssignment.service.js";
 import { expireUserTrialIfDue } from "../services/trialLifecycle.service.js";
 import { toLearnerTrialBillingSummary } from "../services/trialBillingSummary.service.js";
+import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 
 const router = Router();
 
@@ -55,7 +56,6 @@ router.get("/payments", async (req,res,next)=>{ try { const payments=await Payme
 router.get("/me", async (req,res,next)=>{ try {
   await expireUserTrialIfDue(req.user.userId, { now: new Date(), maxItems: 10 });
   const subscription = await getOrCreateFreePlanSubscription(req.user.userId);
-  const { getActivePlanForUser } = await import("../services/subscriptionEntitlement.service.js");
   const effectivePlan = await getActivePlanForUser(req.user.userId);
   return success(res,{subscription,effectivePlan: effectivePlan ? {
     id: String(effectivePlan._id), name: effectivePlan.name, slug: effectivePlan.slug,

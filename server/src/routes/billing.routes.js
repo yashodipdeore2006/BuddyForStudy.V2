@@ -55,7 +55,12 @@ router.get("/payments", async (req,res,next)=>{ try { const payments=await Payme
 router.get("/me", async (req,res,next)=>{ try {
   await expireUserTrialIfDue(req.user.userId, { now: new Date(), maxItems: 10 });
   const subscription = await getOrCreateFreePlanSubscription(req.user.userId);
-  return success(res,{subscription,paymentsEnabled:env.paymentsEnabled});
+  const { getActivePlanForUser } = await import("../services/subscriptionEntitlement.service.js");
+  const effectivePlan = await getActivePlanForUser(req.user.userId);
+  return success(res,{subscription,effectivePlan: effectivePlan ? {
+    id: String(effectivePlan._id), name: effectivePlan.name, slug: effectivePlan.slug,
+    price: effectivePlan.price, currency: effectivePlan.currency, billingInterval: effectivePlan.billingInterval
+  } : null,paymentsEnabled:env.paymentsEnabled});
 } catch(e){next(e)} });
 router.get("/entitlements", async (req,res,next)=>{ try { const { SUBSCRIPTION_FEATURES } = await import("../config/subscriptionFeatures.js"); const { getActivePlanForUser, getEntitlement } = await import("../services/subscriptionEntitlement.service.js"); const plan = await getActivePlanForUser(req.user.userId); const features = {}; for (const { key } of SUBSCRIPTION_FEATURES) { const entitlement = await getEntitlement(req.user.userId, key); features[key] = Boolean(entitlement.allowed); } return success(res,{plan: plan ? { id: String(plan._id), name: plan.name, slug: plan.slug } : null, features}); } catch(e){next(e)} });
 

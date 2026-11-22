@@ -20,20 +20,24 @@ test("subscription plans are separated into overview, catalogue, editor and crea
 });
 
 test("overview reports plan totals and keeps global payment availability separate", () => {
-  for (const label of ["Total plans", "Active plans", "Inactive plans", "Free plans", "Paid plans"]) includes(label);
+  for (const label of ["Total plans", "Active plans", "Inactive plans", "Zero-priced plans", "Paid plans"]) includes(label);
   includes('apiFetch<{ paymentsEnabled?: boolean }>("/api/billing/plans")');
   includes("plan visibility and payment availability are separate controls");
   includes("Paid checkout disabled");
   includes("Paid checkout enabled");
 });
 
-test("default free assignment display matches the existing active slug-or-zero-price sort rule", () => {
+test("default Free assignment is explicit and limited to active zero-priced plans", () => {
   includes("plan.isActive && isFreeCandidate(plan)");
-  includes('plan.slug === "free" || Number(plan.price) === 0');
-  includes("Number(left.sortOrder || 0) - Number(right.sortOrder || 0)");
+  includes("Number(plan.price) === 0");
+  includes("freePlanCandidates.find((plan) => plan.isDefaultFree === true)");
+  includes("Explicit default selected");
+  includes("isDefaultFree: true");
+  includes("Set as default");
+  includes("Only an active zero-priced plan can become the default Free assignment");
+  includes("Select another active zero-priced plan before disabling");
   includes("Eligible free-assignment candidates");
   includes("No active default free plan found");
-  includes("freePlanCandidates[0]");
 });
 
 test("catalogue supports search and plan status, pricing type and billing interval filters", () => {

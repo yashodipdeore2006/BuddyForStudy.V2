@@ -32,6 +32,14 @@ test("admin campaign workspace loads editable quick-trial presets and creates a 
   assert.doesNotMatch(creation, /\/publish/);
 });
 
+test("the configured default Free assignment is not offered as a trial entitlement", () => {
+  assert.match(source, /isDefaultFree\?: boolean/);
+  assert.match(source, /trialEligiblePlans = activePlans\.filter\(\(plan: Plan\) => !plan\.isDefaultFree\)/);
+  assert.match(source, /plans\.filter\(plan => !plan\.isDefaultFree\)\.map/);
+  assert.match(source, /plans\.filter\(p=>!p\.isDefaultFree\)\.map/);
+  assert.match(source, /plan\.isActive && !plan\.isDefaultFree/);
+});
+
 test("campaign lifecycle actions use the separate publish, pause and disable endpoints", () => {
   assert.match(source, /"publish" \| "pause" \| "disable"/);
   assert.match(source, /campaigns\/" \+ encodeURIComponent\(campaignId\) \+ "\/" \+ action/);

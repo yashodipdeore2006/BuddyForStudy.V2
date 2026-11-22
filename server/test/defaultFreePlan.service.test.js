@@ -32,6 +32,10 @@ test("legacy migration never promotes a positive-priced plan with slug free", as
   let unsetFilter = null;
   let selectedFilter = null;
   const PlanModel = {
+    countDocuments: async filter => {
+      assert.deepEqual(filter, { isActive: true, price: 0 });
+      return 1;
+    },
     findOne(filter) {
       if (filter.isDefaultFree) return query(selected);
       if (filter.slug === "free") return query(null);
@@ -71,6 +75,7 @@ test("multiple legacy zero-priced plans require explicit administrator selection
 test("no active zero-priced plan means no default Free plan is invented", async () => {
   const PlanModel = {
     findOne: () => query(null),
+    countDocuments: async () => 0,
     updateMany: async () => ({ modifiedCount: 0 }),
     updateOne: async () => assert.fail("no plan should be selected")
   };

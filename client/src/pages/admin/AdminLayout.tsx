@@ -384,7 +384,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <a href="#admin-main-content" className="admin-skip-link">Skip to main content</a>
 
       <aside className="admin-sidebar" aria-label="Administrator workspace">
-        <Link to="/admin" className="admin-brand" aria-label="BuddyForStudy admin home">
+        <Link to="/admin" className="admin-brand">
           <span className="admin-brand-mark"><ShieldCheck size={18} aria-hidden="true" /></span>
           <span className="admin-brand-copy">
             <span className="admin-brand-title">BuddyForStudy</span>
@@ -417,7 +417,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <AdminIconButton className="admin-desktop-sidebar-toggle" label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed((value) => !value)}>
               {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
             </AdminIconButton>
-            <button ref={commandTrigger} type="button" className="admin-search-trigger" onClick={() => setCommandOpen(true)} aria-label="Search pages and actions">
+            <button ref={commandTrigger} type="button" className="admin-search-trigger" onClick={() => setCommandOpen(true)}>
               <Search size={16} aria-hidden="true" /><span>Search pages and actions</span><kbd>Ctrl K</kbd>
             </button>
           </div>

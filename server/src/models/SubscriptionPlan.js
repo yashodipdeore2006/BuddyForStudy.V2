@@ -10,7 +10,16 @@ const subscriptionPlanSchema = new mongoose.Schema({
   features: { type: [String], default: [] },
   limits: { type: Map, of: Number, default: {} },
   isActive: { type: Boolean, default: true },
-  isDefaultFree: { type: Boolean, default: false },
+  isDefaultFree: {
+    type: Boolean,
+    default: false,
+    validate: {
+      validator(value) {
+        return value !== true || (Number(this.price) === 0 && this.isActive === true);
+      },
+      message: "The default Free plan must be active and priced at zero"
+    }
+  },
   isPopular: { type: Boolean, default: false },
   trialDays: { type: Number, default: 0, min: 0, max: 365 },
   sortOrder: { type: Number, default: 0 },

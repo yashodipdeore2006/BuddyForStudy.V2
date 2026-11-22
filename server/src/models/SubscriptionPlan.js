@@ -10,6 +10,7 @@ const subscriptionPlanSchema = new mongoose.Schema({
   features: { type: [String], default: [] },
   limits: { type: Map, of: Number, default: {} },
   isActive: { type: Boolean, default: true },
+  isDefaultFree: { type: Boolean, default: false, index: true },
   isPopular: { type: Boolean, default: false },
   trialDays: { type: Number, default: 0, min: 0, max: 365 },
   sortOrder: { type: Number, default: 0 },
@@ -17,4 +18,5 @@ const subscriptionPlanSchema = new mongoose.Schema({
 }, { timestamps: true, collection: "subscription_plans" });
 
 subscriptionPlanSchema.index({ isActive: 1, sortOrder: 1 });
+subscriptionPlanSchema.index({ isDefaultFree: 1 }, { unique: true, partialFilterExpression: { isDefaultFree: true } });
 export const SubscriptionPlan = mongoose.model("SubscriptionPlan", subscriptionPlanSchema);

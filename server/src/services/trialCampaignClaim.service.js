@@ -27,10 +27,7 @@ function readQuery(query, session, lean = true) {
 }
 function isFreePlan(plan) {
   if (!plan || typeof plan !== "object") return false;
-  return plan.isDefaultFree === true
-    || (String(plan.slug || "").trim().toLowerCase() === "free"
-      && Number.isFinite(Number(plan.price))
-      && Number(plan.price) === 0);
+  return plan.isDefaultFree === true;
 }
 function publicClaim(claim) {
   return {

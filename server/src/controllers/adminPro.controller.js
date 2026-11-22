@@ -37,6 +37,7 @@ import * as razorpay from "../services/razorpay.service.js";
 import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
+import { getDefaultFreePlan } from "../services/defaultFreePlan.service.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
@@ -1801,6 +1802,7 @@ async function ensureDefaultPlans() {
         "Basic learning progress tracking"
       ],
       isActive: true,
+      isDefaultFree: true,
       isPopular: false,
       trialDays: 0,
       sortOrder: 1,
@@ -1896,6 +1898,7 @@ function normalizePlanLimits(value) {
 export async function plans(req, res, next) {
   try {
     await ensureDefaultPlans();
+    await getDefaultFreePlan();
     const plans = await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
     const normalizedPlans = plans.map((plan) => ({
       ...plan,
@@ -1945,9 +1948,19 @@ export async function updatePlan(req, res, next) {
     const validation = validateSubscriptionPlanAdminInput(req.body, {
       name: plan.name, slug: plan.slug, price: plan.price, currency: plan.currency,
       billingInterval: plan.billingInterval, trialDays: plan.trialDays, sortOrder: plan.sortOrder,
-      isActive: plan.isActive, isPopular: plan.isPopular
+      isActive: plan.isActive, isPopular: plan.isPopular, isDefaultFree: plan.isDefaultFree
     });
     if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
+
+    const nextActive = req.body.isActive === undefined ? plan.isActive : req.body.isActive;
+    const nextPrice = req.body.price === undefined ? Number(plan.price) : Number(req.body.price);
+    const selectsDefaultFree = req.body.isDefaultFree === true;
+    if (plan.isDefaultFree && (!nextActive || nextPrice !== 0 || req.body.isDefaultFree === false)) {
+      return failure(res, "Select another active zero-priced default Free plan before disabling, repricing or unsetting this one.", 409);
+    }
+    if (selectsDefaultFree && (!nextActive || nextPrice !== 0)) {
+      return failure(res, "Only an active zero-priced plan can become the default Free assignment.", 400);
+    }
 
     if (hasProviderBillingTermsChanged(plan, req.body)) {
       // Razorpay plans are immutable. In-place edits would make the UI show a
@@ -1979,26 +1992,46 @@ export async function updatePlan(req, res, next) {
       currency: plan.currency,
       billingInterval: plan.billingInterval,
       isActive: plan.isActive,
+      isDefaultFree: Boolean(plan.isDefaultFree),
       isPopular: plan.isPopular,
       trialDays: plan.trialDays,
       sortOrder: plan.sortOrder,
       featuresCount: plan.features.length,
       limitKeys: [...plan.limits.keys()]
     };
-    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
+    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isDefaultFree", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
       if (key === "features") plan[key] = normalizeSubscriptionFeatures(req.body[key]);
       else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
       else plan[key] = req.body[key];
     }
-    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
+    if (selectsDefaultFree) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await SubscriptionPlan.updateMany(
+            { _id: { $ne: plan._id }, isDefaultFree: true },
+            { $set: { isDefaultFree: false } },
+            { session }
+          );
+          plan.isDefaultFree = true;
+          await plan.save({ session });
+        });
+      } finally {
+        await session.endSession?.();
+      }
+    } else {
+      await plan.save();
+    }
+    await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
       name: plan.name,
       slug: plan.slug,
       price: plan.price,
       currency: plan.currency,
       billingInterval: plan.billingInterval,
       isActive: plan.isActive,
+      isDefaultFree: Boolean(plan.isDefaultFree),
       isPopular: plan.isPopular,
       trialDays: plan.trialDays,
       sortOrder: plan.sortOrder,

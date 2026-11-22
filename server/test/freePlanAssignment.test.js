@@ -11,7 +11,7 @@ function modelQuery(value) {
 }
 
 test("a learner without a subscription receives the configured active free plan without payment", async () => {
-  const freePlan = { _id: "free-plan", slug: "free", price: 0, isActive: true };
+  const freePlan = { _id: "free-plan", slug: "free", price: 0, isActive: true, isDefaultFree: true };
   const createdDocuments = [];
   const UserSubscription = {
     findOne: () => modelQuery(null),
@@ -22,7 +22,7 @@ test("a learner without a subscription receives the configured active free plan 
   };
   const SubscriptionPlan = {
     findOne(filter) {
-      assert.deepEqual(filter, { isActive: true, $or: [{ slug: "free" }, { price: 0 }] });
+      assert.deepEqual(filter, { isDefaultFree: true, isActive: true, price: 0 });
       return modelQuery(freePlan);
     }
   };

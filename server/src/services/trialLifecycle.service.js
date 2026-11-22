@@ -3,6 +3,7 @@ import { TrialGrant } from "../models/TrialGrant.js";
 import { TrialCampaignClaim } from "../models/TrialCampaignClaim.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
+import { getDefaultFreePlan } from "./defaultFreePlan.service.js";
 
 const DEFAULT_BATCH_SIZE = 25;
 const MAX_BATCH_SIZE = 250;
@@ -97,10 +98,7 @@ async function transitionTrialGrant({ grantId, targetStatus, now, onlyIfExpired 
         : null;
       const trialSubscription = linkedSubscription || legacyAdminSubscription;
 
-      const freePlan = await resolveQuery(Plan.findOne({
-        isActive: true,
-        $or: [{ slug: "free" }, { price: 0 }]
-      }).sort({ sortOrder: 1, createdAt: 1 }), session);
+      const freePlan = await getDefaultFreePlan({ PlanModel: Plan, session });
 
       let subscriptionUpdated = false;
       if (trialSubscription) {

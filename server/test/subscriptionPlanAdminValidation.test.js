@@ -144,3 +144,14 @@ test("deactivating a plan removes it from public selection but does not revoke e
   );
   assert.doesNotMatch(activeSubscriptionQuery, /plan\.isActive|isActive: true/);
 });
+
+
+test("the configured default Free plan cannot be disabled or repriced without a replacement", () => {
+  const controller = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const start = controller.indexOf("export async function updatePlan");
+  const end = controller.indexOf("export async function retryNotificationDeliveryAdmin", start);
+  const handler = controller.slice(start, end);
+  assert.match(handler, /plan\.isDefaultFree && \(!nextActive \|\| nextPrice !== 0 \|\| req\.body\.isDefaultFree === false\)/);
+  assert.match(handler, /Only an active zero-priced plan can become the default Free assignment/);
+  assert.match(handler, /SubscriptionPlan\.updateMany\([\s\S]*?isDefaultFree: true[\s\S]*?plan\.save\(\{ session \}\)/);
+});

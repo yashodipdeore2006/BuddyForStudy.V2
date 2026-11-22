@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
@@ -1233,8 +1234,17 @@ test.describe("admin responsive viewport regressions", () => {
       ],
     });
 
-    const viewports = [360, 768, 1440];
-    const routes = ["/admin", "/admin/users", "/admin/courses"];
+    const viewports = [360, 768, 1024, 1440];
+    const routes = [
+      "/admin",
+      "/admin/users",
+      "/admin/courses",
+      "/admin/plans",
+      "/admin/trials",
+      "/admin/pricing",
+      "/admin/billing",
+      "/admin/settings",
+    ];
     for (const width of viewports) {
       await page.setViewportSize({ width, height: 900 });
       for (const path of routes) {
@@ -1251,5 +1261,85 @@ test.describe("admin responsive viewport regressions", () => {
         ).toBeLessThanOrEqual(dimensions.viewport);
       }
     }
+  });
+});
+
+test.describe("administrator WCAG 2.2 AA accessibility scans", () => {
+  test("core admin workspaces have no WCAG A/AA violations", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "users.read", "users.manage", "users.pii.reveal",
+        "courses.read", "courses.manage", "courses.publish", "pricing.manage",
+        "billing.read", "refunds.manage", "trials.manage", "communications.manage",
+        "audit.read", "analytics.read", "operations.read", "notifications.read",
+      ],
+    });
+
+    const routes = [
+      "/admin",
+      "/admin/users",
+      "/admin/courses",
+      "/admin/plans",
+      "/admin/trials",
+      "/admin/pricing",
+      "/admin/billing",
+      "/admin/settings",
+    ];
+    const violations: Array<Record<string, unknown>> = [];
+
+    for (const path of routes) {
+      await page.goto(baseURL + path);
+      await expect(page.locator("main.admin-main")).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+
+      if (results.violations.length) {
+        violations.push({
+          path,
+          violations: results.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.map((node) => ({
+              target: node.target,
+              summary: node.failureSummary,
+            })),
+          })),
+        });
+      }
+    }
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
+  test("admin command palette opens and closes with keyboard while restoring focus", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "users.read", "users.manage", "users.pii.reveal",
+        "courses.read", "courses.manage", "courses.publish", "pricing.manage",
+        "billing.read", "refunds.manage", "trials.manage", "communications.manage",
+        "audit.read", "analytics.read", "operations.read", "notifications.read",
+      ],
+    });
+    await page.goto(baseURL + "/admin");
+    const trigger = page.getByRole("button", { name: "Search pages and actions" });
+    await expect(trigger).toBeVisible();
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await expect(dialog).toBeVisible();
+    await expect(search).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 });

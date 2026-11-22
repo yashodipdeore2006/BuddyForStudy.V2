@@ -1943,6 +1943,7 @@ export async function updatePlan(req, res, next) {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan changes.", 400);
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
+    await getDefaultFreePlan();
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const validation = validateSubscriptionPlanAdminInput(req.body, {
       name: plan.name, slug: plan.slug, price: plan.price, currency: plan.currency,

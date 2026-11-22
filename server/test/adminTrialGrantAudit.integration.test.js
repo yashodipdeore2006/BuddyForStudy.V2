@@ -58,6 +58,15 @@ async function createScenario(label) {
     isActive: true,
     emailVerified: true,
   });
+  const defaultFreePlan = await SubscriptionPlan.create({
+    name: "Free " + label,
+    slug: "free-" + nonce,
+    price: 0,
+    currency: "INR",
+    billingInterval: "monthly",
+    isActive: true,
+    isDefaultFree: true,
+  });
   const plan = await SubscriptionPlan.create({
     name: "Integration Trial " + label,
     slug: "integration-trial-" + nonce,
@@ -70,6 +79,7 @@ async function createScenario(label) {
   return {
     learner,
     admin,
+    defaultFreePlan,
     plan,
     campaignName: "Integration " + label + " " + nonce.slice(0, 8),
     idempotencyKey: "trial-grant-" + nonce,
@@ -258,3 +268,28 @@ test("audit failure restores a learner's previous cancelled subscription instead
   assert.match(restored.providerSubscriptionId, /^sub-previous-/);
 });
 
+
+test("an existing active default Free subscription is eligible for an administrator-issued trial", { skip: !canRun, timeout: 30_000 }, async () => {
+  const scenario = await createScenario("existing-free-subscription");
+  await UserSubscription.create({
+    user: scenario.learner._id,
+    plan: scenario.defaultFreePlan._id,
+    status: "active",
+    provider: "manual",
+    providerSubscriptionId: "",
+    currentPeriodStart: new Date(),
+    currentPeriodEnd: null,
+  });
+
+  const result = await invokeGrant(scenario);
+  assert.equal(result.nextError, null);
+  assert.equal(result.res.body?.success, true);
+  assert.equal(result.res.body?.granted, 1);
+  assert.equal(result.res.body?.skipped, 0);
+
+  const subscription = await UserSubscription.findOne({ user: scenario.learner._id }).lean();
+  assert.equal(subscription.status, "trialing");
+  assert.equal(String(subscription.plan), String(scenario.plan._id));
+  assert.equal(subscription.provider, "manual");
+  assert.equal(await TrialGrant.countDocuments({ user: scenario.learner._id, status: "trialing" }), 1);
+});

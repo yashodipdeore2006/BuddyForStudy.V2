@@ -3,7 +3,7 @@ import { RefreshCcw, Users, ShieldCheck, UserRound, SlidersHorizontal, CheckCirc
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminBadge, AdminConfirmDialog } from "@/components/admin/AdminUI";
 
-type Plan = { _id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean };
+type Plan = { _id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isDefaultFree?: boolean };
 type AudienceUser = { id: string; name: string; email: string; createdAt?: string; authProvider?: string; emailVerified?: boolean; reason?: string };
 type Grant = { _id: string; user?: { name?: string; email?: string }; plan?: { name?: string }; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string }; campaignName: string; status: string; startsAt: string; endsAt: string; conversionConsentStatus: string; reason: string };
 
@@ -155,7 +155,7 @@ export default function AdminTrialCampaigns() {
   function campaignStepError(step: number) {
     const form = campaignForm;
     if (step === 0) {
-      if (!form.trialPlanId || !plans.some(plan => plan._id === form.trialPlanId && plan.isActive)) {
+      if (!form.trialPlanId || !plans.some(plan => plan._id === form.trialPlanId && plan.isActive && !plan.isDefaultFree)) {
         return "Select an active trial entitlement plan.";
       }
       if (!Number.isInteger(form.trialDays) || form.trialDays < 1 || form.trialDays > 30) {
@@ -288,8 +288,9 @@ export default function AdminTrialCampaigns() {
     try {
       const [planData, grantData, claimData] = await Promise.all([adminFetch("/api/admin/plans"), adminFetch("/api/admin/trials/grants?limit=50"), adminFetch("/api/admin/trials/claims?limit=50")]);
       const activePlans = (planData.plans || []).filter((p: Plan) => p.isActive);
+      const trialEligiblePlans = activePlans.filter((plan: Plan) => !plan.isDefaultFree);
       setPlans(activePlans);
-      if (!planId && activePlans[0]) setPlanId(activePlans[0]._id);
+      if (!planId && trialEligiblePlans[0]) setPlanId(trialEligiblePlans[0]._id);
       setGrants(grantData.grants || []);
       setClaims(claimData.claims || []);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load trial campaigns."); }
@@ -473,7 +474,7 @@ export default function AdminTrialCampaigns() {
             <label className={labelClass}>Trial entitlement plan
               <select className={inputClass} value={campaignForm.trialPlanId} onChange={e => setCampaignForm(current => ({ ...current, trialPlanId: e.target.value }))}>
                 <option value="">Select an active plan…</option>
-                {plans.map(plan => <option key={plan._id} value={plan._id}>{plan.name} · {plan.price === 0 ? "Free" : plan.currency + " " + plan.price + "/" + plan.billingInterval}</option>)}
+                {plans.filter(plan => !plan.isDefaultFree).map(plan => <option key={plan._id} value={plan._id}>{plan.name} · {plan.price === 0 ? "Free" : plan.currency + " " + plan.price + "/" + plan.billingInterval}</option>)}
               </select>
               <span className="mt-1 block font-normal text-slate-500">Only active plans are listed. The server revalidates the selected plan when saving and publishing.</span>
             </label>
@@ -689,7 +690,7 @@ export default function AdminTrialCampaigns() {
     <section className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 className="font-bold text-slate-900">2. What access should they receive?</h2><p className="mt-1 text-sm text-slate-500">Choose the entitlement plan and enter exactly how many days the trial should last.</p></div>
       <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-        <label className={labelClass}>Trial plan<select className={inputClass} value={planId} onChange={e=>{setPlanId(e.target.value);setPreview(null);setConfirmGrant(false);}}><option value="">Select a plan…</option>{plans.map(p=><option key={p._id} value={p._id}>{p.name} · {p.price===0 ? "Free" : `${p.currency} ${p.price}`} / ${p.billingInterval}</option>)}</select><span className="mt-1 block font-normal text-slate-500">This is the plan the learner will access during the trial.</span></label>
+        <label className={labelClass}>Trial plan<select className={inputClass} value={planId} onChange={e=>{setPlanId(e.target.value);setPreview(null);setConfirmGrant(false);}}><option value="">Select a plan…</option>{plans.filter(p=>!p.isDefaultFree).map(p=><option key={p._id} value={p._id}>{p.name} · {p.price===0 ? "Free" : `${p.currency} ${p.price}`} / ${p.billingInterval}</option>)}</select><span className="mt-1 block font-normal text-slate-500">This is the plan the learner will access during the trial.</span></label>
         <label className={labelClass}>Trial duration<input className={inputClass} type="number" min={1} max={30} step={1} value={trialDays} onChange={e=>{setTrialDays(Number(e.target.value));setPreview(null);setConfirmGrant(false);}}/><span className="mt-1 block font-normal text-slate-500">Choose 1–30 days. Access starts when the grant is applied.</span></label>
         <label className={labelClass}>Campaign label<input className={inputClass} value={campaignName} minLength={3} maxLength={120} onChange={e=>{setCampaignName(e.target.value);setPreview(null);setConfirmGrant(false);}} placeholder="e.g. Support exception — learner trial"/></label>
         <label className={labelClass}>Optional paid conversion offer<select className={inputClass} value={conversionPlanId} onChange={e=>{setConversionPlanId(e.target.value);setPreview(null);setConfirmGrant(false);}}><option value="">No conversion offer</option>{plans.filter(p=>p.price>0&&p.billingInterval!=="one_time").map(p=><option key={p._id} value={p._id}>{p.name} · {p.currency} {p.price}/{p.billingInterval}</option>)}</select><span className="mt-1 block font-normal text-slate-500">Offer only; it never enables autopay or charges the learner.</span></label>

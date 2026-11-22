@@ -20,6 +20,7 @@ type Plan = {
   billingInterval: string;
   features: string[];
   isActive: boolean;
+  isDefaultFree?: boolean;
   isPopular: boolean;
   trialDays?: number;
   sortOrder?: number;
@@ -108,7 +109,7 @@ export default function AdminPlans() {
   const [intervalFilter, setIntervalFilter] = useState("all");
   const [createStep, setCreateStep] = useState(0);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "toggle" | "details" | "limits" | "features" | "defaultFree"; plan?: Plan } | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [actionReason, setActionReason] = useState("");
   const [actionError, setActionError] = useState("");
@@ -249,6 +250,27 @@ export default function AdminPlans() {
     }
   }
 
+  async function setDefaultFreePlan(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "defaultFree", plan }); return; }
+    if (!plan.isActive || Number(plan.price) !== 0) {
+      setActionError("Only an active zero-priced plan can become the default Free assignment.");
+      return;
+    }
+    setSavingPlan(plan._id);
+    try {
+      await adminFetch(`/api/admin/plans/${plan._id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isDefaultFree: true, reason }),
+      });
+      setConfirmAction(null);
+      await load();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Unable to change the default Free plan");
+    } finally {
+      setSavingPlan(null);
+    }
+  }
+
   function toggleCreateFeature(feature: string) {
     setForm((current) => ({
       ...current,
@@ -368,7 +390,7 @@ export default function AdminPlans() {
 
 
   const canManagePlans = permissions.includes("plans.manage");
-  const isFreeCandidate = (plan: Plan) => plan.slug === "free" || Number(plan.price) === 0;
+  const isFreeCandidate = (plan: Plan) => Number(plan.price) === 0;
   const freePlanCandidates = plans
     .filter((plan) => plan.isActive && isFreeCandidate(plan))
     .slice()
@@ -379,9 +401,9 @@ export default function AdminPlans() {
       const rightCreated = right.createdAt ? new Date(right.createdAt).getTime() : 0;
       return leftCreated - rightCreated;
     });
-  const defaultFreePlan = freePlanCandidates[0] || null;
+  const defaultFreePlan = freePlanCandidates.find((plan) => plan.isDefaultFree === true) || null;
   const freePlanCount = plans.filter(isFreeCandidate).length;
-  const paidPlanCount = plans.filter((plan) => Number(plan.price) > 0 && plan.slug !== "free").length;
+  const paidPlanCount = plans.filter((plan) => Number(plan.price) > 0).length;
   const activePlanCount = plans.filter((plan) => plan.isActive).length;
   const inactivePlanCount = plans.length - activePlanCount;
   const selectedPlan = plans.find((plan) => plan._id === editingPlan) || null;
@@ -395,7 +417,7 @@ export default function AdminPlans() {
       .some((value) => String(value || "").toLowerCase().includes(query));
     const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? plan.isActive : !plan.isActive);
     const matchesType = planTypeFilter === "all" ||
-      (planTypeFilter === "free" ? isFreeCandidate(plan) : Number(plan.price) > 0 && plan.slug !== "free");
+      (planTypeFilter === "free" ? isFreeCandidate(plan) : Number(plan.price) > 0);
     const matchesInterval = intervalFilter === "all" || plan.billingInterval === intervalFilter;
     return matchesQuery && matchesStatus && matchesType && matchesInterval;
   });
@@ -439,10 +461,10 @@ export default function AdminPlans() {
 
       {confirmAction && <TypedConfirmDialog
         open
-        title={confirmAction.kind === "create" ? "Create subscription plan" : confirmAction.kind === "toggle" ? (confirmAction.plan?.isActive ? "Disable subscription plan" : "Enable subscription plan") : confirmAction.kind === "details" ? "Save plan details" : confirmAction.kind === "limits" ? "Save plan limits" : "Save plan features"}
+        title={confirmAction.kind === "create" ? "Create subscription plan" : confirmAction.kind === "toggle" ? (confirmAction.plan?.isActive ? "Disable subscription plan" : "Enable subscription plan") : confirmAction.kind === "defaultFree" ? "Change default Free assignment" : confirmAction.kind === "details" ? "Save plan details" : confirmAction.kind === "limits" ? "Save plan limits" : "Save plan features"}
         description={confirmAction.kind === "create" ? "Create a new subscription offering with the current price, features and limits." : `Confirm changes to ${confirmAction.plan?.name || "this subscription plan"}.`}
-        consequence={actionError || (confirmAction.kind === "toggle" ? "Changing plan availability affects whether new learners can select this plan. Existing subscriptions and entitlements are not cancelled by disabling it." : confirmAction.kind === "details" ? "This updates plan pricing and public-facing details. Existing provider billing terms remain protected." : confirmAction.kind === "limits" ? "This changes usage limits for subscribers." : confirmAction.kind === "features" ? "This changes which features subscribers can access." : "The new plan will be created with the values currently entered.")}
-        confirmLabel={confirmAction.kind === "create" ? "Create plan" : confirmAction.kind === "toggle" ? "Confirm availability change" : "Save changes"}
+        consequence={actionError || (confirmAction.kind === "defaultFree" ? "New learners without another subscription will be assigned this exact active zero-priced plan. The previous default will become a normal plan; existing learner subscriptions will not be rewritten." : confirmAction.kind === "toggle" ? "Changing plan availability affects whether new learners can select this plan. Existing subscriptions and entitlements are not cancelled by disabling it." : confirmAction.kind === "details" ? "This updates plan pricing and public-facing details. Existing provider billing terms remain protected." : confirmAction.kind === "limits" ? "This changes usage limits for subscribers." : confirmAction.kind === "features" ? "This changes which features subscribers can access." : "The new plan will be created with the values currently entered.")}
+        confirmLabel={confirmAction.kind === "create" ? "Create plan" : confirmAction.kind === "toggle" ? "Confirm availability change" : confirmAction.kind === "defaultFree" ? "Set as default Free plan" : "Save changes"}
         requiredText={confirmAction.kind === "create" ? "CREATE PLAN" : String(confirmAction.plan?.name || "")}
         value={confirmText} onValueChange={setConfirmText}
         reason={actionReason} onReasonChange={setActionReason}
@@ -456,6 +478,7 @@ export default function AdminPlans() {
           else if (confirmAction.plan && confirmAction.kind === "details") void savePlanDetails(confirmAction.plan, reason);
           else if (confirmAction.plan && confirmAction.kind === "limits") void savePlanLimits(confirmAction.plan, reason);
           else if (confirmAction.plan && confirmAction.kind === "features") void saveFeatures(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "defaultFree") void setDefaultFreePlan(confirmAction.plan, reason);
         }}
       />}
 
@@ -476,7 +499,7 @@ export default function AdminPlans() {
               { label: "Total plans", value: plans.length, detail: "All configured offers", icon: <Layers3 size={18} /> },
               { label: "Active plans", value: activePlanCount, detail: "Visible in the public catalogue", icon: <Check size={18} /> },
               { label: "Inactive plans", value: inactivePlanCount, detail: "Hidden from new selection", icon: <Power size={18} /> },
-              { label: "Free plans", value: freePlanCount, detail: "Free or designated by slug", icon: <UsersRound size={18} /> },
+              { label: "Zero-priced plans", value: freePlanCount, detail: "Only one is selected for default assignment", icon: <UsersRound size={18} /> },
               { label: "Paid plans", value: paidPlanCount, detail: "Plans with a recurring price", icon: <CircleDollarSign size={18} /> }
             ].map((item) => (
               <AdminCard key={item.label} className="min-w-0">
@@ -510,14 +533,14 @@ export default function AdminPlans() {
               </div>
               {defaultFreePlan ? (
                 <>
-                  <div className="mt-3 flex flex-wrap items-center gap-2"><h3 className="text-xl font-extrabold text-slate-950">{defaultFreePlan.name}</h3><AdminBadge tone="success">Selected by assignment rule</AdminBadge></div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><h3 className="text-xl font-extrabold text-slate-950">{defaultFreePlan.name}</h3><AdminBadge tone="success">Explicit default selected</AdminBadge></div>
                   <p className="mt-1 text-sm text-slate-600">Slug: {defaultFreePlan.slug} · {formatPlanPrice(defaultFreePlan.price, defaultFreePlan.currency || "INR", defaultFreePlan.billingInterval)}</p>
-                  <p className="mt-2 text-xs text-slate-500">Sort order {defaultFreePlan.sortOrder ?? 0}. The assignment service selects the first active matching plan by sort order, then creation time.</p>
-                  {freePlanCandidates.length > 1 && <AdminAlert tone="warning" className="mt-3">{freePlanCandidates.length} active plans qualify. This plan wins under the current ordering. Review the candidates to avoid an unintended free-plan assignment.</AdminAlert>}
+                  <p className="mt-2 text-xs text-slate-500">New learners without an active subscription are assigned this exact plan. Sort order no longer determines the default.</p>
+                  {freePlanCandidates.length > 1 && <p className="mt-3 text-xs text-slate-500">{freePlanCandidates.length - 1} other active zero-priced plan(s) remain available but are not used for default assignment.</p>}
                 </>
               ) : (
                 <AdminAlert tone="danger" className="mt-3" title="No active default free plan found">
-                  New learners may not receive the normal free-plan subscription. Create or activate a plan with slug “free” or a price of zero.
+                  New learners may not receive the normal free-plan subscription. Activate a zero-priced plan, then explicitly select it as the default Free assignment.
                 </AdminAlert>
               )}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -528,9 +551,13 @@ export default function AdminPlans() {
                 <div className="mt-4 border-t border-slate-100 pt-3">
                   <p className="text-xs font-semibold text-slate-600">Eligible free-assignment candidates</p>
                   <ol className="mt-2 space-y-1.5">
-                    {freePlanCandidates.map((plan, index) => <li key={plan._id} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="min-w-0 truncate text-slate-700">{index + 1}. {plan.name}</span>
-                      <span className="shrink-0 text-xs text-slate-500">Order {plan.sortOrder ?? 0}{index === 0 ? " · Selected" : ""}</span>
+                    {freePlanCandidates.map((plan, index) => <li key={plan._id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate text-slate-700">{index + 1}. {plan.name}{plan.isDefaultFree ? " · Default" : ""}</span>
+                      {plan.isDefaultFree
+                        ? <AdminBadge tone="success">Selected</AdminBadge>
+                        : canManagePlans
+                          ? <button type="button" className="text-xs font-semibold text-violet-700 hover:text-violet-900 disabled:opacity-50" disabled={Boolean(savingPlan)} onClick={() => void setDefaultFreePlan(plan)}>Set as default</button>
+                          : <span className="text-xs text-slate-500">Not selected</span>}
                     </li>)}
                   </ol>
                 </div>
@@ -659,9 +686,10 @@ export default function AdminPlans() {
 
               <AdminCard>
                 <div className="flex items-center gap-2"><Power className="text-violet-700" size={19}/><div><h3 className="text-lg font-bold text-slate-950">4. Availability and catalogue display</h3><p className="text-sm text-slate-500">Control new learner selection without silently revoking existing subscription access.</p></div></div>
-                <div className="mt-3 flex flex-wrap items-center gap-2"><AdminBadge tone={selectedPlan.isActive ? "success" : "neutral"}>{selectedPlan.isActive ? "Active · visible to new learners" : "Inactive · hidden from new learners"}</AdminBadge>{selectedPlan.isPopular && <AdminBadge tone="info">Popular presentation</AdminBadge>}</div>
-                <p className="mt-3 text-sm text-slate-600">Disabling a plan removes it from the public plan catalogue and from default free-plan selection when applicable. Existing subscription entitlements are preserved and are not cancelled by this action.</p>
-                {selectedPlan.isActive && selectedPlan._id === defaultFreePlan?._id && <AdminAlert className="mt-3" tone="warning">This is currently the effective default free-assignment plan. Disabling it may leave no active free-assignment candidate or cause another candidate to become the first match.</AdminAlert>}
+                <div className="mt-3 flex flex-wrap items-center gap-2"><AdminBadge tone={selectedPlan.isActive ? "success" : "neutral"}>{selectedPlan.isActive ? "Active · visible to new learners" : "Inactive · hidden from new learners"}</AdminBadge>{selectedPlan.isDefaultFree && <AdminBadge tone="success">Default Free assignment</AdminBadge>}{selectedPlan.isPopular && <AdminBadge tone="info">Popular presentation</AdminBadge>}</div>
+                {!selectedPlan.isDefaultFree && selectedPlan.isActive && Number(selectedPlan.price) === 0 && <div className="mt-3"><button type="button" className="btn-secondary" onClick={() => void setDefaultFreePlan(selectedPlan)} disabled={!canManagePlans || Boolean(savingPlan)}>Make this the default Free plan</button></div>}
+                <p className="mt-3 text-sm text-slate-600">Disabling a plan removes it from the public plan catalogue. Existing subscription entitlements are preserved. The configured default Free plan must be replaced before it can be disabled or repriced.</p>
+                {selectedPlan.isDefaultFree && <AdminAlert className="mt-3" tone="warning">This is the configured default Free plan. It cannot be disabled or repriced until you select another active zero-priced plan as the replacement.</AdminAlert>}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4"><p className="text-xs text-slate-500">Plan visibility is independent of the global payment switch.</p><button type="button" className={selectedPlan.isActive ? "btn-danger" : "btn-primary"} onClick={() => void toggle(selectedPlan)} disabled={!canManagePlans || savingPlan === selectedPlan._id}><Power size={15}/>{selectedPlan.isActive ? "Disable plan" : "Enable plan"}</button></div>
               </AdminCard>
             </>

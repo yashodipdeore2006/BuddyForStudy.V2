@@ -204,7 +204,7 @@ function CourseLearningCard({
           {!generatedCover && course.thumbnail && !thumbnailFailed ? (
             <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
           ) : (
-            <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}>
+            <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} role="img" aria-label={course.title}>
               <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
               <span className="bfs-course-card__fallback-title">{coverWords}</span>
             </div>
@@ -234,7 +234,7 @@ function CourseLearningCard({
           <Link to={routes.course(course.id)} className="bfs-course-card__detail-link">{course.title}</Link>
         </h2>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
-        <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={description} aria-label={"View course information for " + course.title}>{description}</Link>
+        <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={description} aria-label={description + " — View course information for " + course.title}>{description}</Link>
 
         {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && (
           <Link to={routes.course(course.id) + "?tab=reviews#reviews"} className="bfs-course-card__rating bfs-course-card__rating-link" aria-label={"View ratings and reviews for " + course.title}>
@@ -244,7 +244,7 @@ function CourseLearningCard({
           </Link>
         )}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
-          <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+          <div className="bfs-course-card__social-proof">
             {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
             {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
             {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
@@ -532,7 +532,7 @@ export default function MyCourses() {
 
       <section className="mt-6" aria-live="polite">
         {loading || (!loadError && !statusesReady) ? (
-          <div className="bfs-course-grid" aria-label="Loading your courses">
+          <div className="bfs-course-grid" role="status" aria-label="Loading your courses">
             {Array.from({ length: 3 }, (_, index) => <article key={index} className="bfs-course-card animate-pulse" aria-hidden="true"><div className="aspect-video bg-[var(--surface-2)]" /><div className="space-y-3 p-4"><div className="h-4 w-1/3 rounded bg-[var(--surface-2)]" /><div className="h-5 w-4/5 rounded bg-[var(--surface-2)]" /><div className="h-10 rounded bg-[var(--surface-2)]" /></div></article>)}
           </div>
         ) : loadError ? (

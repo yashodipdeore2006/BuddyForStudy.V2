@@ -45,9 +45,9 @@ jobs:
           VITE_INTENT_V2: "false"
           VITE_ASYNC_ROADMAP: "false"
         run: npm run build
-      - name: Install Playwright for browser smoke tests
+      - name: Install Playwright and axe for browser quality tests
         run: |
-          npm install --no-save @playwright/test
+          npm install --no-save @playwright/test @axe-core/playwright@4.10.2
           npx playwright install --with-deps chromium
       - name: Start production preview
         run: |

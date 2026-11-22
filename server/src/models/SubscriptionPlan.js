@@ -10,7 +10,7 @@ const subscriptionPlanSchema = new mongoose.Schema({
   features: { type: [String], default: [] },
   limits: { type: Map, of: Number, default: {} },
   isActive: { type: Boolean, default: true },
-  isDefaultFree: { type: Boolean, default: false, index: true },
+  isDefaultFree: { type: Boolean, default: false },
   isPopular: { type: Boolean, default: false },
   trialDays: { type: Number, default: 0, min: 0, max: 365 },
   sortOrder: { type: Number, default: 0 },

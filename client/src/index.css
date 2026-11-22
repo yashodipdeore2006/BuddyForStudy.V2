@@ -17,7 +17,7 @@
   --bfs-ink-deep: #191a35;
   --bfs-ink: #292a40;
   --bfs-muted: #666980;
-  --bfs-muted-soft: #8588a0;
+  --bfs-muted-soft: #626579;
   --bfs-line: #dfe1eb;
   --bfs-line-soft: #e9eaf2;
   --bfs-success: #15803d;
@@ -106,7 +106,7 @@ button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm font-bold transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm font-bold transition-all duration-200 focus:outline-none disabled:cursor-not-allowed;
     border-radius: var(--bfs-radius-pill); background: var(--bfs-ink-button); color: #fff;
   }
   .btn-primary:hover { background: #2b2d30; }
@@ -302,7 +302,7 @@ button:active:not(:disabled), [role="button"]:active { transform: translateY(1px
   --bfs-ink-deep: #191a35;
   --bfs-ink: #292a40;
   --bfs-muted: #666980;
-  --bfs-muted-soft: #8588a0;
+  --bfs-muted-soft: #626579;
   --bfs-line: #dfe1eb;
   --bfs-line-soft: #e9eaf2;
   --bfs-success: #087f5b;

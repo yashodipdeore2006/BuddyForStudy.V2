@@ -4,6 +4,7 @@ import { TrialGrant } from "../models/TrialGrant.js";
 import { User } from "../models/User.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { evaluateTrialCampaignEligibility } from "./trialCampaignEligibility.service.js";
+import { getDefaultFreePlan } from "./defaultFreePlan.service.js";
 
 const OFFER_CANDIDATE_LIMIT = 50;
 
@@ -103,6 +104,7 @@ export async function getLearnerTrialOffer({
   const Grants = dependencies.TrialGrantModel || TrialGrant;
   const UserModel = dependencies.UserModel || User;
   const SubscriptionModel = dependencies.UserSubscriptionModel || UserSubscription;
+  await getDefaultFreePlan();
 
   const candidates = await Campaign.find({
     status: "published",
@@ -125,7 +127,7 @@ export async function getLearnerTrialOffer({
     UserModel.findById(userId).select("role isActive emailVerified").lean(),
     SubscriptionModel.findOne({ user: userId })
       .select("status currentPeriodEnd plan")
-      .populate("plan", "slug price")
+      .populate("plan", "slug price isDefaultFree")
       .lean(),
     Grants.exists({ user: userId }),
     Claim.find({ user: userId, campaign: { $in: campaignIds } }).select("campaign").lean(),

@@ -8,6 +8,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import { resolveAdminAudience } from "../services/adminAudience.service.js";
 import { matchesProfileSetupFilter } from "../utils/adminProfileSetupFilters.js";
 import { revokeTrialGrant } from "../services/trialLifecycle.service.js";
+import { getDefaultFreePlan } from "../services/defaultFreePlan.service.js";
 
 const filterSchema = z.object({
   q: z.string().trim().max(100).optional().or(z.literal("")),
@@ -78,8 +79,13 @@ async function resolveAudience(rawFilters) {
     return true;
   });
   const ids = matchingUsers.map((user) => user._id);
+  const defaultFreePlan = await getDefaultFreePlan();
+  const defaultFreePlanId = defaultFreePlan ? String(defaultFreePlan._id) : null;
   const [subs, previousTrials] = await Promise.all([
-    UserSubscription.find({ user: { $in: ids } }).select("user status currentPeriodEnd").lean(),
+    UserSubscription.find({ user: { $in: ids } })
+      .select("user status currentPeriodEnd provider plan")
+      .populate("plan", "slug price isDefaultFree")
+      .lean(),
     filters.priorTrial === "never" ? TrialGrant.find({ user: { $in: ids } }).select("user").lean() : Promise.resolve([])
   ]);
   const subsByUser = new Map();
@@ -95,7 +101,17 @@ async function resolveAudience(rawFilters) {
   for (const user of matchingUsers) {
     const id = String(user._id);
     const userSubs = subsByUser.get(id) || [];
-    const active = userSubs.some((sub) => ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > now));
+    const active = userSubs.some((sub) => {
+      const periodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : null;
+      const periodIsCurrent = periodEnd === null || !Number.isFinite(periodEnd) || periodEnd > now.getTime();
+      const isDefaultFreeAssignment = sub.status === "active"
+        && sub.provider === "manual"
+        && defaultFreePlanId
+        && String(sub.plan?._id || sub.plan) === defaultFreePlanId;
+      return ["trialing", "active", "past_due"].includes(sub.status)
+        && periodIsCurrent
+        && !isDefaultFreeAssignment;
+    });
     const hasExpiredOrCancelled = userSubs.some((sub) => ["expired", "cancelled", "expired_or_cancelled"].includes(sub.status));
     const hasRequestedSubscription = filters.subscriptionStatus === "any" ||
       (filters.subscriptionStatus === "none") ||
@@ -143,6 +159,18 @@ export async function grant(req, res, next) {
     const input = previewSchema.extend({ confirm: z.literal(true), idempotencyKey: z.string().trim().min(12).max(120) }).parse(req.body || {});
     const plan = await SubscriptionPlan.findOne({ _id: input.planId, isActive: true });
     if (!plan) return failure(res, "Trial entitlement plan is unavailable.", 404);
+    if (input.conversionPlanId) {
+      if (!isValidObjectId(input.conversionPlanId) || input.conversionPlanId === input.planId
+        || !await SubscriptionPlan.exists({
+          _id: input.conversionPlanId,
+          isActive: true,
+          price: { $gt: 0 },
+          billingInterval: { $in: ["monthly", "quarterly", "yearly"] }
+        })) {
+        return failure(res, "Choose a different active recurring paid conversion plan.", 400);
+      }
+    }
+    const defaultFreePlan = await getDefaultFreePlan();
     const audience = await resolveAudience(input.filters);
     if (!audience.eligible.length) return success(res, { granted: 0, skipped: audience.skipped.length }, "No eligible users to grant.");
     const now = new Date();
@@ -151,9 +179,19 @@ export async function grant(req, res, next) {
     for (const user of audience.eligible) {
       const key = input.idempotencyKey + ":" + String(user.id);
       if (await TrialGrant.exists({ idempotencyKey: key })) { skipped++; continue; }
-      const activeSub = await UserSubscription.findOne({ user: user.id, status: { $in: ["trialing", "active", "past_due"] }, $or: [{ currentPeriodEnd: null }, { currentPeriodEnd: { $gt: now } }] });
+      const activeSub = await UserSubscription.findOne({
+        user: user.id,
+        status: { $in: ["trialing", "active", "past_due"] }
+      }).populate("plan", "slug price isDefaultFree").lean();
+      const activePeriodEnd = activeSub?.currentPeriodEnd ? new Date(activeSub.currentPeriodEnd).getTime() : null;
+      const activePeriodIsCurrent = activePeriodEnd === null || !Number.isFinite(activePeriodEnd) || activePeriodEnd > now.getTime();
+      const isDefaultFreeAssignment = activeSub?.status === "active"
+        && activeSub?.provider === "manual"
+        && defaultFreePlan
+        && String(activeSub.plan?._id || activeSub.plan) === String(defaultFreePlan._id);
+      const hasActivePaidOrTrial = Boolean(activeSub && activePeriodIsCurrent && !isDefaultFreeAssignment);
       const existingTrial = await TrialGrant.exists({ user: user.id, status: { $in: ["trialing", "converted"] } });
-      if (activeSub || (input.filters.priorTrial === "never" && existingTrial)) { skipped++; continue; }
+      if (hasActivePaidOrTrial || (input.filters.priorTrial === "never" && existingTrial)) { skipped++; continue; }
       const previousSubscription = await UserSubscription.findOne({ user: user.id }).lean();
       try {
         const grant = await TrialGrant.create({
@@ -174,7 +212,12 @@ export async function grant(req, res, next) {
           user: user.id,
           $or: [
             { status: { $nin: ["trialing", "active", "past_due"] } },
-            { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lte: now } }
+            { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lte: now } },
+            ...(defaultFreePlan ? [{
+              status: "active",
+              provider: "manual",
+              plan: defaultFreePlan._id
+            }] : [])
           ]
         };
         const updatedSubscription = await UserSubscription.findOneAndUpdate(

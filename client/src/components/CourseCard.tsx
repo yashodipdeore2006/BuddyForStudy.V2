@@ -293,7 +293,7 @@ function CourseCardContent({
         {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
+          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} role="img" aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
         )}
         </Link>
         {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
@@ -327,7 +327,7 @@ function CourseCardContent({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
-        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={displayOutcome} aria-label={"View course details and learning outcomes for " + course.title}>{displayOutcome}</Link>}
+        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={displayOutcome}>{displayOutcome}</Link>}
         <Link
           to={routes.course(course.id) + "?tab=reviews#reviews"}
           className="bfs-course-card__rating bfs-course-card__rating-link"
@@ -344,7 +344,7 @@ function CourseCardContent({
               </>
             : <span>No ratings yet · Be the first to review</span>}
         </Link>
-        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof">
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
           {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}

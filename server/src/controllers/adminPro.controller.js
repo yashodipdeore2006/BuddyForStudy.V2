@@ -1802,7 +1802,6 @@ async function ensureDefaultPlans() {
         "Basic learning progress tracking"
       ],
       isActive: true,
-      isDefaultFree: true,
       isPopular: false,
       trialDays: 0,
       sortOrder: 1,

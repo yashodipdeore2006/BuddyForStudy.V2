@@ -327,7 +327,7 @@ function CourseCardContent({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
-        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={displayOutcome}>{displayOutcome}</Link>}
+        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link">{displayOutcome}</Link>}
         <Link
           to={routes.course(course.id) + "?tab=reviews#reviews"}
           className="bfs-course-card__rating bfs-course-card__rating-link"

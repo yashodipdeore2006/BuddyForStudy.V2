@@ -27,8 +27,10 @@ function readQuery(query, session, lean = true) {
 }
 function isFreePlan(plan) {
   if (!plan || typeof plan !== "object") return false;
-  return String(plan.slug || "").trim().toLowerCase() === "free"
-    || (Number.isFinite(Number(plan.price)) && Number(plan.price) === 0);
+  return plan.isDefaultFree === true
+    || (String(plan.slug || "").trim().toLowerCase() === "free"
+      && Number.isFinite(Number(plan.price))
+      && Number(plan.price) === 0);
 }
 function publicClaim(claim) {
   return {
@@ -147,6 +149,7 @@ export async function claimTrialCampaign({
       }, {
         UserModel: dependencies.UserModel || User,
         UserSubscriptionModel: Subscription,
+        SubscriptionPlanModel: Plan,
         TrialGrantModel: Grants,
         session
       });
@@ -166,7 +169,7 @@ export async function claimTrialCampaign({
       }
 
       const currentSubscriptionQuery = Subscription.findOne({ user: userId })
-        .populate("plan", "slug price");
+        .populate("plan", "slug price isDefaultFree");
       const currentSubscription = await readQuery(currentSubscriptionQuery, session);
       if (isTrialCampaignSubscriptionActive(currentSubscription, now)) {
         outcome = failure(403, "ACTIVE_SUBSCRIPTION", TRIAL_CAMPAIGN_ELIGIBILITY_REASONS.ACTIVE_SUBSCRIPTION);

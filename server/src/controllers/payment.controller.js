@@ -255,6 +255,9 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
     const plan = await SubscriptionPlanModel.findOne({ _id: planId, isActive: true });
     if (!plan) return failure(res, "Subscription plan not found", 404);
     if (plan.billingInterval === "one_time") return failure(res, "Use course checkout for one-time purchases", 400);
+    if (!Number.isFinite(Number(plan.price)) || Number(plan.price) <= 0) {
+      return failure(res, "A paid subscription plan must have a price greater than zero.", 400);
+    }
 
     const lockKey = checkoutLockKey("subscription", req.user.userId);
     const lockToken = await acquireLock(lockKey);

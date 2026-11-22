@@ -13,5 +13,7 @@ test("Billing displays the effective entitlement independently from a terminal s
   assert.match(source, /type EffectivePlanSummary/);
   assert.match(source, /setEffectivePlan\(subscriptionData\.effectivePlan \|\| subscriptionData\.subscription\?\.plan \|\| null\)/);
   assert.match(source, /\{effectivePlan\?\.name \|\| "No active plan"\}/);
+  assert.match(routes, /isDefaultFree: Boolean\(effectivePlan\.isDefaultFree\)/);
+  assert.match(source, /const currentPlanIsFree = effectivePlan\?\.isDefaultFree === true/);
   assert.match(source, /Current entitlement/);
 });

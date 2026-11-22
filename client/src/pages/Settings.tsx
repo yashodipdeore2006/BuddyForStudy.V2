@@ -96,7 +96,7 @@ function PreferenceToggle({
   disabled?: boolean;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 transition ${disabled ? "opacity-50" : "hover:border-slate-300"}`}>
+    <div className={`flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 transition ${disabled ? "bg-slate-50" : "hover:border-slate-300"}`}>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">{label}</p>
         {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}

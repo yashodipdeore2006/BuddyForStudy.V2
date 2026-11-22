@@ -35,7 +35,7 @@ test("default Free assignment is explicit and limited to active zero-priced plan
   includes("isDefaultFree: true");
   includes("Set as default");
   includes("Only an active zero-priced plan can become the default Free assignment");
-  includes("Select another active zero-priced plan before disabling");
+  includes("It cannot be disabled or repriced until you select another active zero-priced plan as the replacement");
   includes("Eligible free-assignment candidates");
   includes("No active default free plan found");
 });

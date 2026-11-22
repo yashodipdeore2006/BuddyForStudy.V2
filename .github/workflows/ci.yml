@@ -72,6 +72,8 @@ jobs:
         ports:
           - 27017:27017
         options: >-
+          --replSet rs0
+          --bind_ip_all
           --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
           --health-interval 10s
           --health-timeout 5s
@@ -81,7 +83,7 @@ jobs:
         working-directory: server
     env:
       NODE_ENV: test
-      MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test
+      MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test?replicaSet=rs0
       JWT_SECRET: ci-test-secret
       RAZORPAY_KEY_ID: rzp_test_ci
     steps:
@@ -97,6 +99,53 @@ jobs:
         working-directory: client
         run: npm ci
       - run: npm ci
+      - name: Initialize and verify MongoDB replica set
+        run: |
+          node --input-type=module <<'NODE'
+          import { MongoClient } from "mongodb";
+
+          const uri = new URL(process.env.MONGO_URI);
+          const directUri = new URL(uri);
+          directUri.searchParams.delete("replicaSet");
+          directUri.searchParams.set("directConnection", "true");
+          const directClient = new MongoClient(directUri.toString(), { serverSelectionTimeoutMS: 5000 });
+          await directClient.connect();
+          try {
+            try {
+              await directClient.db("admin").command({ replSetGetStatus: 1 });
+            } catch (error) {
+              if (error.code !== 94 && error.codeName !== "NotYetInitialized") throw error;
+              await directClient.db("admin").command({
+                replSetInitiate: {
+                  _id: "rs0",
+                  members: [{ _id: 0, host: "127.0.0.1:27017" }]
+                }
+              });
+            }
+          } finally {
+            await directClient.close();
+          }
+
+          let primary = false;
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            const client = new MongoClient(process.env.MONGO_URI, { serverSelectionTimeoutMS: 1500 });
+            try {
+              await client.connect();
+              const hello = await client.db("admin").command({ hello: 1 });
+              if (hello.isWritablePrimary) {
+                primary = true;
+                break;
+              }
+            } catch {
+              // The single-node replica set is still electing its primary.
+            } finally {
+              await client.close().catch(() => {});
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+          if (!primary) throw new Error("MongoDB replica set did not elect a writable primary.");
+          console.log("MongoDB replica set rs0 is ready.");
+          NODE
       - name: Audit backend dependency vulnerabilities
         run: npm audit --audit-level=moderate
       - name: Backend lint

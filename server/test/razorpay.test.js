@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { verifyPaymentSignature, verifyWebhookSignature } from "../src/services/razorpay.service.js";
+import { verifyPaymentSignature, verifyWebhookSignature, createOrder, createSubscriptionPlan, createSubscription, fetchSubscription, fetchPayment, fetchRefund, refundPayment, cancelSubscription } from "../src/services/razorpay.service.js";
 
 test("accepts a valid Razorpay payment signature", () => {
   const orderId = "order_test";

@@ -179,10 +179,9 @@ export async function grant(req, res, next) {
     for (const user of audience.eligible) {
       const key = input.idempotencyKey + ":" + String(user.id);
       if (await TrialGrant.exists({ idempotencyKey: key })) { skipped++; continue; }
-      const activeSub = await UserSubscription.findOne({
-        user: user.id,
-        status: { $in: ["trialing", "active", "past_due"] }
-      }).populate("plan", "slug price isDefaultFree").lean();
+      const activeSub = await UserSubscription.findOne({ user: user.id, status: { $in: ["trialing", "active", "past_due"] } })
+        .populate("plan", "slug price isDefaultFree")
+        .lean();
       const activePeriodEnd = activeSub?.currentPeriodEnd ? new Date(activeSub.currentPeriodEnd).getTime() : null;
       const activePeriodIsCurrent = activePeriodEnd === null || !Number.isFinite(activePeriodEnd) || activePeriodEnd > now.getTime();
       const isDefaultFreeAssignment = activeSub?.status === "active"

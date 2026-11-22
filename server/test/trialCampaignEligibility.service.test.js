@@ -137,6 +137,11 @@ test("a configured free/default plan is not treated as an active paid subscripti
   assert.equal(isTrialCampaignSubscriptionActive({
     status: "active",
     currentPeriodEnd: null,
+    plan: { slug: "free", price: 0, isDefaultFree: false }
+  }, NOW), true, "a matching slug alone cannot override the explicit default selection");
+  assert.equal(isTrialCampaignSubscriptionActive({
+    status: "active",
+    currentPeriodEnd: null,
     plan: { slug: "premium", price: 299 }
   }, NOW), true);
 });

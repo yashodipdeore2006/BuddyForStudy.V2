@@ -1,7 +1,7 @@
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
-import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
+import { getDefaultFreePlan } from "./defaultFreePlan.service.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { TrialGrant } from "../models/TrialGrant.js";
@@ -37,10 +37,7 @@ export async function getActiveSubscriptionForUser(userId) {
 }
 
 async function getFreePlan() {
-  return SubscriptionPlan.findOne({
-    isActive: true,
-    $or: [{ slug: "free" }, { price: 0 }]
-  }).sort({ sortOrder: 1, createdAt: 1 }).lean();
+  return getDefaultFreePlan();
 }
 
 export async function getActivePlanForUser(userId) {

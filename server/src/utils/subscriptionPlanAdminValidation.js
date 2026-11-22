@@ -36,8 +36,11 @@ export function validateSubscriptionPlanAdminInput(body = {}, current = {}) {
   if (!intervals.has(billingInterval) && !keepsLegacyOneTimeInterval) {
     errors.push({ field: "billingInterval", message: "Subscription plans must use a recurring billing interval" });
   }
-  for (const key of ["isActive", "isPopular"]) {
+  for (const key of ["isActive", "isPopular", "isDefaultFree"]) {
     if (hasOwn(body, key) && typeof body[key] !== "boolean") errors.push({ field: key, message: `${key} must be a boolean` });
+  }
+  if (body.isDefaultFree === true && (value.price !== 0 || value.isActive !== true)) {
+    errors.push({ field: "isDefaultFree", message: "The default Free plan must be active and have a price of zero" });
   }
   if (value.trialDays !== undefined) {
     const validInput = typeof value.trialDays === "number" ||

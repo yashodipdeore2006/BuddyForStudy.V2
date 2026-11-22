@@ -67,3 +67,22 @@ test("provider client availability is independent from the new-checkout switch",
   assert.match(source, /export async function fetchSubscription\(subscriptionId, dependencies = \{\}\)[\s\S]*?getClient\(dependencies\)/);
   assert.match(source, /export async function cancelSubscription\(subscriptionId, cancelAtCycleEnd = true, dependencies = \{\}\)[\s\S]*?getClient\(dependencies\)/);
 });
+
+
+test("only new order creation is feature-gated; existing verification, subscription sync, cancellation, and webhooks stay reachable", async () => {
+  const paymentRoutes = await readFile(new URL("../src/routes/payment.routes.js", import.meta.url), "utf8");
+  const billingRoutes = await readFile(new URL("../src/routes/billing.routes.js", import.meta.url), "utf8");
+  const webhookRoutes = await readFile(new URL("../src/routes/webhook.routes.js", import.meta.url), "utf8");
+
+  assert.match(paymentRoutes, /router\.post\("\/course\/order", requirePaymentsEnabled, controller\.createCourseOrder\)/);
+  assert.match(paymentRoutes, /router\.post\("\/subscription\/order", requirePaymentsEnabled, controller\.createSubscriptionOrder\)/);
+  assert.match(paymentRoutes, /router\.post\("\/course\/verify", controller\.verifyCoursePayment\)/);
+  assert.doesNotMatch(paymentRoutes, /router\.post\("\/course\/verify", requirePaymentsEnabled/);
+
+  assert.match(billingRoutes, /router\.post\("\/subscription\/sync", async/);
+  assert.match(billingRoutes, /router\.post\("\/subscription\/cancel", async/);
+  assert.doesNotMatch(billingRoutes, /requirePaymentsEnabled|createPaymentAvailabilityMiddleware/);
+
+  assert.match(webhookRoutes, /router\.post\("\/razorpay", controller\.razorpayWebhook\)/);
+  assert.doesNotMatch(webhookRoutes, /requirePaymentsEnabled|createPaymentAvailabilityMiddleware/);
+});

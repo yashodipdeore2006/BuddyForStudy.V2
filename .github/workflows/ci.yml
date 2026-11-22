@@ -47,7 +47,7 @@ jobs:
         run: npm run build
       - name: Install Playwright and axe for browser quality tests
         run: |
-          npm install --no-save @playwright/test @axe-core/playwright@4.10.2
+          npm install --no-save @playwright/test @axe-core/playwright@4.14.0
           npx playwright install --with-deps chromium
       - name: Start production preview
         run: |

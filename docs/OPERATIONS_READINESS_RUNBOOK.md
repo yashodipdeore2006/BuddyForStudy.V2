@@ -29,6 +29,7 @@ These are facts read from the V2.2 candidate configuration and project documenta
 |---|---|---|
 | API hosting | `render.yaml` declares `buddyforstudy-api` as a Render Free web service in Singapore | Free instances can sleep; not an always-on production baseline |
 | Frontend hosting | `render.yaml` declares `buddyforstudy-web` as a static site | Build and SPA routing are configured; custom-domain DNS/TLS still need live verification |
+| Deployed release identity | API health exposes a validated `releaseSha`; the Render/Vercel frontend build writes `/release.json` | Strict staging/release checks compare both deployed services with the exact candidate SHA |
 | Worker | API uses `BACKGROUND_WORKER_MODE=inline`; no standalone worker is declared in the blueprint | Inline jobs are best-effort and share the API process lifecycle |
 | Payments | Blueprint has `PAYMENTS_ENABLED=false` | New paid checkout remains disabled; do not change this without explicit release approval |
 | MongoDB | Runtime variable is externally supplied | TLS, replica-set capabilities, backup schedule and restore are not proven by source |
@@ -72,10 +73,10 @@ If Google Sign-In is intentionally out of scope in staging, leave `STAGING_GOOGL
 2. Select **Run workflow** and choose `buddy-for-study-v2.2`.
 3. Confirm the environment variables point to staging—not production—and the temporary admin token is present in the `staging` environment secret.
 4. Dispatch the workflow.
-5. Review the run result and its exact `head_sha`. A successful run checks API liveness/readiness, CORS, billing-plan and Google-config endpoint shape, authenticated worker/lease health, and frontend SPA routes.
+5. Review the run result and its exact `head_sha`. The workflow passes that SHA as `EXPECTED_RELEASE_SHA`; the verifier requires the API `/health.releaseSha` and frontend `/release.json.commit` to match it exactly, in addition to API liveness/readiness, CORS, billing-plan and Google-config endpoint shape, authenticated worker/lease health, and frontend SPA routes.
 6. Remove or rotate the temporary staging token after the run and record only redacted evidence.
 
-The verifier performs GET requests only. It retries bounded transient network/408/425/5xx failures. It does not treat a successful API response as proof of email, AI, YouTube, payment-provider or backup functionality.
+The verifier performs GET requests only. It retries bounded transient network/408/425/5xx failures. The API's `/health` response exposes only a validated commit SHA; each static frontend build creates `/release.json` containing only that commit SHA. The strict staging workflow compares both with the exact candidate SHA and fails closed when either service is on a different commit or has no valid release identifier. This proves application build identity, not that the provider's deployment history, DNS ownership, or other provider configuration is correct. It does not treat a successful API response as proof of email, AI, YouTube, payment-provider or backup functionality.
 
 ### 3.3 Local invocation
 
@@ -86,6 +87,7 @@ npm ci
 DEPLOYMENT_URL="https://<staging-api-origin>" \
 FRONTEND_DEPLOYMENT_URL="https://<staging-frontend-origin>" \
 EXPECTED_BACKGROUND_WORKER_MODE="inline" \
+EXPECTED_RELEASE_SHA="<full-40-character-staging-commit-sha>" \
 OPERATIONS_ADMIN_TOKEN="<temporary-staging-admin-jwt>" \
 REQUIRE_OPERATIONS_HEALTH="true" \
 node src/scripts/verifyDeployment.js

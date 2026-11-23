@@ -185,8 +185,8 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 26 | Payment and subscription regression suite | Enabled/disabled checkout, verification, webhook, and cancellation tests pass | DONE |
 | 27 | Trial security and lifecycle regression suite | Eligibility, role isolation, concurrency, cap, idempotency, expiry and audit tests pass | DONE |
 | 28 | Frontend quality/accessibility checks | Typecheck, lint, unit, responsive, keyboard, accessibility and browser tests pass | DONE |
-| 29 | Deployment operations readiness | Environment, DNS/TLS/CORS/OAuth, MongoDB, mail, AI/YouTube, worker, privacy, backups, monitoring and rollback evidence | NOT_STARTED |
-| 30 | Final release gate | Exact-SHA CI and staging verification pass; blockers and accepted risks documented; approval recorded | NOT_STARTED |
+| 29 | Deployment operations readiness | Environment, DNS/TLS/CORS/OAuth, MongoDB, mail, AI/YouTube, worker, privacy, backups, monitoring and rollback evidence | BLOCKED |
+| 30 | Final release gate | Exact-SHA CI and staging verification pass; blockers and accepted risks documented; approval recorded | IN_PROGRESS |
 
 ## 6. Carry-forward items from previous work
 
@@ -554,3 +554,23 @@ Task 28's frontend implementation and accessibility remediations were already pr
 - Production release gate: passed.
 
 Run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392). This is repository CI evidence; it is not a substitute for live staging or production verification.
+
+
+## Task 29 implementation — repository controls completed; live operations blocked
+
+Implemented on `buddy-for-study-v2.2`:
+
+- Corrected `server/src/scripts/verifyDeployment.js` to match the API's actual liveness response (`status: "ok"`), and added bounded retries for transient network and HTTP 408/425/5xx responses.
+- Added optional exact Google OAuth client-ID verification and an authenticated, read-only `/api/health/operations` check that validates the configured worker mode, heartbeat status and job lease health.
+- Expanded `server/test/verifyDeployment.test.js` for liveness, CORS, OAuth, retries, worker mode/heartbeat, missing administrator token, disabled mode and invalid retry configuration.
+- Added `.github/workflows/staging-verification.yml`, which is manually dispatched, restricted to `buddy-for-study-v2.2`, uses read-only repository permissions and a GitHub `staging` environment, and calls the verifier with staging-only settings. It performs no deployment or data mutation.
+- Added `server/test/stagingVerificationWorkflow.test.js` to enforce the workflow's manual trigger, V2.2 branch guard, least-privilege permissions, protected environment usage and read-only scope.
+- Added `docs/OPERATIONS_READINESS_RUNBOOK.md` and updated `docs/DEPLOYMENT.md`, `docs/ENVIRONMENT_VARIABLES.md` and `docs/INDEX.md` with environment setup, evidence standards, operational checks and release blockers.
+
+**Exact-SHA verification:** commit `c3536ad02eafbac140d0b529cc1c2d1cec47994f`, CI run [45160505288](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45160505288): backend **1,165 passed / 0 failed**, frontend lint/typecheck/unit/config/build passed, Playwright **126 passed**, and the repository Production release gate passed.
+
+**Status: BLOCKED for operational acceptance.** The staging workflow has not been dispatched because the GitHub `staging` environment still needs verified service variables and a short-lived staging admin token. No current evidence has been supplied/recorded for live DNS/TLS/CORS/OAuth, real SMTP delivery, Gemini/YouTube quota behavior, live worker heartbeat, MongoDB backup/restore, external alert routing, approved privacy retention/deletion, or rollback rehearsal. The Render blueprint currently declares a Free API with inline background work; the suitability of that plan for production requires an explicit hosting decision. No production or staging deployment, DNS change, secret rotation, paid hosting change, or branch-rule modification was performed.
+
+## Task 30 final release gate — in progress
+
+The existing automatic CI release gate validates the repository's backend and frontend jobs for a pushed candidate SHA. Task 30 also requires current staging verification, deployment/recovery evidence, documented accepted risks, and an authorized release decision. A separate manual, non-deploying final release approval workflow and its protected GitHub environment are being prepared. Task 30 must remain open until the exact candidate has passed both CI and staging checks and the configured human approval is recorded.

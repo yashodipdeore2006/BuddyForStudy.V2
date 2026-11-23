@@ -524,22 +524,28 @@ Implemented on `buddy-for-study-v2.2`:
 
 **Verification:** exact-commit CI passed on `b5242fd2469f21a4598abed852b170f59ba8dfbb`: backend `npm test` 1,153 passed / 0 failed; backend lint, production-config preflight, selector comparison and JavaScript syntax validation passed. Frontend checks and the production release gate also passed. Run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392).
 
-## Task 27 regression suite — verified on current candidate
+## Task 27 regression suite — completed and expanded
 
-The V2.2 candidate already contains the expected trial-security and lifecycle regression coverage. It was executed as part of the same exact-SHA backend suite; no duplicate implementation was added merely to recreate existing tests.
+Task 27 is complete on `buddy-for-study-v2.2`. Existing regression suites already covered persisted learner eligibility, prior claims and active subscriptions, deterministic fail-closed reasons, unique claim/idempotency constraints, transaction-backed entitlement activation, campaign-capacity and cross-campaign races, expiry/revocation, free-plan restoration, individual-purchase preservation, and admin audit/permission controls.
 
-Coverage includes:
+Additional HTTP-boundary coverage was added to close the remaining gaps:
 
-- Learner-only eligibility, role isolation, account/email/subscription/prior-trial checks, deterministic rejection reasons, and fail-closed handling of missing or malformed facts.
-- Atomic claim/capacity reservation, concurrent final-slot claims, concurrent retries, cross-campaign idempotency, duplicate claims, active-claim locks, and MongoDB transaction failure handling.
-- No payment-provider call during trial claim and separate learner consent for any future paid conversion.
-- Expiry, revocation, free-plan restoration, preservation of newer or provider-backed subscriptions, and end-to-end course-access expiry.
-- Admin permission enforcement, campaign state transitions, audit persistence, and durable outbox/compensation paths.
+- `server/src/controllers/trialCampaignClaim.controller.js` now accepts an optional claim-service dependency for isolated controller testing; normal Express invocation still uses the existing `claimTrialCampaign` service. The controller continues to bind the claim to `req.user.userId`, not a learner ID supplied in request JSON.
+- New `server/test/trialCampaignClaimController.test.js` covers authenticated-user binding (including a spoofed body `userId`), successful activation, idempotent replay, invalid campaign IDs, missing/mismatched idempotency keys, preservation of eligibility/concurrency error codes, and forwarding unexpected errors to Express.
+- `server/test/adminTrialCampaignRoutes.test.js` now explicitly asserts that the admin trials router installs `authMiddleware` followed by `adminMiddleware`, denies non-admin and non-admin-access tokens, and allows the valid admin token before the per-route permission checks.
+- Existing `trials.manage` permission tests still exercise the admin role matrix and explicit permission override.
 
-Principal suites include `trialCampaignEligibility.service.test.js`, `trialCampaignClaim.service.test.js`, `trialCampaignClaim.integration.test.js`, `trialCampaignClaimRoutes.test.js`, `trialLifecycle.service.test.js`, `trialCourseAccessLifecycle.integration.test.js`, `adminTrialCampaignSafety.test.js`, `adminTrialCampaignControllerSafety.test.js`, `adminTrialCampaignAudit.integration.test.js`, `adminTrialGrantAtomicity.test.js`, `adminTrialGrantAudit.integration.test.js`, and `adminRoutePermissionCoverage.test.js`.
+Regression coverage remains in `trialCampaignEligibility.service.test.js`, `trialCampaignClaim.service.test.js`, `trialCampaignClaim.integration.test.js`, `trialCampaignClaimRoutes.test.js`, `trialLifecycle.service.test.js`, `trialCourseAccessLifecycle.integration.test.js`, `adminTrialCampaignSafety.test.js`, `adminTrialCampaignControllerSafety.test.js`, `adminTrialCampaignRoutes.test.js`, `adminTrialCampaignAudit.integration.test.js`, `adminTrialGrantAtomicity.test.js`, `adminTrialGrantAudit.integration.test.js`, `adminRoutePermissionCoverage.test.js`, and `courseLearningAccessGuards.test.js`.
 
-**Verification:** all 1,153 backend tests passed, including MongoDB replica-set-backed integration tests, on exact commit `b5242fd2469f21a4598abed852b170f59ba8dfbb` (run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392)).
+**Exact-SHA verification:** commit `379fad5724dff64637f3e2e3355ff381f00a0460`, CI run [45186373273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45186373273):
 
+- Backend: **1,181 passed, 0 failed, 0 skipped**. MongoDB replica-set integration tests ran as part of this suite.
+- Frontend: lint, TypeScript typecheck, unit tests, deployment-config tests, and production build passed.
+- Browser navigation/admin/accessibility suite: **126 passed**.
+- Production release gate: passed.
+
+The task tracker status is `DONE`. Repository CI verifies the regression suite for this SHA; it is distinct from Task 29 live-provider operations readiness and Task 30 staging/release approval.
+ 
 ## Task 28 frontend quality and accessibility — reverified
 
 Task 28's frontend implementation and accessibility remediations were already present in the V2.2 candidate. The stale tracker row is now reconciled against fresh exact-SHA CI evidence rather than reimplementing the same work.

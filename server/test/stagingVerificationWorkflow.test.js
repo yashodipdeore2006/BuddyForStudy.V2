@@ -50,17 +50,17 @@ const finalGateWorkflowUrl = new URL("../../.github/workflows/final-release-gate
 test("final release gate is manual-only and restricted to the V2.2 execution branch", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
-  assert.match(workflow, /^on:\\n\\x20{2}workflow_dispatch:\\s*$/m);
-  assert.doesNotMatch(workflow, /^\\x20{2}(push|pull_request|schedule):/m);
-  assert.match(workflow, /if: github\\.ref == 'refs\\/heads\\/buddy-for-study-v2\\.2'/);
+  assert.match(workflow, /^on:\n\x20{2}workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(workflow, /^\x20{2}(push|pull_request|schedule):/m);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/buddy-for-study-v2\.2'/);
 });
 
 test("final release gate checks the latest exact-SHA CI run and all required jobs", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
   assert.match(workflow, /head_sha === CANDIDATE_SHA/);
-  assert.match(workflow, /run\\.name === "BuddyForStudy CI"/);
-  assert.match(workflow, /run\\.status !== "completed" \\|\\| ciRun\\.conclusion !== "success"/);
+  assert.match(workflow, /run\.name === "BuddyForStudy CI"/);
+  assert.match(workflow, /run\.status !== "completed" \|\| ciRun\.conclusion !== "success"/);
   assert.match(workflow, /\["backend", "frontend", "Production release gate"\]/);
   assert.match(workflow, /ci_run_url=/);
 });
@@ -68,9 +68,9 @@ test("final release gate checks the latest exact-SHA CI run and all required job
 test("final release approval requires staging verification and a separately protected environment", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
-  assert.match(workflow, /ref: \\$\\{\\{ needs\\.verify-exact-commit-ci\\.outputs\\.candidate_sha \\}\\}/);
-  assert.match(workflow, /needs:\\n\\x20{6}- verify-exact-commit-ci\\n\\x20{6}- verify-staging/);
-  assert.match(workflow, /name: production-release\\n\\x20{6}deployment: false/);
+  assert.match(workflow, /ref: \$\{\{ needs\.verify-exact-commit-ci\.outputs\.candidate_sha \}\}/);
+  assert.match(workflow, /needs:\n\x20{6}- verify-exact-commit-ci\n\x20{6}- verify-staging/);
+  assert.match(workflow, /name: production-release\n\x20{6}deployment: false/);
   assert.match(workflow, /human release approval/);
   assert.match(workflow, /No deployment was performed by this workflow/);
 });
@@ -78,8 +78,8 @@ test("final release approval requires staging verification and a separately prot
 test("final release gate uses read-only GitHub permissions and contains no deployment step", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
-  assert.match(workflow, /permissions:\\n\\x20{2}contents: read\\n\\x20{2}actions: read/);
-  assert.doesNotMatch(workflow, /contents:\\s*write|actions:\\s*write|deployments:\\s*write/);
+  assert.match(workflow, /permissions:\n\x20{2}contents: read\n\x20{2}actions: read/);
+  assert.doesNotMatch(workflow, /contents:\s*write|actions:\s*write|deployments:\s*write/);
   assert.doesNotMatch(workflow, /render-deploy|vercel deploy|npm run deploy|terraform apply|kubectl apply/i);
-  assert.doesNotMatch(workflow, /github\\.output|github\\.step_summary/);
+  assert.doesNotMatch(workflow, /github\.output|github\.step_summary/);
 });

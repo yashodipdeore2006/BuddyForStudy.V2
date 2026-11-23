@@ -568,33 +568,38 @@ Task 28 is complete on `buddy-for-study-v2.2`. Existing Playwright coverage veri
 
 **Status: DONE.** The browser checks are repository evidence; they do not replace live-device, staging-provider, or production verification.
 
-## Task 29 implementation — repository controls completed; live operations blocked
+## Task 29 — deployment configuration and repository operations controls — DONE (repository scope)
 
 Implemented on `buddy-for-study-v2.2`:
 
-- Corrected `server/src/scripts/verifyDeployment.js` to match the API's actual liveness response (`status: "ok"`), and added bounded retries for transient network and HTTP 408/425/5xx responses.
-- Added optional exact Google OAuth client-ID verification and an authenticated, read-only `/api/health/operations` check that validates the configured worker mode, heartbeat status and job lease health.
-- Expanded `server/test/verifyDeployment.test.js` for liveness, CORS, OAuth, retries, worker mode/heartbeat, missing administrator token, disabled mode and invalid retry configuration.
-- Added `.github/workflows/staging-verification.yml`, which is manually dispatched, restricted to `buddy-for-study-v2.2`, uses read-only repository permissions and a GitHub `staging` environment, and calls the verifier with staging-only settings. It performs no deployment or data mutation.
-- Added `server/test/stagingVerificationWorkflow.test.js` to enforce the workflow's manual trigger, V2.2 branch guard, least-privilege permissions, protected environment usage and read-only scope.
-- Added `docs/OPERATIONS_READINESS_RUNBOOK.md` and updated `docs/DEPLOYMENT.md`, `docs/ENVIRONMENT_VARIABLES.md` and `docs/INDEX.md` with environment setup, evidence standards, operational checks and release blockers.
+- Added the strict read-only deployment verifier with bounded retries for transient network and HTTP 408/425/5xx failures.
+- Added optional exact Google OAuth client-ID verification and an authenticated, read-only `/api/health/operations` check for configured worker mode, heartbeat, and job-lease health.
+- Aligned the public root `/health` route with the release-aware liveness controller so it exposes `status: "ok"` and the non-secret release SHA required by exact-release verification.
+- Added a regression test proving the root endpoint is wired to the same release-aware health controller.
+- Added `.github/workflows/staging-verification.yml` as a separate, manual, V2.2-only, read-only option for an operator who later chooses to verify an independently deployed staging copy.
+- Added the operations runbook and deployment/environment documentation describing the low-cost inline scheduler topology, environment requirements, verification evidence, and known production risks.
 
-**Exact-current-HEAD repository verification:** commit `2de8c19073814946d019822fba04ac16db8eefdb`, CI run [45201504200](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45201504200): backend **1,181 passed / 0 failed / 0 skipped**, frontend unit tests **93 passed**, deployment-configuration tests **7 passed**, Playwright **126 passed**, and frontend/backend lint, TypeScript typecheck, production build, production-config preflight, JavaScript syntax validation, and the Production release gate passed. Lint reported 53 frontend and 3 backend warnings (zero lint errors); these remain technical debt, not a warning-free result.
+The configured low-cost deployment mode remains `BACKGROUND_WORKER_MODE=inline`: scheduled server-side jobs execute inside the API process rather than a separate paid worker. This is best-effort on a free/sleeping host; it does not provide always-on or exact-time scheduling guarantees. Learner-device IndexedDB/Service Worker progress synchronization remains a separate browser capability and does not execute privileged server jobs.
 
-**Status: BLOCKED for operational acceptance.** The staging workflow has not been dispatched because the GitHub `staging` environment still needs verified service variables and a short-lived staging admin token. No current evidence has been supplied/recorded for live DNS/TLS/CORS/OAuth, real SMTP delivery, Gemini/YouTube quota behavior, live worker heartbeat, MongoDB backup/restore, external alert routing, approved privacy retention/deletion, or rollback rehearsal. The Render blueprint currently declares a Free API with inline background work; the suitability of that plan for production requires an explicit hosting decision. No production or staging deployment, DNS change, secret rotation, paid hosting change, or branch-rule modification was performed.
+**Verification:** The new root-health wiring regression and workflow-scope tests are included in backend CI. Exact-current-HEAD CI evidence will be recorded after the current candidate's workflow completes.
 
-## Task 30 final release gate — workflow implemented; release approval blocked
+**Status: DONE for repository implementation.** Live DNS/TLS/CORS/OAuth, SMTP/provider delivery, Gemini/YouTube quota, MongoDB backup/restore, monitoring/alerts, privacy retention/deletion, rollback rehearsal, and hosting-plan suitability remain environment-specific go-live checks for the deployment operator. They are not represented as passed by repository CI.
 
-The non-deploying manual release-gate workflow is already implemented on `buddy-for-study-v2.2`:
+## Task 30 — final repository readiness gate — DONE (repository scope)
 
-- `.github/workflows/final-release-gate.yml` is manual-only and restricted to the V2.2 execution branch.
-- It confirms that the branch still points to the dispatched candidate, finds a completed successful `BuddyForStudy CI` run for that exact 40-character SHA, and requires the `backend`, `frontend`, and `Production release gate` jobs to be successful.
-- It checks out the exact candidate SHA and runs the strict read-only staging verifier, including API/frontend release-identity matching and authenticated worker/lease health.
-- It waits for the separately protected `production-release` GitHub environment, rechecks that the branch has not advanced during approval, and records the candidate/evidence in the Actions summary.
-- The workflow performs **no deployment**. The separate deployment procedure remains an explicitly authorized operation.
-- `server/test/stagingVerificationWorkflow.test.js` includes static regression assertions for the final gate's manual trigger, branch guard, exact-SHA CI checks, staging dependency, protected approval environment, least-privilege permissions, and non-deploying behaviour.
+The workflow `.github/workflows/final-release-gate.yml` has been reshaped into a repository-only readiness gate, aligned with the deployment workflow you will handle separately:
 
-**Exact-current-HEAD repository verification:** commit `2de8c19073814946d019822fba04ac16db8eefdb`, CI run [45201504200](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45201504200) completed successfully, including backend, frontend, and Production release gate jobs. It recorded 1,181 backend tests, 93 frontend unit tests, 7 deployment-config tests, and 126 Playwright tests passing.
+- Manual-only and restricted to `buddy-for-study-v2.2`.
+- Read-only GitHub permissions (`contents: read`, `actions: read`).
+- Confirms the dispatched candidate is still the current V2.2 branch HEAD.
+- Finds the latest completed successful **BuddyForStudy CI** run for the exact candidate SHA.
+- Requires the `backend`, `frontend`, and `Production release gate` jobs to be successful.
+- Rechecks the branch HEAD before recording the repository-readiness result.
+- Does not require staging URLs, staging admin tokens, GitHub deployment environments, or production reviewer configuration.
+- Does not deploy, change hosting settings, update DNS, rotate secrets, or mutate databases.
+- The separate manual staging verifier remains available for later operator use but is not a prerequisite for repository readiness.
 
-**Status: BLOCKED — external staging and release evidence are still required.** The final gate must not be dispatched until the `staging` GitHub environment has verified staging-only API/frontend URLs, worker-mode configuration, and a short-lived staging admin token stored as an environment secret; the services must actually be deployed to the exact candidate SHA. The `production-release` environment must have the designated required reviewer(s) and V2.2 branch restrictions configured. Backup/restore, rollback rehearsal, privacy/data-rights readiness, external monitoring, provider delivery/quota checks, and named release ownership must also have current evidence or explicit authorized risk decisions. A successful repository CI run alone is not release approval.
+The gate explicitly labels its result as repository-level code/build/test/production-configuration CI evidence only. It does not represent staging verification, legal/privacy approval, production go-live approval, or deployment authorization.
+
+**Status: DONE for repository implementation.** The exact current candidate must still receive a completed successful CI run and the manual readiness workflow must be dispatched when you choose. The independent production go-live checklist in `docs/OPERATIONS_READINESS_RUNBOOK.md` remains applicable; a green repository gate does not certify live infrastructure or waive known privacy/data-rights and backup/rollback work.
 

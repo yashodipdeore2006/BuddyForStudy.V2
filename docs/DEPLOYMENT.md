@@ -157,11 +157,15 @@ npm test
 npm run verify:deployment
 ```
 
-For `validate:production-config`, run with the intended production environment variables available to the process. Do not copy live secrets into logs. For the deployed smoke test, set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYMENT_URL` to the two public HTTPS origins; it checks API liveness/readiness, CORS, billing-plan and Google-config endpoints, and frontend deep-link responses.
+For `validate:production-config`, run with the intended production environment variables available to the process. Do not copy live secrets into logs.
 
-After deploy, verify:
+The deployment verifier is read-only. Set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYMENT_URL` to the actual public HTTPS origins. It checks API liveness/readiness, exact frontend CORS origin, billing-plan and Google-config endpoint responses, and frontend deep links. API liveness currently returns `status: "ok"`; readiness returns `status: "ready"` only when MongoDB is connected. The verifier retries bounded transient network and 408/425/5xx responses.
 
-- `GET /health` returns healthy and `GET /api/health/ready` confirms MongoDB connected.
+For a strict staging operations check, configure the GitHub `staging` environment as described in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md), then manually dispatch **Staging operations verification** from the `buddy-for-study-v2.2` branch. Provide staging-only API/frontend URLs, the expected worker mode, the optional expected OAuth client ID and a short-lived administrator JWT through environment variables/secrets. This check reads `/api/health/operations` using GET and does not deploy or mutate provider/application data.
+
+After deployment, verify:
+
+- `GET /health` returns `status: "ok"` and `GET /api/health/ready` returns `status: "ready"` with `database: "connected"`.
 - Admin → Operations shows a recent worker heartbeat and no stale maintenance failure.
 - Signup, email OTP, login, Google OAuth, password reset and expired-session behavior work.
 - Public catalog, learner course enrollment, lesson completion, saved courses, notifications and admin permission boundaries work.
@@ -169,7 +173,7 @@ After deploy, verify:
 - Email and (if enabled) browser push deliver successfully; scheduled retries and notification outbox reconciliation are visible.
 - Build with AI and YouTube quota behavior are checked with an intentionally conservative test budget before enabling any rollout flags.
 
-Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback.
+Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback. Complete the backup/restore, monitoring, incident-owner and rollback-rehearsal evidence in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md) before calling the release production-ready.
 
 ## 6. Release blockers that this configuration does not waive
 

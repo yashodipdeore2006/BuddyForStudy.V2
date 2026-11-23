@@ -2,8 +2,23 @@ import mongoose from "mongoose";
 import { success, failure } from "../utils/response.js";
 import { getBackgroundOperationsHealth } from "../services/backgroundOperationsHealth.service.js";
 
+function currentReleaseSha() {
+  const candidate = [
+    process.env.RENDER_GIT_COMMIT,
+    process.env.VERCEL_GIT_COMMIT_SHA,
+    process.env.GIT_COMMIT_SHA,
+  ].find((value) => typeof value === "string" && value.trim())?.trim() || "";
+
+  return /^[a-f0-9]{40}$/i.test(candidate) ? candidate.toLowerCase() : null;
+}
+
 export function health(_req, res) {
-  return success(res, { status: "ok", service: "buddyforstudy-api", timestamp: new Date().toISOString() });
+  return success(res, {
+    status: "ok",
+    service: "buddyforstudy-api",
+    releaseSha: currentReleaseSha(),
+    timestamp: new Date().toISOString()
+  });
 }
 
 export function readiness(_req, res) {

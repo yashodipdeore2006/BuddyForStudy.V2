@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import PublicCanonicalUrl from '@/components/PublicCanonicalUrl';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
+import { SiteSettingsProvider } from '@/context/SiteSettingsContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -34,6 +35,7 @@ const Pricing = lazy(() => import('@/pages/Pricing'));
 const Billing = lazy(() => import('@/pages/Billing'));
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 const AdminControlCenter = lazy(() => import('@/pages/admin/AdminControlCenter'));
+const AdminSiteSettings = lazy(() => import('@/pages/admin/AdminSiteSettings'));
 const AdminDesignSystem = lazy(() => import('@/pages/admin/AdminDesignSystem'));
 const AdminUsersPro = lazy(() => import('@/pages/admin/AdminUsersPro'));
 const AdminCoursesPro = lazy(() => import('@/pages/admin/AdminCoursesPro'));
@@ -83,7 +85,7 @@ function NotFound() {
 }
 
 function App() {
-  return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Suspense fallback={<div role="status" aria-live="polite" className="flex min-h-[45vh] items-center justify-center text-sm font-semibold text-slate-500">Loading page…</div>}><Routes>
+  return <AuthProvider><BrowserRouter useTransitions={false}><SiteSettingsProvider><Layout><Suspense fallback={<div role="status" aria-live="polite" className="flex min-h-[45vh] items-center justify-center text-sm font-semibold text-slate-500">Loading page…</div>}><Routes>
     <Route path="/" element={<Home />} /><Route path="/home" element={<Home />} /><Route path="/about" element={<About />} /><Route path="/about-us" element={<Navigate to="/about" replace />} /><Route path="/contact" element={<Contact />} /><Route path="/contact-us" element={<Navigate to="/contact" replace />} /><Route path="/faq" element={<FAQ />} /><Route path="/help" element={<Navigate to="/faq" replace />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
     <Route path="/accept-admin-invitation" element={<AcceptAdminInvitation />} /><Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/courses" element={<Navigate to={routes.explore()} replace />} /><Route path="/explore" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/legal" element={<LegalPage />} /><Route path="/legal/:slug" element={<LegalPage />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<CourseRoadmap />} />
@@ -115,6 +117,7 @@ function App() {
     <Route path="/admin/notifications" element={<AdminPage><AdminNotifications /></AdminPage>} />
     <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
+    <Route path="/admin/site-settings" element={<AdminPage><AdminSiteSettings /></AdminPage>} />
     <Route path="/admin/legal" element={<AdminPage><AdminLegalDocuments /></AdminPage>} />
     <Route path="/admin/design-system" element={<AdminPage><AdminDesignSystem /></AdminPage>} />
     <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />
@@ -123,6 +126,6 @@ function App() {
     <Route path="/admin/support" element={<AdminPage><AdminSupport /></AdminPage>} />
     <Route path="/admin/operations" element={<AdminPage><AdminOperations /></AdminPage>} />
     <Route path="*" element={<NotFound />} />
-  </Routes></Suspense></Layout></BrowserRouter></AuthProvider>;
+  </Routes></Suspense></Layout></SiteSettingsProvider></BrowserRouter></AuthProvider>;
 }
 export default App;

@@ -58,6 +58,7 @@ test("final release gate is manual-only and restricted to the V2.2 execution bra
 test("final release gate checks the latest exact-SHA CI run and all required jobs", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
+  assert.match(workflow, /branchState\.commit\?\.sha !== CANDIDATE_SHA/);
   assert.match(workflow, /head_sha === CANDIDATE_SHA/);
   assert.match(workflow, /run\.name === "BuddyForStudy CI"/);
   assert.match(workflow, /run\.status !== "completed" \|\| ciRun\.conclusion !== "success"/);
@@ -72,6 +73,7 @@ test("final release approval requires staging verification and a separately prot
   assert.match(workflow, /needs:\n\x20{6}- verify-exact-commit-ci\n\x20{6}- verify-staging/);
   assert.match(workflow, /name: production-release\n\x20{6}deployment: false/);
   assert.match(workflow, /human release approval/);
+  assert.match(workflow, /The V2\.2 branch advanced while release approval was pending/);
   assert.match(workflow, /No deployment was performed by this workflow/);
 });
 

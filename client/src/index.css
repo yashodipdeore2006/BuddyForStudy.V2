@@ -245,7 +245,7 @@ button:active:not(:disabled), [role="button"]:active { transform: translateY(1px
 }
 @keyframes bfs-spin { to { transform: rotate(360deg); } }
 @keyframes bfs-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-@keyframes bfs-fade-up { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bfs-fade-up { from { opacity: 1; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .bfs-enter { animation: bfs-fade-up 220ms var(--bfs-ease-out) both; }
 .bfs-interactive-card {
   transition: border-color var(--bfs-motion-control) var(--bfs-ease-out), box-shadow var(--bfs-motion-control) var(--bfs-ease-out), transform var(--bfs-motion-control) var(--bfs-ease-out);

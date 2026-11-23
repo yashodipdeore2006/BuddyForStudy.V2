@@ -33,6 +33,7 @@ const footerGroupLabels: Record<SiteFooterGroup, string> = {
 
 export default function Footer() {
   const { session, profile } = useAuth();
+  const { settings } = useSiteSettings();
   const isSignedIn = Boolean(session || profile);
 
   return (
@@ -62,7 +63,6 @@ export default function Footer() {
                 </section>
               );
             })}
-          </div>
           </div>
         </div>
 

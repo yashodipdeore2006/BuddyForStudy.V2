@@ -8,5 +8,6 @@ const router = Router();
 // This endpoint exposes only the six allowlisted social-link settings.
 router.get("/social-links", getPublicSocialLinks);
 router.get("/site-settings", getPublicSiteSettings);
+router.get("/faqs", getPublicFaqs);
 
 export default router;

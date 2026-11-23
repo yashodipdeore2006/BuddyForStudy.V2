@@ -36,7 +36,7 @@ function healthyFetcher(overrides = {}) {
   return async (input, options = {}) => {
     const url = new URL(input);
     if (url.origin === apiOrigin) {
-      if (url.pathname === "/health") return response(200, {
+      if (url.pathname === "/api/health") return response(200, {
         success: true,
         status: "ok",
         releaseSha: overrides.releaseSha || "a".repeat(40)
@@ -107,7 +107,7 @@ test("deployment verification matches the API liveness contract and checks API, 
   });
   assert.equal(calls.length, 7);
   assert.equal(calls.find((call) => call.url.endsWith("/api/health/ready")).options.headers.Origin, frontendOrigin);
-  assert.equal(calls.find((call) => call.url.endsWith("/health")).url, apiOrigin + "/health");
+  assert.equal(calls.find((call) => call.url.endsWith("/api/health")).url, apiOrigin + "/api/health");
 });
 
 test("deployment verification fails when frontend CORS is not allowed", async () => {
@@ -169,7 +169,7 @@ test("a transient cold-start response is retried before the API check proceeds",
   let healthCalls = 0;
   const delays = [];
   const fetchImpl = async (input, options) => {
-    if (new URL(input).pathname === "/health") {
+    if (new URL(input).pathname === "/api/health") {
       healthCalls += 1;
       if (healthCalls === 1) return response(503, { success: false }, { "content-type": "application/json" });
     }
@@ -193,7 +193,7 @@ test("a transient cold-start response is retried before the API check proceeds",
 test("a transient network failure is retried without leaking request credentials", async () => {
   let healthCalls = 0;
   const fetchImpl = async (input, options) => {
-    if (new URL(input).pathname === "/health") {
+    if (new URL(input).pathname === "/api/health") {
       healthCalls += 1;
       if (healthCalls === 1) throw new Error("ECONNRESET");
     }
@@ -352,7 +352,7 @@ test("strict release verification confirms API and frontend are running the exac
     logger: {},
   });
 
-  assert.equal(calls.some((call) => call.url === apiOrigin + "/health"), true);
+  assert.equal(calls.some((call) => call.url === apiOrigin + "/api/health"), true);
   assert.equal(calls.some((call) => call.url === frontendOrigin + "/release.json"), true);
   assert.equal(result.releaseSha, expectedReleaseSha);
   assert.equal(result.releaseManifestChecks, 1);

@@ -36,6 +36,7 @@ const Billing = lazy(() => import('@/pages/Billing'));
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 const AdminControlCenter = lazy(() => import('@/pages/admin/AdminControlCenter'));
 const AdminSiteSettings = lazy(() => import('@/pages/admin/AdminSiteSettings'));
+const AdminFAQs = lazy(() => import('@/pages/admin/AdminFAQs'));
 const AdminDesignSystem = lazy(() => import('@/pages/admin/AdminDesignSystem'));
 const AdminUsersPro = lazy(() => import('@/pages/admin/AdminUsersPro'));
 const AdminCoursesPro = lazy(() => import('@/pages/admin/AdminCoursesPro'));

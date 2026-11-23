@@ -25,8 +25,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
-          GITHUB_OUTPUT: ${{ github.output }}
-          GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         shell: bash
         run: |
           node --input-type=module <<'NODE'
@@ -146,7 +144,6 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
           CI_RUN_URL: ${{ needs.verify-exact-commit-ci.outputs.ci_run_url }}
-          GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         shell: bash
         run: |
           {

@@ -119,6 +119,7 @@ function App() {
     <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
     <Route path="/admin/site-settings" element={<AdminPage><AdminSiteSettings /></AdminPage>} />
+    <Route path="/admin/faqs" element={<AdminPage><AdminFAQs /></AdminPage>} />
     <Route path="/admin/legal" element={<AdminPage><AdminLegalDocuments /></AdminPage>} />
     <Route path="/admin/design-system" element={<AdminPage><AdminDesignSystem /></AdminPage>} />
     <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />

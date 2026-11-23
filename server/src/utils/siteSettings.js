@@ -69,10 +69,18 @@ export function normalizeHttpsUrl(value, maxLength = 500) {
   }
 }
 
+function hasUnsafeSiteCharacters(value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127 || value[index] === String.fromCharCode(92)) return true;
+  }
+  return false;
+}
+
 export function normalizeSiteHref(value, maxLength = 500) {
   if (typeof value !== "string") return "";
   const input = value.trim();
-  if (!input || input.length > maxLength || /[\u0000-\u001f\u007f\\]/.test(input)) return "";
+  if (!input || input.length > maxLength || hasUnsafeSiteCharacters(input)) return "";
 
   if (input.startsWith("/") && !input.startsWith("//")) {
     try {

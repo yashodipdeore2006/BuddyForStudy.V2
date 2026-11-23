@@ -96,14 +96,25 @@
 | `ADMIN_PASSWORD` | `create-admin` | Required only for initial/approved admin bootstrap. Script can overwrite an existing admin password, so restrict operator access and unset after use. Never commit a real value. |
 | `ADMIN_NAME` | `create-admin` | Optional display name; defaults to `BuddyForStudy Admin`. |
 | `ADMIN_ROLE` | `create-admin`, `set-admin-role` | Optional for creation; required for role assignment. Accepts supported admin profiles only. Reserve `super_admin` for the explicitly designated platform owner. |
-| `DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the smoke verifier; use the deployed backend origin. |
-| `FRONTEND_DEPLOYMENT_URL` | `npm run verify:deployment` | Optional for API-only smoke tests, but provide it for a full deployment check. |
+| `DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the smoke verifier; use the deployed backend HTTPS origin. |
+| `FRONTEND_DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the full API + frontend deep-link check; use the deployed frontend HTTPS origin. |
+| `OPERATIONS_ADMIN_TOKEN` | `npm run verify:deployment` | Optional for a basic smoke run; required when `REQUIRE_OPERATIONS_HEALTH=true`. Short-lived admin JWT, supplied only through a secure environment secret. Never log or commit it. |
+| `EXPECTED_GOOGLE_CLIENT_ID` | `npm run verify:deployment` | Optional. When set, Google Sign-In must be enabled and the API config endpoint must return this exact client ID. |
+| `EXPECTED_BACKGROUND_WORKER_MODE` | `npm run verify:deployment` | Required when an authenticated operations check is enabled. Must match `inline`, `standalone`, or `disabled` on the deployed API/worker topology. |
+| `REQUIRE_OPERATIONS_HEALTH` | `npm run verify:deployment` | Set to the string `true` to require authenticated worker/lease verification; fails closed when `OPERATIONS_ADMIN_TOKEN` is missing. |
+| `STAGING_API_URL` | GitHub `staging` environment → Actions workflow | Required environment variable used as `DEPLOYMENT_URL` by the manual staging verification workflow. |
+| `STAGING_FRONTEND_URL` | GitHub `staging` environment → Actions workflow | Required environment variable used as `FRONTEND_DEPLOYMENT_URL` by the manual staging verification workflow. |
+| `STAGING_GOOGLE_CLIENT_ID` | GitHub `staging` environment → Actions workflow | Optional expected OAuth Web Client ID for staging when Google Sign-In is enabled. |
+| `STAGING_BACKGROUND_WORKER_MODE` | GitHub `staging` environment → Actions workflow | Required environment variable; expected staging mode: `inline`, `standalone`, or `disabled`. |
+| `STAGING_OPERATIONS_ADMIN_TOKEN` | GitHub `staging` environment → Actions secret | Required short-lived JWT for an active staging administrator. The workflow passes it as `OPERATIONS_ADMIN_TOKEN`; never commit or print it. |
 
 ## Follow-up validation gaps
 
 - Confirm the selected deployment providers actually use Node.js `24.x`; package engines and `.nvmrc` declare the contract but do not override every host's dashboard/runtime setting.
 - Verify secret presence/rotation and HTTPS/TLS in staging without printing values into logs or checklist evidence.
 - Exercise OAuth, Razorpay webhooks, email, Web Push, Redis, Sentry and YouTube quota behavior with isolated staging credentials.
-- Confirm production config validation and `npm run verify:deployment` pass against the actual deployed staging URLs.
+- Configure the GitHub `staging` environment and run the manually dispatched read-only `Staging operations verification` workflow on `buddy-for-study-v2.2`. The workflow requires the variables/secrets listed above and checks the exact OAuth ID (when supplied), CORS, database readiness, worker mode/heartbeat/leases and frontend deep links.
+- The verifier retries bounded transient network and HTTP 408/425/5xx errors. Retry settings are code defaults (2 retries, 750 ms initial delay, 10 s request timeout); direct callers may override the retry options in tests or embedding code.
+- Complete live provider checks, backup/restore, privacy-retention, monitoring, ownership and rollback rehearsal in [`docs/OPERATIONS_READINESS_RUNBOOK.md`](OPERATIONS_READINESS_RUNBOOK.md). Repository CI and the smoke verifier do not replace that evidence.
 
 Source files checked: `server/src/config/env.js`, `server/src/config/productionConfigValidation.js`, `server/src/scripts/createAdmin.js`, `server/src/scripts/setAdminRole.js`, `server/src/scripts/verifyDeployment.js`, `server/src/config/cache.js`, and both committed `.env.example` files.

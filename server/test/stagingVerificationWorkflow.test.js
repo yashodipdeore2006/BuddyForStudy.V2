@@ -72,11 +72,11 @@ test("final repository readiness gate does not require staging services or deplo
 
   assert.match(workflow, /name: Final repository readiness gate/);
   assert.match(workflow, /needs: verify-exact-commit-ci/);
-  assert.match(workflow, /Confirm V2\\.2 still points to the verified candidate/);
-  assert.match(workflow, /V2\\.2 repository readiness: PASS/);
+  assert.match(workflow, /Confirm V2\.2 still points to the verified candidate/);
+  assert.match(workflow, /V2\.2 repository readiness: PASS/);
   assert.match(workflow, /not a deployment approval/);
   assert.doesNotMatch(workflow, /verify-staging|STAGING_API_URL|STAGING_FRONTEND_URL|STAGING_OPERATIONS_ADMIN_TOKEN/);
-  assert.doesNotMatch(workflow, /environment:\\s*\\n\\s+name: (staging|production-release)/);
+  assert.doesNotMatch(workflow, /environment:/);
   assert.match(workflow, /No deployment was performed/);
 });
 

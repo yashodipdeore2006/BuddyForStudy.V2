@@ -99,7 +99,7 @@ services:
     name: buddyforstudy-web
     rootDir: client
     branch: buddy-for-study-v2.2
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run build && npm run write:release-manifest
     staticPublishPath: dist
     autoDeployTrigger: checksPass
     envVars:

@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { SiteSettings } from "../models/SiteSettings.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
+import { PUBLIC_SOCIAL_PLATFORMS, toPublicSocialLinks } from "../utils/publicSocialLinks.js";
 import {
   DEFAULT_SITE_SETTINGS,
   SITE_FOOTER_GROUPS,
@@ -103,8 +105,16 @@ export async function getPublicSiteSettings(_req, res, next) {
 export async function getAdminSiteSettings(_req, res, next) {
   try {
     const record = await SiteSettings.findOne({ key: SITE_SETTINGS_KEY }).lean();
+    const settings = toPublicSiteSettings(record || DEFAULT_SITE_SETTINGS);
+    if (!record) {
+      const legacyLinks = await PlatformSetting.find({
+        key: { $in: PUBLIC_SOCIAL_PLATFORMS.map((platform) => platform.settingKey) },
+        isPublic: true,
+      }).select("key value isPublic").lean();
+      settings.socialLinks = { ...settings.socialLinks, ...toPublicSocialLinks(legacyLinks) };
+    }
     return success(res, {
-      settings: toPublicSiteSettings(record || DEFAULT_SITE_SETTINGS),
+      settings,
       updatedAt: record?.updatedAt || null,
     });
   } catch (error) {
@@ -140,6 +150,23 @@ export async function updateAdminSiteSettings(req, res, next) {
       },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     );
+
+    // Keep the legacy Social links panel in Platform settings synchronized
+    // while existing administrators transition to the global site settings page.
+    await Promise.all(PUBLIC_SOCIAL_PLATFORMS.map((platform) =>
+      PlatformSetting.findOneAndUpdate(
+        { key: platform.settingKey },
+        {
+          $set: {
+            value: validated.value.socialLinks[platform.id],
+            description: "Official BuddyForStudy " + platform.label + " profile URL. An empty value hides the link.",
+            isPublic: true,
+            updatedBy: actorId(req),
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      )
+    ));
 
     const after = toPublicSiteSettings(setting);
     const auditResult = await recordAuditEvent({

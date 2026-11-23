@@ -18,7 +18,7 @@ test("production frontend requires an explicit deployed API origin", () => {
 
 test("Vercel config builds the Vite app and serves client-side routes directly", () => {
   assert.equal(vercel.framework, "vite");
-  assert.equal(vercel.buildCommand, "npm run build");
+  assert.equal(vercel.buildCommand, "npm run build && npm run write:release-manifest");
   assert.equal(vercel.outputDirectory, "dist");
   assert.ok(vercel.rewrites.some((rule) => (
     rule.source === "/(.*)" && rule.destination === "/index.html"
@@ -55,7 +55,7 @@ test("Render Blueprint includes a static frontend and one bounded inline API ser
   assert.ok(paymentStart >= 0 && render.slice(paymentStart, nextEnvironmentKey).includes('value: "false"'));
 
   assert.match(render, /rootDir: server/);
-  assert.match(render, /buildCommand: npm ci/);
+  assert.match(render, /buildCommand: npm ci && npm run build && npm run write:release-manifest/);
   assert.match(render, /startCommand: npm run start/);
   assert.doesNotMatch(render, /startCommand: npm run worker/);
   assert.ok(render.includes("/api/health/ready"));

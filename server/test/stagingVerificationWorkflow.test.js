@@ -35,6 +35,7 @@ test("staging workflow passes only named staging configuration and a secret toke
   }
   assert.match(workflow, /OPERATIONS_ADMIN_TOKEN: \$\{\{ secrets\.STAGING_OPERATIONS_ADMIN_TOKEN \}\}/);
   assert.match(workflow, /REQUIRE_OPERATIONS_HEALTH: "true"/);
+  assert.match(workflow, /EXPECTED_RELEASE_SHA: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /run: node src\/scripts\/verifyDeployment\.js/);
 });
 
@@ -70,6 +71,7 @@ test("final release approval requires staging verification and a separately prot
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
   assert.match(workflow, /ref: \$\{\{ needs\.verify-exact-commit-ci\.outputs\.candidate_sha \}\}/);
+  assert.match(workflow, /EXPECTED_RELEASE_SHA: \$\{\{ needs\.verify-exact-commit-ci\.outputs\.candidate_sha \}\}/);
   assert.match(workflow, /needs:\n\x20{6}- verify-exact-commit-ci\n\x20{6}- verify-staging/);
   assert.match(workflow, /name: production-release\n\x20{6}deployment: false/);
   assert.match(workflow, /human release approval/);

@@ -581,7 +581,7 @@ Implemented on `buddy-for-study-v2.2`:
 
 The configured low-cost deployment mode remains `BACKGROUND_WORKER_MODE=inline`: scheduled server-side jobs execute inside the API process rather than a separate paid worker. This is best-effort on a free/sleeping host; it does not provide always-on or exact-time scheduling guarantees. Learner-device IndexedDB/Service Worker progress synchronization remains a separate browser capability and does not execute privileged server jobs.
 
-**Verification:** The new root-health wiring regression and workflow-scope tests are included in backend CI. Exact-current-HEAD CI evidence will be recorded after the current candidate's workflow completes.
+**Exact-candidate verification:** commit `55b0e16eb932fbcc46d558e11f175af48534964c`, CI run [45210687511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45210687511) passed: backend **1,181/1,181**, frontend unit **93/93**, deployment configuration **7/7**, Playwright **126 passed**, backend/frontend lint, TypeScript, production build, production-config preflight, and the Production release gate all succeeded.
 
 **Status: DONE for repository implementation.** Live DNS/TLS/CORS/OAuth, SMTP/provider delivery, Gemini/YouTube quota, MongoDB backup/restore, monitoring/alerts, privacy retention/deletion, rollback rehearsal, and hosting-plan suitability remain environment-specific go-live checks for the deployment operator. They are not represented as passed by repository CI.
 
@@ -601,5 +601,5 @@ The workflow `.github/workflows/final-release-gate.yml` has been reshaped into a
 
 The gate explicitly labels its result as repository-level code/build/test/production-configuration CI evidence only. It does not represent staging verification, legal/privacy approval, production go-live approval, or deployment authorization.
 
-**Status: DONE for repository implementation.** The exact current candidate must still receive a completed successful CI run and the manual readiness workflow must be dispatched when you choose. The independent production go-live checklist in `docs/OPERATIONS_READINESS_RUNBOOK.md` remains applicable; a green repository gate does not certify live infrastructure or waive known privacy/data-rights and backup/rollback work.
+**Status: DONE for repository implementation.** Exact-candidate CI passed at `55b0e16eb932fbcc46d558e11f175af48534964c` in run [45210687511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45210687511). The manual repository-readiness workflow is implemented and tested but was not dispatched during this work. The independent production go-live checklist in `docs/OPERATIONS_READINESS_RUNBOOK.md` remains applicable; a green repository gate does not certify live infrastructure or waive known privacy/data-rights and backup/rollback work.
 

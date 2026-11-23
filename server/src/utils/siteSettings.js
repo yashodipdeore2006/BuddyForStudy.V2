@@ -19,8 +19,8 @@ export const SITE_FOOTER_GROUPS = Object.freeze([
 export const DEFAULT_SITE_SETTINGS = Object.freeze({
   brand: Object.freeze({
     siteName: "BuddyForStudy",
-    tagline: "Learn with direction. Build skills one step at a time.",
-    description: "Discover courses, follow structured learning paths, and keep your learning progress organised.",
+    tagline: "[ADD: approved platform tagline]",
+    description: "[ADD: approved platform description]",
     logoUrl: "/buddyforstudy-mascot.webp",
   }),
   contact: Object.freeze({

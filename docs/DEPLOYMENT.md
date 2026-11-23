@@ -163,6 +163,8 @@ The deployment verifier is read-only. Set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYM
 
 For a strict staging operations check, configure the GitHub `staging` environment as described in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md), then manually dispatch **Staging operations verification** from the `buddy-for-study-v2.2` branch. Provide staging-only API/frontend URLs, the expected worker mode, the optional expected OAuth client ID and a short-lived administrator JWT through environment variables/secrets. This check reads `/api/health/operations` using GET and does not deploy or mutate provider/application data.
 
+For the final release decision, manually dispatch **Final release approval gate** from the same branch after exact-SHA CI has passed. It rechecks the latest CI run and required jobs for the dispatched SHA, reruns the read-only staging verification against that exact checked-out commit, and waits at the configured `production-release` GitHub environment for the required human review. Configure required reviewers and branch restrictions on that environment before relying on the approval. The workflow only records evidence/approval; it never deploys.
+
 After deployment, verify:
 
 - `GET /health` returns `status: "ok"` and `GET /api/health/ready` returns `status: "ready"` with `database: "connected"`.

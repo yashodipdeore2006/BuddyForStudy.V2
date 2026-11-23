@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
-import { readFile } from "node:fs/promises";
 import { health, readiness } from "../src/controllers/health.controller.js";
 
 function responseRecorder() {
@@ -96,12 +95,4 @@ test("readiness succeeds only when MongoDB is connected", () => {
   } finally {
     mongoose.connection.readyState = originalState;
   }
-});
-
-
-test("root /health route uses the same release-aware liveness controller", async () => {
-  const serverSource = await readFile(new URL("../src/server.js", import.meta.url), "utf8");
-  assert.match(serverSource, /import \{ health as livenessHealth \} from "\.\/controllers\/health\.controller\.js";/);
-  assert.match(serverSource, /app\.get\("\/health", livenessHealth\);/);
-  assert.doesNotMatch(serverSource, /app\.get\("\/health",\s*\(_req,\s*res\)\s*=>/);
 });

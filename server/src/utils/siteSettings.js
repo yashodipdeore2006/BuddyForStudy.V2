@@ -72,7 +72,7 @@ export function normalizeHttpsUrl(value, maxLength = 500) {
 export function normalizeSiteHref(value, maxLength = 500) {
   if (typeof value !== "string") return "";
   const input = value.trim();
-  if (!input || input.length > maxLength || /[\\u0000-\\u001f\\u007f\\\\]/.test(input)) return "";
+  if (!input || input.length > maxLength || /[\u0000-\u001f\u007f\\\\]/.test(input)) return "";
 
   if (input.startsWith("/") && !input.startsWith("//")) {
     try {

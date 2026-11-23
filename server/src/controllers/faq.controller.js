@@ -53,7 +53,6 @@ export function cleanFaqInput(body = {}) {
 function publicFaq(item) {
   return {
     id: String(item._id || item.key || ""),
-    key: item.key,
     question: item.question,
     answer: item.answer,
     category: item.category,
@@ -65,6 +64,7 @@ function publicFaq(item) {
 function adminFaq(item) {
   return {
     ...publicFaq(item),
+    key: item.key,
     status: item.status,
     createdAt: item.createdAt || null,
     updatedAt: item.updatedAt || null,

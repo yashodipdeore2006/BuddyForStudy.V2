@@ -144,6 +144,8 @@ function cleanText(value, fallback, maxLength) {
 
 function normalizeFooterLinks(value) {
   if (!Array.isArray(value)) return DEFAULT_SITE_SETTINGS.footerLinks.map((item) => ({ ...item }));
+  const seenIds = new Set();
+  const seenDestinations = new Set();
   return value.slice(0, 30).flatMap((item, index) => {
     if (!item || typeof item !== "object") return [];
     const id = cleanText(item.id, "footer-" + index, 80);
@@ -151,6 +153,10 @@ function normalizeFooterLinks(value) {
     const href = normalizeSiteHref(item.href, 500);
     const group = SITE_FOOTER_GROUPS.includes(item.group) ? item.group : "";
     if (!id || !label || !href || !group) return [];
+    const destinationKey = [group, label.toLowerCase(), href].join("|");
+    if (seenIds.has(id) || seenDestinations.has(destinationKey)) return [];
+    seenIds.add(id);
+    seenDestinations.add(destinationKey);
     return [{ id, label, href, group }];
   });
 }

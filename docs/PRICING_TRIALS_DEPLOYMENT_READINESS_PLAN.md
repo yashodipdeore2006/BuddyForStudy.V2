@@ -546,21 +546,27 @@ Regression coverage remains in `trialCampaignEligibility.service.test.js`, `tria
 
 The task tracker status is `DONE`. Repository CI verifies the regression suite for this SHA; it is distinct from Task 29 live-provider operations readiness and Task 30 staging/release approval.
  
-## Task 28 frontend quality and accessibility — reverified
+## Task 28 frontend quality and accessibility — DONE
 
-Task 28's frontend implementation and accessibility remediations were already present in the V2.2 candidate. The stale tracker row is now reconciled against fresh exact-SHA CI evidence rather than reimplementing the same work.
+Task 28 is complete on `buddy-for-study-v2.2`. Existing Playwright coverage verifies the acceptance areas without duplicating existing UI tests:
 
-**Verification on `b5242fd2469f21a4598abed852b170f59ba8dfbb`:**
+- Responsive layout: learner routes are checked at 360, 390, 768, 1024, and 1440 pixels; public pages are also checked at a 360-pixel viewport for horizontal overflow.
+- Forms: accessible labels, required-field validation, alert announcements, and prevention of invalid authentication requests.
+- Dialogs: semantic dialog roles, labelled controls, focus trapping, Escape dismissal, and focus restoration.
+- Keyboard access: account-menu arrow/Home/End/Escape behaviour, dialog tab order, and keyboard activation of administrator controls.
+- Accessibility: axe-based scans are included in navigation and administrator browser suites.
+- Browser coverage runs against the production build and includes learner navigation, administrator access, Google Sign-In behaviour, and accessibility regressions.
 
-- Frontend lint and TypeScript typecheck passed.
-- Frontend unit tests and Vercel deployment configuration tests passed.
-- Production frontend build passed.
-- Playwright browser navigation, admin access and accessibility checks: **126 passed**.
-- Backend suite: **1,153 passed, 0 failed**.
-- Production release gate: passed.
+**Exact-current-HEAD verification:** `786babc3e899d293b313cdb6cb7a4e05aa73ce80`, CI run [45187112505](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45187112505):
 
-Run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392). This is repository CI evidence; it is not a substitute for live staging or production verification.
+- Backend: **1,181 passed, 0 failed, 0 skipped**.
+- Frontend unit tests: **93 passed**; deployment-configuration tests: **7 passed**.
+- Playwright browser navigation/admin/accessibility suite: **126 passed**.
+- Frontend lint, TypeScript typecheck, production build, backend lint, and the Production release gate completed successfully.
 
+**Non-blocking quality note:** the successful lint steps still report 53 frontend and 3 backend warning diagnostics (zero lint errors). These warnings are not represented as a warning-free lint result and should remain visible technical-debt cleanup.
+
+**Status: DONE.** The browser checks are repository evidence; they do not replace live-device, staging-provider, or production verification.
 
 ## Task 29 implementation — repository controls completed; live operations blocked
 
@@ -577,6 +583,18 @@ Implemented on `buddy-for-study-v2.2`:
 
 **Status: BLOCKED for operational acceptance.** The staging workflow has not been dispatched because the GitHub `staging` environment still needs verified service variables and a short-lived staging admin token. No current evidence has been supplied/recorded for live DNS/TLS/CORS/OAuth, real SMTP delivery, Gemini/YouTube quota behavior, live worker heartbeat, MongoDB backup/restore, external alert routing, approved privacy retention/deletion, or rollback rehearsal. The Render blueprint currently declares a Free API with inline background work; the suitability of that plan for production requires an explicit hosting decision. No production or staging deployment, DNS change, secret rotation, paid hosting change, or branch-rule modification was performed.
 
-## Task 30 final release gate — in progress
+## Task 30 final release gate — workflow implemented; release approval blocked
 
-The existing automatic CI release gate validates the repository's backend and frontend jobs for a pushed candidate SHA. Task 30 also requires current staging verification, deployment/recovery evidence, documented accepted risks, and an authorized release decision. A separate manual, non-deploying final release approval workflow and its protected GitHub environment are being prepared. Task 30 must remain open until the exact candidate has passed both CI and staging checks and the configured human approval is recorded.
+The non-deploying manual release-gate workflow is already implemented on `buddy-for-study-v2.2`:
+
+- `.github/workflows/final-release-gate.yml` is manual-only and restricted to the V2.2 execution branch.
+- It confirms that the branch still points to the dispatched candidate, finds a completed successful `BuddyForStudy CI` run for that exact 40-character SHA, and requires the `backend`, `frontend`, and `Production release gate` jobs to be successful.
+- It checks out the exact candidate SHA and runs the strict read-only staging verifier, including API/frontend release-identity matching and authenticated worker/lease health.
+- It waits for the separately protected `production-release` GitHub environment, rechecks that the branch has not advanced during approval, and records the candidate/evidence in the Actions summary.
+- The workflow performs **no deployment**. The separate deployment procedure remains an explicitly authorized operation.
+- `server/test/stagingVerificationWorkflow.test.js` includes static regression assertions for the final gate's manual trigger, branch guard, exact-SHA CI checks, staging dependency, protected approval environment, least-privilege permissions, and non-deploying behaviour.
+
+**Exact-current-HEAD repository verification:** commit `786babc3e899d293b313cdb6cb7a4e05aa73ce80`, CI run [45187112505](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45187112505) completed successfully, including backend, frontend, and Production release gate jobs.
+
+**Status: BLOCKED — external staging and release evidence are still required.** The final gate must not be dispatched until the `staging` GitHub environment has verified staging-only API/frontend URLs, worker-mode configuration, and a short-lived staging admin token stored as an environment secret; the services must actually be deployed to the exact candidate SHA. The `production-release` environment must have the designated required reviewer(s) and V2.2 branch restrictions configured. Backup/restore, rollback rehearsal, privacy/data-rights readiness, external monitoring, provider delivery/quota checks, and named release ownership must also have current evidence or explicit authorized risk decisions. A successful repository CI run alone is not release approval.
+

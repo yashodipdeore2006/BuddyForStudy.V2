@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getPublicSocialLinks } from "../controllers/publicSettings.controller.js";
 import { getPublicSiteSettings } from "../controllers/siteSettings.controller.js";
+import { listPublic as getPublicFaqs } from "../controllers/faq.controller.js";
 
 const router = Router();
 

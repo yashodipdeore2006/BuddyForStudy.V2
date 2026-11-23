@@ -114,7 +114,7 @@ router.post("/message-templates/:templateId/test-send", adminPermissionMiddlewar
 router.delete("/message-templates/:templateId", adminPermissionMiddleware("communications.manage"), messageTemplateController.deleteMessageTemplate);
 
 router.get("/site-settings", adminPermissionMiddleware("settings.read"), siteSettingsController.getAdminSiteSettings);
-router.put("/site-settings", adminPermissionMiddleware("settings.manage"), siteSettingsController.updateAdminSiteSettings);
+router.put("/site-settings", adminPermissionMiddleware("site_settings.manage"), siteSettingsController.updateAdminSiteSettings);
 
 router.get("/settings", adminPermissionMiddleware("settings.read"), controller.settings);
 router.put("/settings", adminPermissionMiddleware("settings.manage"), controller.upsertSetting);

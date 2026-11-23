@@ -63,7 +63,7 @@ export default function AdminSiteSettings() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
-  const canManage = permissions.includes("settings.manage");
+  const canManage = permissions.includes("site_settings.manage");
   const groups = useMemo(() => FOOTER_GROUPS.map((group) => ({
     ...group,
     links: settings.footerLinks.map((link, index) => ({ link, index })).filter(({ link }) => link.group === group.value),

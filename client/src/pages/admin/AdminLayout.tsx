@@ -28,6 +28,7 @@ const links: AdminLink[] = [
   { to: "/admin/users", label: "Users", permission: "users.read", group: "Learning & content", icon: Users, description: "Review learner accounts, access and activity" },
   { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Create and manage the course catalogue and resources" },
   { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Review content quality, revisions, moderation and links" },
+  { to: "/admin/faqs", label: "FAQ & help content", permission: "faqs.read", group: "Learning & content", icon: CircleHelp, description: "Edit public answers, organise FAQ topics and manage publication" },
   { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Learning & content", icon: BookOpen, description: "Inspect generated roadmaps and learner progress" },
   { to: "/admin/ai-content", label: "AI & content controls", permission: "ai.manage", group: "Learning & content", icon: BrainCircuit, description: "Configure AI generation limits and content discovery rules" },
 

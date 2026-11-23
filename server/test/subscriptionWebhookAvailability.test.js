@@ -136,7 +136,7 @@ test("a valid subscription charge reconciles an existing payment while new payme
 
       assert.equal(forwardedError, undefined);
       assert.equal(res.statusCode, 200);
-      assert.deepEqual(res.body, { success: true, received: true });
+      assert.deepEqual(res.body, { success: true, message: "Operation successful", received: true });
     });
 
     assert.equal(env.paymentsEnabled, false);
@@ -213,7 +213,7 @@ test("a previously processed subscription charge webhook is acknowledged without
       await razorpayWebhook(signedRequest(event, secret, "evt_subscription_charge_duplicate"), res, assert.fail);
 
       assert.equal(res.statusCode, 200);
-      assert.deepEqual(res.body, { success: true, received: true, duplicate: true });
+      assert.deepEqual(res.body, { success: true, message: "Operation successful", received: true, duplicate: true });
     });
 
     assert.equal(calls.claims, 1);

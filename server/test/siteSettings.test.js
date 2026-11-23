@@ -23,6 +23,7 @@ test("public site defaults use only the existing BuddyForStudy identity and no i
   assert.equal(settings.contact.supportPhone, "");
   assert.equal(settings.contact.officeAddress, "");
   assert.equal(settings.contact.businessHours, "");
+  assert.ok(settings.footerLinks.some((item) => item.label === "All policies & accessibility" && item.href === "/legal"));
 });
 
 test("public site projection excludes administrator metadata and sanitizes unsafe persisted links", () => {

@@ -34,11 +34,11 @@ This repository includes deployment configuration for a Vite SPA on Render Stati
 - Backend production preflight: `cd server && npm run validate:production-config`
 - Deployed smoke test: `cd server && npm run verify:deployment`
 
-The V2.2 release Blueprint targets the `buddy-for-study-v2.2` branch and sets Render's `autoDeployTrigger: checksPass`. Render will deploy a Git-backed service only after the linked commit's checks pass. This is a deployment gate, not a substitute for GitHub branch protection or a release approval process.
+The V2.2 release Blueprint targets the `buddy-for-study-v2.2` branch but sets `autoDeployTrigger: off` for both Render services. This prevents V2.2 pushes from automatically deploying the API or static site. CI remains a verification gate only; deploy manually when the release operator has approved the exact candidate.
 
 ## 2. Vercel frontend (optional alternative)
 
-Import the repository into Vercel and set the project root to `client/`. For this V2.2 release, set Vercel's Production Branch to `buddy-for-study-v2.2` in Project Settings → Git; the repository's `vercel.json` controls build and routing, not the Git deployment branch. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
+Import the repository into Vercel and set the project root to `client/`. **While the old version is live, leave the Vercel Production Branch and existing production domains unchanged.** Let `buddy-for-study-v2.2` produce a Preview deployment (or use a separate preview project) for review. Do not select V2.2 as the Production Branch or promote its deployment until the release operator is ready to replace the live version. The repository's `vercel.json` controls build and routing, not the Git deployment branch. The frontend package manifest, lockfile, and `vercel.json` are inside `client/`; the repository root intentionally has no npm package manifest.
 
 | Setting | Value |
 |---|---|
@@ -161,11 +161,11 @@ For `validate:production-config`, run with the intended production environment v
 
 The deployment verifier is read-only. Set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYMENT_URL` to the actual public HTTPS origins. It checks API liveness/readiness, exact frontend CORS origin, billing-plan and Google-config endpoint responses, and frontend deep links. API liveness currently returns `status: "ok"`; readiness returns `status: "ready"` only when MongoDB is connected. The verifier retries bounded transient network and 408/425/5xx responses.
 
-For an exact release check, also set `EXPECTED_RELEASE_SHA` to the full 40-character candidate SHA. The API `/health` response exposes a validated `releaseSha`; the frontend build emits `/release.json` with its commit SHA. Strict verification requires both to match the expected SHA. The Render Blueprint and Vercel build configuration call `npm run write:release-manifest` so the frontend manifest is generated from the hosting build's Git commit value; the API reads its corresponding hosting commit metadata. The manually dispatched staging and final release workflows set `EXPECTED_RELEASE_SHA` from the exact GitHub candidate commit.
+For an exact release check, also set `EXPECTED_RELEASE_SHA` to the full 40-character candidate SHA. The API `/api/health` response exposes a validated `releaseSha`; the frontend build emits `/release.json` with its commit SHA. Strict deployment verification requires both to match the expected SHA. The Render Blueprint and Vercel build configuration call `npm run write:release-manifest` so the frontend manifest is generated from the hosting build's Git commit value; the API reads its corresponding hosting commit metadata. The manually dispatched staging-verification workflow sets `EXPECTED_RELEASE_SHA` from the exact GitHub candidate commit.
 
 For a strict staging operations check, configure the GitHub `staging` environment as described in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md), then manually dispatch **Staging operations verification** from the `buddy-for-study-v2.2` branch. Provide staging-only API/frontend URLs, the expected worker mode, the optional expected OAuth client ID and a short-lived administrator JWT through environment variables/secrets. This check reads `/api/health/operations` using GET and does not deploy or mutate provider/application data.
 
-For the final release decision, manually dispatch **Final release approval gate** from the same branch after exact-SHA CI has passed. It rechecks the latest CI run and required jobs for the dispatched SHA, reruns the read-only staging verification against that exact checked-out commit, and waits at the configured `production-release` GitHub environment for the required human review. Configure required reviewers and branch restrictions on that environment before relying on the approval. The workflow only records evidence/approval; it never deploys.
+For repository readiness, manually dispatch **Final repository readiness gate** from `buddy-for-study-v2.2` after exact-SHA CI has passed. It rechecks the latest CI run and required jobs for the dispatched SHA, then confirms the branch has not advanced. It does not contact staging or production services, require deployment secrets, approve a production release, or deploy. Your separate deployment procedure remains responsible for live verification, production approval, and making the new version live.
 
 After deployment, verify:
 

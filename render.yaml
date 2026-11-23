@@ -1,6 +1,6 @@
 # Render Blueprint for the BuddyForStudy API with bounded inline background execution.
 # A standalone worker is an optional later upgrade; secrets are never committed here.
-# Production deploys are gated on linked GitHub checks passing.
+# Deployments are manual; linked CI is verification only.
 envVarGroups:
   - name: buddyforstudy-production-runtime
     envVars:
@@ -53,7 +53,7 @@ services:
     startCommand: npm run start
     healthCheckPath: /api/health/ready
     maxShutdownDelaySeconds: 120
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: off
     envVars:
       - fromGroup: buddyforstudy-production-runtime
       - key: MONGO_URI
@@ -101,7 +101,7 @@ services:
     branch: buddy-for-study-v2.2
     buildCommand: npm ci && npm run build && npm run write:release-manifest
     staticPublishPath: dist
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: off
     envVars:
       - key: VITE_API_URL
         sync: false

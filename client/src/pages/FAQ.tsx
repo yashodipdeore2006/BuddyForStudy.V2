@@ -190,10 +190,10 @@ export default function FAQ() {
       <section id="help-answers" className="mt-10 scroll-mt-24" aria-labelledby="help-answers-title">
         <div className="bfs-public-section-heading">
           <span className="bfs-public-eyebrow">Help answers</span>
-          <h2 id="help-answers-title">Search frequently asked questions</h2>
+          <h2 id="help-answers-title">Find an answer</h2>
           <p>Search by keyword or open a question to read its answer.</p>
         </div>
-        <div className="mx-auto w-full max-w-4xl pb-5" aria-label="Search frequently asked questions">
+        <div className="mx-auto w-full max-w-4xl pb-5">
           <label htmlFor="public-faq-search" className="sr-only">Search frequently asked questions</label>
           <div className="relative">
             <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />

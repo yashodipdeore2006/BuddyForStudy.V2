@@ -47,6 +47,13 @@ jobs:
             return response.json();
           }
 
+          const branchState = await githubJson(
+            "https://api.github.com/repos/" + REPOSITORY + "/branches/buddy-for-study-v2.2"
+          );
+          if (branchState.commit?.sha !== CANDIDATE_SHA) {
+            throw new Error("The V2.2 branch no longer points to the dispatched candidate SHA.");
+          }
+
           const endpoint = new URL("https://api.github.com/repos/" + REPOSITORY + "/actions/runs");
           endpoint.searchParams.set("head_sha", CANDIDATE_SHA);
           endpoint.searchParams.set("per_page", "100");
@@ -140,6 +147,31 @@ jobs:
       name: production-release
       deployment: false
     steps:
+      - name: Confirm V2.2 still points to the approved candidate after review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(
+            "https://api.github.com/repos/" + process.env.REPOSITORY + "/branches/buddy-for-study-v2.2",
+            {
+              headers: {
+                Authorization: "Bearer " + process.env.GITHUB_TOKEN,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28"
+              }
+            }
+          );
+          if (!response.ok) throw new Error("Unable to recheck the V2.2 branch head.");
+          const branch = await response.json();
+          if (branch.commit?.sha !== process.env.CANDIDATE_SHA) {
+            throw new Error("The V2.2 branch advanced while release approval was pending.");
+          }
+          NODE
+
       - name: Record the approved candidate and evidence
         env:
           CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}

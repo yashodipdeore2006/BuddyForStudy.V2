@@ -1,4 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
+import type { ReactNode } from "react";
 import PublicSocialLinks from "@/components/PublicSocialLinks";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -18,7 +19,7 @@ function Brand() {
   );
 }
 
-function FooterDestination({ href, children }: { href: string; children: React.ReactNode }) {
+function FooterDestination({ href, children }: { href: string; children: ReactNode }) {
   if (href.startsWith("/") && !href.startsWith("//")) return <Link to={href}>{children}</Link>;
   return <a href={href} target="_blank" rel="noopener noreferrer">{children}<span className="sr-only"> (opens in a new tab)</span></a>;
 }

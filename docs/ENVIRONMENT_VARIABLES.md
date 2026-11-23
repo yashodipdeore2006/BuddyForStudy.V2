@@ -7,7 +7,7 @@
 - Never commit `.env` or real credentials. The committed `.env.example` files contain local/test placeholders only.
 - Every `VITE_*` value is public at build time and can be read by browser users. Never place database, JWT, payment, SMTP, LLM, or Web Push private keys in a `VITE_*` variable.
 - Store production secrets in the deployment provider's secret manager. Use different credentials for development, staging, and production.
-- `server/src/config/env.js` requires `MONGO_URI` and `JWT_SECRET` at startup in every environment. The production validator additionally requires a non-placeholder JWT secret of at least 32 characters, an HTTPS `CLIENT_URL`, and all three Razorpay production values.
+- `server/src/config/env.js` requires `MONGO_URI` and `JWT_SECRET` at startup in every environment. The production validator additionally requires a non-placeholder JWT secret of at least 32 characters, HTTPS `CLIENT_URL` and `API_URL`, explicit proxy/worker settings, TLS-authenticated MongoDB, and valid SMTP settings. Razorpay credentials are required only when `PAYMENTS_ENABLED=true`; deployments with payments disabled do not need gateway credentials.
 - The validator does **not** prove external provider connectivity or that all provider settings are correct; staging smoke tests are still required.
 
 ## Frontend variables

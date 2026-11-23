@@ -225,39 +225,32 @@ Production remains blocked until all relevant items have current, attributable e
 7. Branch/release governance, rollback owners, and a rehearsed recovery procedure.
 8. Exact-commit CI and staging verification passed, with all accepted risks and approvals documented.
 
-Task 29 is not complete merely because this runbook and workflow exist. Task 30 is not complete merely because the GitHub CI release gate is green. Both require the external staging and release evidence listed above.
+Task 29 repository controls and Task 30 repository-gate implementation can be completed independently of deployment. These do not certify live production operations.
 
 
-## 13. Task 30 — final exact-SHA release approval gate
+**Ownership boundary:** The checks above are environment-specific go-live requirements. They are deliberately outside the repository-readiness workflow and must be completed by the deployment operator before enabling the new version for public users.
 
-The manual workflow is `.github/workflows/final-release-gate.yml`. It is restricted to manual dispatch on `buddy-for-study-v2.2` and has read-only repository permissions.
+
+## 13. Task 30 — repository-level readiness gate
+
+The manual workflow is `.github/workflows/final-release-gate.yml`. It is restricted to manual dispatch on `buddy-for-study-v2.2`, uses read-only GitHub permissions, and does not require staging URLs, staging secrets, production environment configuration, or a live deployment.
 
 Before dispatch:
 
-1. Confirm the intended release candidate is the current `buddy-for-study-v2.2` branch HEAD. No other branch is accepted by this workflow.
-2. Confirm the automatic **BuddyForStudy CI** workflow has a completed successful run for that exact SHA. The gate independently looks up the latest matching run and verifies that `backend`, `frontend`, and `Production release gate` are each completed successfully.
-3. Configure the GitHub repository environment named `production-release` before relying on it. Add the designated release reviewer(s) as required reviewers, restrict permitted branches to the V2.2 execution branch where supported, and document the approval owner. Do not assume an environment created automatically by workflow use has protection rules.
-4. Confirm the `staging` environment is configured as described in Section 3, and that the staging candidate has already been deployed by the separately approved deployment process.
+1. Confirm the intended candidate is the current `buddy-for-study-v2.2` branch HEAD.
+2. Confirm the automatic **BuddyForStudy CI** workflow has a completed successful run for that exact SHA.
+3. Confirm no code or configuration change has been pushed since that CI run.
 
-Before approving the `production-release` environment review, the designated reviewer must inspect the current evidence register and verify each applicable release prerequisite against the exact candidate SHA and named environment:
+The repository-readiness workflow then:
 
-- [ ] Exact-SHA CI is complete and successful; no newer or different candidate is being approved.
-- [ ] The staging deployment reports the same SHA for API and frontend, and the read-only staging workflow passes CORS, OAuth scope, database readiness, frontend routes, worker mode, heartbeat and job-lease checks.
-- [ ] DNS, TLS, canonical domain, CORS and OAuth configuration have attributable staging evidence.
-- [ ] MongoDB topology supports transactions; required indexes are present; an isolated backup restore has been exercised and recorded.
-- [ ] Required email, OTP, notification, Gemini and YouTube flows have been verified with staging-only credentials and safe quota budgets; disabled payment checkout remains disabled unless separately authorized.
-- [ ] Worker/scheduler behaviour, alert routing, monitoring event delivery, and incident owners have been verified.
-- [ ] Privacy/data-rights scope, approved retention schedule, deletion/anonymization implementation, backup expiry and learner disclosures are approved. An incomplete deletion workflow must remain an explicit blocker unless an authorized launch-scope decision says otherwise.
-- [ ] A known-good deployment SHA, rollback owner, database compatibility plan and staging rollback rehearsal are recorded.
-- [ ] Every unresolved issue has a named owner and an explicit accepted-risk decision from the authorized approver. A missing evidence row is not an implicit acceptance.
-- [ ] The `production-release` environment has the designated required reviewer(s) and V2.2 branch restriction configured; a green job without configured protection is not independent approval.
+- Rechecks that the branch still points to the dispatched candidate SHA.
+- Finds the latest completed successful **BuddyForStudy CI** run for that exact SHA.
+- Requires the `backend`, `frontend`, and `Production release gate` jobs to be completed successfully.
+- Rechecks that the branch has not advanced while verification was running.
+- Records the candidate SHA and CI run link in the Actions summary.
 
-Dispatch **Final release approval gate** from `buddy-for-study-v2.2`:
+**Scope boundary:** A green result means the repository's exact-commit CI and configured production-build checks passed. It is not a live staging check, production environment approval, privacy/legal sign-off, backup/restore certification, rollback rehearsal, or authorization to deploy.
 
-- The first job verifies backend/frontend/release-gate CI for the exact dispatched SHA; it fails if no successful matching run exists or a required job is not successful.
-- The second job checks out that exact SHA and runs the strict, read-only staging verifier using the staging environment variables and temporary admin token.
-- The final job waits for the configured `production-release` environment review. When the protected environment requirements are satisfied, the workflow records the candidate SHA, CI run link, staging result and human approval in the Actions summary.
+The separate `.github/workflows/staging-verification.yml` remains available for an operator who later chooses to deploy a staging copy. It performs read-only checks against explicitly configured staging URLs and does not deploy or mutate data. It is not a prerequisite for the repository-readiness workflow.
 
-**No deployment occurs in this workflow.** It does not change Render/Vercel settings, DNS, secrets, database contents, branch protection, or service state. A separately approved deployment procedure is required after the release decision. If the `production-release` environment has no required reviewer protection configured, a green workflow is not evidence of independent human approval.
-
-Task 30 remains open until this workflow completes for the exact candidate, the reviewer decision is recorded, the evidence register is updated, and all unresolved blockers/accepted risks have named owners and explicit approval.
+**No deployment occurs in either workflow.** Render/Vercel configuration, DNS, secrets, databases, service state, and production deployment remain outside this repository workflow and are handled separately by the deployment operator. The production go-live checklist and open blockers remain in Sections 11 and 12; a repository-readiness PASS does not waive them.

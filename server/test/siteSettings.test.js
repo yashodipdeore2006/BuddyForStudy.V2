@@ -53,6 +53,18 @@ test("public site projection excludes administrator metadata and sanitizes unsaf
   assert.equal(Object.hasOwn(settings, "key"), false);
 });
 
+test("public site projection removes duplicate footer destinations", () => {
+  const settings = toPublicSiteSettings({
+    footerLinks: [
+      { id: "policy-a", label: "All policies & accessibility", href: "/legal", group: "policies" },
+      { id: "policy-b", label: "All policies & accessibility", href: "/legal", group: "policies" },
+      { id: "privacy", label: "Privacy policy", href: "/legal/privacy-policy", group: "policies" },
+    ],
+  });
+  assert.equal(settings.footerLinks.filter((item) => item.href === "/legal" && item.label === "All policies & accessibility").length, 1);
+  assert.equal(settings.footerLinks.length, 2);
+});
+
 test("site href validation allows internal paths and HTTPS URLs only", () => {
   assert.equal(normalizeSiteHref("/help/getting-started?from=footer"), "/help/getting-started?from=footer");
   assert.equal(normalizeSiteHref("https://example.com/support"), "https://example.com/support");

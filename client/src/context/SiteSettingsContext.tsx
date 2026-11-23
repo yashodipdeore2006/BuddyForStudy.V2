@@ -12,6 +12,16 @@ const SiteSettingsContext = createContext<SiteSettingsContextValue>({
   loading: true,
 });
 
+function uniqueFooterLinks(links: SiteSettings["footerLinks"]): SiteSettings["footerLinks"] {
+  const seen = new Set<string>();
+  return links.filter((link) => {
+    const key = [link.group, link.label.trim().toLowerCase(), link.href.trim()].join("|");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function mergeSettings(value: unknown): SiteSettings {
   if (!value || typeof value !== "object") return DEFAULT_SITE_SETTINGS;
   const received = value as Partial<SiteSettings>;
@@ -19,7 +29,7 @@ function mergeSettings(value: unknown): SiteSettings {
     brand: { ...DEFAULT_SITE_SETTINGS.brand, ...(received.brand || {}) },
     contact: { ...DEFAULT_SITE_SETTINGS.contact, ...(received.contact || {}) },
     socialLinks: { ...DEFAULT_SITE_SETTINGS.socialLinks, ...(received.socialLinks || {}) },
-    footerLinks: Array.isArray(received.footerLinks) ? received.footerLinks : DEFAULT_SITE_SETTINGS.footerLinks,
+    footerLinks: uniqueFooterLinks(Array.isArray(received.footerLinks) ? received.footerLinks : DEFAULT_SITE_SETTINGS.footerLinks),
   };
 }
 

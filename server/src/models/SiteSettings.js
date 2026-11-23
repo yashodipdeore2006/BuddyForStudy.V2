@@ -58,7 +58,6 @@ const siteSettingsSchema = new mongoose.Schema({
   minimize: false,
 });
 
-siteSettingsSchema.index({ key: 1 }, { unique: true, name: "site_settings_singleton_unique" });
 
 export const SiteSettings = mongoose.models.SiteSettings ||
   mongoose.model("SiteSettings", siteSettingsSchema);

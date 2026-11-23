@@ -288,9 +288,9 @@ export default function Navbar() {
     <>
       <header className="bfs-user-header">
         <nav className="bfs-user-header__inner" aria-label="Primary navigation">
-          <Link to={isLearner ? "/home" : "/"} className="bfs-user-brand" aria-label="BuddyForStudy home">
-            <span className="bfs-user-brand__mark"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" /></span>
-            <span className="bfs-user-brand__wordmark">Buddy<span>For</span>Study</span>
+          <Link to={isLearner ? "/home" : "/"} className="bfs-user-brand" aria-label={settings.brand.siteName + " home"}>
+            <span className="bfs-user-brand__mark"><img src={settings.brand.logoUrl || "/buddyforstudy-mascot.webp"} alt="" aria-hidden="true" /></span>
+            <span className="bfs-user-brand__wordmark">{settings.brand.siteName}</span>
           </Link>
 
           {profile && (

@@ -1,0 +1,40 @@
+name: Staging operations verification
+
+run-name: Read-only staging verification — buddy-for-study-v2.2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-staging:
+    if: github.ref == 'refs/heads/buddy-for-study-v2.2'
+    name: Verify deployed staging services (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+      deployment: false
+    steps:
+      - name: Check out the selected V2.2 candidate
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Run read-only deployment verification
+        working-directory: server
+        env:
+          DEPLOYMENT_URL: ${{ vars.STAGING_API_URL }}
+          FRONTEND_DEPLOYMENT_URL: ${{ vars.STAGING_FRONTEND_URL }}
+          EXPECTED_GOOGLE_CLIENT_ID: ${{ vars.STAGING_GOOGLE_CLIENT_ID }}
+          EXPECTED_BACKGROUND_WORKER_MODE: ${{ vars.STAGING_BACKGROUND_WORKER_MODE }}
+          OPERATIONS_ADMIN_TOKEN: ${{ secrets.STAGING_OPERATIONS_ADMIN_TOKEN }}
+          REQUIRE_OPERATIONS_HEALTH: "true"
+        run: node src/scripts/verifyDeployment.js

@@ -153,7 +153,7 @@ export async function updateAdminSiteSettings(req, res, next) {
 
     // Keep the legacy Social links panel in Platform settings synchronized
     // while existing administrators transition to the global site settings page.
-    await Promise.all(PUBLIC_SOCIAL_PLATFORMS.map((platform) =>
+    const legacySocialSync = await Promise.allSettled(PUBLIC_SOCIAL_PLATFORMS.map((platform) =>
       PlatformSetting.findOneAndUpdate(
         { key: platform.settingKey },
         {
@@ -167,6 +167,15 @@ export async function updateAdminSiteSettings(req, res, next) {
         { upsert: true, new: true, setDefaultsOnInsert: true },
       )
     ));
+    const legacySocialSyncFailures = legacySocialSync.flatMap((result, index) =>
+      result.status === "rejected" ? [PUBLIC_SOCIAL_PLATFORMS[index].id] : []
+    );
+    const legacySocialSyncPending = legacySocialSyncFailures.length > 0;
+    if (legacySocialSyncPending) {
+      console.error("[site-settings] legacy social-link mirror sync failed", {
+        platforms: legacySocialSyncFailures,
+      });
+    }
 
     const after = toPublicSiteSettings(setting);
     const auditResult = await recordAuditEvent({
@@ -186,11 +195,14 @@ export async function updateAdminSiteSettings(req, res, next) {
       updatedAt: setting.updatedAt,
       auditLogRecorded: auditResult.recorded,
       auditQueued: auditResult.queued,
-    }, auditResult.recorded
-      ? "Site settings saved."
-      : auditResult.queued
-        ? "Site settings saved; the audit event is queued for retry."
-        : "Site settings saved, but the audit event could not be recorded or queued. Notify a Super Admin.");
+      legacySocialSyncPending,
+    }, legacySocialSyncPending
+      ? "Site settings saved, but one or more legacy social-link mirrors need a retry."
+      : auditResult.recorded
+        ? "Site settings saved."
+        : auditResult.queued
+          ? "Site settings saved; the audit event is queued for retry."
+          : "Site settings saved, but the audit event could not be recorded or queued. Notify a Super Admin.");
   } catch (error) {
     return next(error);
   }

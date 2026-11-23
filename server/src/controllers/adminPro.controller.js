@@ -25,6 +25,9 @@ import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
+import { SiteSettings } from "../models/SiteSettings.js";
+import { SITE_SETTINGS_KEY } from "../utils/siteSettings.js";
+import { PUBLIC_SOCIAL_PLATFORMS } from "../utils/publicSocialLinks.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
 import { isAIPromptActiveSettingKey } from "../services/aiPrompt.service.js";
@@ -3070,6 +3073,22 @@ export async function upsertSetting(req, res, next) {
       { $set: { value, description: req.body.description || "", isPublic, updatedBy: req.user.user._id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+    if (socialValidation.isSocialSetting) {
+      const platform = PUBLIC_SOCIAL_PLATFORMS.find((item) => item.settingKey === settingKey);
+      if (platform) {
+        await SiteSettings.findOneAndUpdate(
+          { key: SITE_SETTINGS_KEY },
+          {
+            $set: {
+              ["socialLinks." + platform.id]: value,
+              updatedBy: req.user.user._id,
+            },
+            $setOnInsert: { key: SITE_SETTINGS_KEY },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+      }
+    }
     await audit(req, "setting.updated", "PlatformSetting", setting._id, {
       valueChanged: true,
       valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before

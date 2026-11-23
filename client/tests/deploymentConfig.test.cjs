@@ -59,8 +59,8 @@ test("Render Blueprint includes a static frontend and one bounded inline API ser
   assert.match(render, /startCommand: npm run start/);
   assert.doesNotMatch(render, /startCommand: npm run worker/);
   assert.ok(render.includes("/api/health/ready"));
-  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 2,
-    "the API and static frontend must deploy only after linked CI checks pass");
+  assert.equal((render.match(/autoDeployTrigger: off/g) || []).length, 2,
+    "the API and static frontend must not auto-deploy when V2.2 changes; release deployment is manual");
   assert.ok(render.includes("maxShutdownDelaySeconds: 120"),
     "the API should have a bounded shutdown window for inline maintenance");
 });

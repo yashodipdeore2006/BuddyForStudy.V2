@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import adminTrialsRouter from "../src/routes/adminTrials.routes.js";
+import { authMiddleware, adminMiddleware } from "../src/middleware/auth.js";
 import { ADMIN_ROLE_PROFILES } from "../src/utils/adminRbac.js";
 
 function getRoutes() {
@@ -95,4 +96,37 @@ test("campaign claim ledger endpoint is registered and protected by trials.manag
     assert.equal(result.nextCalled, allowed, role + " on /claims");
     if (!allowed) assert.equal(result.statusCode, 403);
   }
+});
+
+
+test("admin trial routes require authentication and an administrator access token before permissions", () => {
+  const globalHandlers = (adminTrialsRouter.stack || [])
+    .filter((layer) => !layer.route)
+    .map((layer) => layer.handle);
+
+  assert.deepEqual(globalHandlers, [authMiddleware, adminMiddleware]);
+
+  for (const user of [
+    { role: "user", accessType: "user" },
+    { role: "admin", accessType: "user" },
+    { role: "user", accessType: "admin" },
+  ]) {
+    const response = { statusCode: 200, body: undefined, nextCalled: false };
+    adminMiddleware({ user }, {
+      status(code) { response.statusCode = code; return this; },
+      json(body) { response.body = body; return this; },
+    }, () => { response.nextCalled = true; });
+
+    assert.equal(response.nextCalled, false);
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.success, false);
+  }
+
+  const allowed = { statusCode: 200, nextCalled: false };
+  adminMiddleware({ user: { role: "admin", accessType: "admin" } }, {
+    status(code) { allowed.statusCode = code; return this; },
+    json(body) { allowed.body = body; return this; },
+  }, () => { allowed.nextCalled = true; });
+  assert.equal(allowed.nextCalled, true);
+  assert.equal(allowed.statusCode, 200);
 });

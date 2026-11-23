@@ -16,12 +16,13 @@ function response(status, body, headers = {}) {
 }
 
 function healthyOperationsBody(overrides = {}) {
+  const backgroundOverrides = overrides.background || overrides;
   const background = {
     mode: "inline",
     status: "healthy",
     worker: { mode: "inline", status: "healthy", consecutiveFailures: 0 },
     jobs: [],
-    ...overrides.background
+    ...backgroundOverrides
   };
   return {
     success: true,

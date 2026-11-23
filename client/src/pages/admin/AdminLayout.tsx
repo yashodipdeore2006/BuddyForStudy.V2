@@ -46,6 +46,7 @@ const links: AdminLink[] = [
 
   { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Governance & access", icon: ScrollText, description: "Trace sensitive administrator actions and accountability records" },
   { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Governance & access", icon: Settings, description: "Manage typed platform configuration and operational defaults" },
+  { to: "/admin/site-settings", label: "Site identity & footer", permission: "settings.read", group: "Governance & access", icon: Settings, description: "Manage public brand identity, contact details, social profiles and footer navigation" },
   { to: "/admin/legal", label: "Legal & policies", permission: "legal.manage", group: "Governance & access", icon: ScrollText, description: "Maintain published policies, terms and platform rules" },
   { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Governance & access", icon: ShieldCheck, description: "Manage administrator invitations, roles and scoped permissions" },
 ];

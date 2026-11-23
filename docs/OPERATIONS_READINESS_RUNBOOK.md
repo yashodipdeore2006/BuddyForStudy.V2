@@ -201,6 +201,7 @@ Create one row per check. Use a restricted evidence system for screenshots/log e
 | Date/time (UTC) | Environment | Branch + exact SHA | Check | Result | Owner | Redacted evidence / ticket | Follow-up / accepted risk |
 |---|---|---|---|---|---|---|---|
 | 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / see linked Actions run | Backend/frontend automated tests and repository release gate | PASS for recorded CI SHA | Release operator | GitHub Actions run 45159094313 | Repository verification only; not staging verification |
+| 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / `786babc3e899d293b313cdb6cb7a4e05aa73ce80` | Backend 1,181 tests; frontend 93 unit + 7 deployment-config tests; Playwright 126 browser tests; production release gate | PASS | Release operator | [GitHub Actions run 45187112505](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45187112505) | Exact-HEAD repository verification only; live staging, providers, backups, privacy and rollback remain unverified |
 | Pending | Staging | Pending | Read-only deployment verifier | UNVERIFIED | Unassigned | Pending workflow run | Configure `staging` environment and staging service variables/secrets |
 | Pending | Staging | Pending | DNS/TLS/CORS/OAuth + email + AI/YouTube provider checks | UNVERIFIED | Unassigned | Pending | Real provider-console and end-to-end evidence required |
 | Pending | Staging | Pending | MongoDB transaction/index/backup/restore | BLOCKED | Unassigned | Pending | Configure backup policy and complete isolated restore rehearsal |

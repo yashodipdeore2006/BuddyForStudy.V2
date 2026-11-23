@@ -221,3 +221,25 @@ Production remains blocked until all relevant items have current, attributable e
 8. Exact-commit CI and staging verification passed, with all accepted risks and approvals documented.
 
 Task 29 is not complete merely because this runbook and workflow exist. Task 30 is not complete merely because the GitHub CI release gate is green. Both require the external staging and release evidence listed above.
+
+
+## 13. Task 30 — final exact-SHA release approval gate
+
+The manual workflow is `.github/workflows/final-release-gate.yml`. It is restricted to manual dispatch on `buddy-for-study-v2.2` and has read-only repository permissions.
+
+Before dispatch:
+
+1. Confirm the intended release candidate is the current `buddy-for-study-v2.2` branch HEAD. No other branch is accepted by this workflow.
+2. Confirm the automatic **BuddyForStudy CI** workflow has a completed successful run for that exact SHA. The gate independently looks up the latest matching run and verifies that `backend`, `frontend`, and `Production release gate` are each completed successfully.
+3. Configure the GitHub repository environment named `production-release` before relying on it. Add the designated release reviewer(s) as required reviewers, restrict permitted branches to the V2.2 execution branch where supported, and document the approval owner. Do not assume an environment created automatically by workflow use has protection rules.
+4. Confirm the `staging` environment is configured as described in Section 3, and that the staging candidate has already been deployed by the separately approved deployment process.
+
+Dispatch **Final release approval gate** from `buddy-for-study-v2.2`:
+
+- The first job verifies backend/frontend/release-gate CI for the exact dispatched SHA; it fails if no successful matching run exists or a required job is not successful.
+- The second job checks out that exact SHA and runs the strict, read-only staging verifier using the staging environment variables and temporary admin token.
+- The final job waits for the configured `production-release` environment review. When the protected environment requirements are satisfied, the workflow records the candidate SHA, CI run link, staging result and human approval in the Actions summary.
+
+**No deployment occurs in this workflow.** It does not change Render/Vercel settings, DNS, secrets, database contents, branch protection, or service state. A separately approved deployment procedure is required after the release decision. If the `production-release` environment has no required reviewer protection configured, a green workflow is not evidence of independent human approval.
+
+Task 30 remains open until this workflow completes for the exact candidate, the reviewer decision is recorded, the evidence register is updated, and all unresolved blockers/accepted risks have named owners and explicit approval.

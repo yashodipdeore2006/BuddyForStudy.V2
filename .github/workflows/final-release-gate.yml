@@ -1,6 +1,6 @@
-name: Final release approval gate
+name: Final repository readiness gate
 
-run-name: Final release approval — buddy-for-study-v2.2
+run-name: Repository readiness — buddy-for-study-v2.2
 
 on:
   workflow_dispatch:
@@ -12,14 +12,14 @@ permissions:
 jobs:
   verify-exact-commit-ci:
     if: github.ref == 'refs/heads/buddy-for-study-v2.2'
-    name: Verify CI for the exact candidate commit
+    name: Verify CI for the exact V2.2 candidate
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       candidate_sha: ${{ steps.check.outputs.candidate_sha }}
       ci_run_url: ${{ steps.check.outputs.ci_run_url }}
     steps:
-      - name: Require successful backend, frontend and release-gate jobs for this SHA
+      - name: Require successful backend, frontend and production-config CI for this SHA
         id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -90,65 +90,26 @@ jobs:
           const output = [
             "candidate_sha=" + CANDIDATE_SHA,
             "ci_run_url=" + ciRun.html_url
-          ].join("\n") + "\n";
-          await import("node:fs/promises").then(({ appendFile }) =>
-            appendFile(process.env.GITHUB_OUTPUT, output)
-          );
-          await import("node:fs/promises").then(({ appendFile }) =>
-            appendFile(
-              process.env.GITHUB_STEP_SUMMARY,
-              "## Exact-commit CI: PASS\n\n" +
-              "- Candidate: `" + CANDIDATE_SHA + "`\n" +
-              "- CI run: " + ciRun.html_url + "\n" +
-              "- Required jobs: backend, frontend, Production release gate\n"
-            )
+          ].join("\\n") + "\\n";
+          const { appendFile } = await import("node:fs/promises");
+          await appendFile(process.env.GITHUB_OUTPUT, output);
+          await appendFile(
+            process.env.GITHUB_STEP_SUMMARY,
+            "## Exact-commit repository CI: PASS\\n\\n" +
+            "- Candidate: `" + CANDIDATE_SHA + "`\\n" +
+            "- CI run: " + ciRun.html_url + "\\n" +
+            "- Required jobs: backend, frontend, Production release gate\\n"
           );
           NODE
 
-  verify-staging:
-    name: Verify deployed staging services (read-only)
+  record-repository-readiness:
+    if: github.ref == 'refs/heads/buddy-for-study-v2.2'
+    name: Recheck candidate and record repository readiness
     needs: verify-exact-commit-ci
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: staging
-      deployment: false
-    steps:
-      - name: Check out the exact candidate commit
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
-          persist-credentials: false
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-
-      - name: Run strict read-only staging operations verification
-        working-directory: server
-        env:
-          DEPLOYMENT_URL: ${{ vars.STAGING_API_URL }}
-          FRONTEND_DEPLOYMENT_URL: ${{ vars.STAGING_FRONTEND_URL }}
-          EXPECTED_GOOGLE_CLIENT_ID: ${{ vars.STAGING_GOOGLE_CLIENT_ID }}
-          EXPECTED_BACKGROUND_WORKER_MODE: ${{ vars.STAGING_BACKGROUND_WORKER_MODE }}
-          EXPECTED_RELEASE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
-          OPERATIONS_ADMIN_TOKEN: ${{ secrets.STAGING_OPERATIONS_ADMIN_TOKEN }}
-          REQUIRE_OPERATIONS_HEALTH: "true"
-        run: node src/scripts/verifyDeployment.js
-
-  record-release-approval:
-    name: Record human release approval (no deployment)
-    needs:
-      - verify-exact-commit-ci
-      - verify-staging
-    runs-on: ubuntu-latest
     timeout-minutes: 2
-    environment:
-      name: production-release
-      deployment: false
     steps:
-      - name: Confirm V2.2 still points to the approved candidate after review
+      - name: Confirm V2.2 still points to the verified candidate
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
@@ -169,23 +130,26 @@ jobs:
           if (!response.ok) throw new Error("Unable to recheck the V2.2 branch head.");
           const branch = await response.json();
           if (branch.commit?.sha !== process.env.CANDIDATE_SHA) {
-            throw new Error("The V2.2 branch advanced while release approval was pending.");
+            throw new Error("The V2.2 branch advanced while repository readiness was being verified.");
           }
           NODE
 
-      - name: Record the approved candidate and evidence
+      - name: Record repository readiness (not a deployment approval)
         env:
           CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
           CI_RUN_URL: ${{ needs.verify-exact-commit-ci.outputs.ci_run_url }}
         shell: bash
         run: |
           {
-            echo "## Release approval gate: PASS"
+            echo "## V2.2 repository readiness: PASS"
             echo
             echo "- Candidate: `$CANDIDATE_SHA`"
             echo "- Exact-SHA CI: [verified]($CI_RUN_URL)"
-            echo "- Staging operations verification: passed"
-            echo "- Human approval: the `production-release` environment gate was satisfied"
+            echo "- Required jobs: backend, frontend, Production release gate"
             echo
-            echo "**No deployment was performed by this workflow.** A separate, explicitly approved deployment procedure is still required."
+            echo "**Scope:** repository-level code, build, test and production-configuration CI evidence only.
+            echo
+            echo "**Not covered:** live staging/production hosts, DNS/TLS/CORS/OAuth, provider credentials/delivery, database backup/restore, monitoring, privacy/legal approvals, rollback rehearsal, production reviewer approval, or deployment.
+            echo
+            echo "**No deployment was performed.** The operator must complete environment-specific checks and separately deploy the approved SHA."
           } >> "$GITHUB_STEP_SUMMARY"

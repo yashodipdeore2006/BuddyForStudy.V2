@@ -11,8 +11,10 @@ import {
   Phone,
   ShieldCheck,
   UserRound,
+  type LucideIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
 import { routes } from "@/lib/routes";
 import PublicSocialLinks from "@/components/PublicSocialLinks";
 import { useAuth } from "@/context/AuthContext";
@@ -22,8 +24,8 @@ function ContactDetail({
   icon: Icon,
   children,
 }: {
-  icon: typeof Mail;
-  children: React.ReactNode;
+  icon: LucideIcon;
+  children: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-3 text-sm text-slate-700">

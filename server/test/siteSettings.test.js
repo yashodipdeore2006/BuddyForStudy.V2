@@ -37,7 +37,7 @@ test("public site projection excludes administrator metadata and sanitizes unsaf
     },
     footerLinks: [
       { id: "bad", label: "Bad link", href: "javascript:alert(1)", group: "support" },
-      { id: "good", label: "Help", href: "/faq", group: "support" },
+      { id: "good", label: "Help", href: "/faq", group: "plans_support" },
     ],
   });
 
@@ -47,7 +47,7 @@ test("public site projection excludes administrator metadata and sanitizes unsaf
   assert.equal(settings.contact.supportPhone, "");
   assert.equal(settings.socialLinks.instagram, "");
   assert.equal(settings.socialLinks.linkedin, "https://www.linkedin.com/company/example");
-  assert.deepEqual(settings.footerLinks, [{ id: "good", label: "Help", href: "/faq", group: "support" }]);
+  assert.deepEqual(settings.footerLinks, [{ id: "good", label: "Help", href: "/faq", group: "plans_support" }]);
   assert.equal(Object.hasOwn(settings, "updatedBy"), false);
   assert.equal(Object.hasOwn(settings, "key"), false);
 });

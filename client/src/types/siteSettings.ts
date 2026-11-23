@@ -64,5 +64,6 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     { id: "terms", label: "Terms of service", href: "/legal/terms-of-service", group: "policies" },
     { id: "cookies", label: "Cookie policy", href: "/legal/cookie-policy", group: "policies" },
     { id: "all-policies", label: "All policies & accessibility", href: "/legal", group: "policies" },
+    { id: "all-policies", label: "All policies & accessibility", href: "/legal", group: "policies" },
   ],
 };

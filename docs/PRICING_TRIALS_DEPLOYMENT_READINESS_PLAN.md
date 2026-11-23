@@ -182,9 +182,9 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 25 | Audit plan and pricing integrity | Currency, ordering, sale price, feature and limit regression tests pass | NOT_STARTED |
-| 26 | Payment and subscription regression suite | Enabled/disabled checkout, verification, webhook, and cancellation tests pass | NOT_STARTED |
-| 27 | Trial security and lifecycle regression suite | Eligibility, role isolation, concurrency, cap, idempotency, expiry and audit tests pass | NOT_STARTED |
-| 28 | Frontend quality/accessibility checks | Typecheck, lint, unit, responsive, keyboard, accessibility and browser tests pass | NOT_STARTED |
+| 26 | Payment and subscription regression suite | Enabled/disabled checkout, verification, webhook, and cancellation tests pass | DONE |
+| 27 | Trial security and lifecycle regression suite | Eligibility, role isolation, concurrency, cap, idempotency, expiry and audit tests pass | DONE |
+| 28 | Frontend quality/accessibility checks | Typecheck, lint, unit, responsive, keyboard, accessibility and browser tests pass | DONE |
 | 29 | Deployment operations readiness | Environment, DNS/TLS/CORS/OAuth, MongoDB, mail, AI/YouTube, worker, privacy, backups, monitoring and rollback evidence | NOT_STARTED |
 | 30 | Final release gate | Exact-SHA CI and staging verification pass; blockers and accepted risks documented; approval recorded | NOT_STARTED |
 
@@ -507,3 +507,50 @@ Changes prepared on `buddy-for-study-v2.2`:
 - Separated the manual grant workflow and the historical grant ledger into distinct dashboard sections. Existing preview, explicit confirmation, revocation, campaign lifecycle, and no-autopay protections remain in place.
 
 **Status:** implementation candidate committed for exact-SHA CI and release-gate verification. No staging or production deployment has been performed.
+
+
+## Task 26 implementation — verified
+
+**Scope:** Extend the payment-disabled regression coverage to the subscription-charge webhook path, ensuring previously-created provider transactions still reconcile after new checkout is disabled.
+
+Implemented on `buddy-for-study-v2.2`:
+
+- Added `server/test/subscriptionWebhookAvailability.test.js`.
+- Verifies a valid signed `subscription.charged` webhook reconciles the existing pending payment using the provider-confirmed amount/currency, activates the linked subscription, and finalizes the webhook event while `paymentsEnabled=false`.
+- Verifies a previously processed event is acknowledged as a duplicate without replaying billing mutations.
+- Verifies an invalid signature is rejected before a webhook claim or payment/subscription mutation.
+- Uses test-only signing secrets and mocked persistence. No live Razorpay call, credential, deployment, or payment runtime code was changed.
+- Existing tests continue to cover enabled/disabled new checkout, course-payment verification, amount/currency matching, webhook signatures and transitions, duplicate provider events, refunds, subscription cancellation, and checkout concurrency.
+
+**Verification:** exact-commit CI passed on `b5242fd2469f21a4598abed852b170f59ba8dfbb`: backend `npm test` 1,153 passed / 0 failed; backend lint, production-config preflight, selector comparison and JavaScript syntax validation passed. Frontend checks and the production release gate also passed. Run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392).
+
+## Task 27 regression suite — verified on current candidate
+
+The V2.2 candidate already contains the expected trial-security and lifecycle regression coverage. It was executed as part of the same exact-SHA backend suite; no duplicate implementation was added merely to recreate existing tests.
+
+Coverage includes:
+
+- Learner-only eligibility, role isolation, account/email/subscription/prior-trial checks, deterministic rejection reasons, and fail-closed handling of missing or malformed facts.
+- Atomic claim/capacity reservation, concurrent final-slot claims, concurrent retries, cross-campaign idempotency, duplicate claims, active-claim locks, and MongoDB transaction failure handling.
+- No payment-provider call during trial claim and separate learner consent for any future paid conversion.
+- Expiry, revocation, free-plan restoration, preservation of newer or provider-backed subscriptions, and end-to-end course-access expiry.
+- Admin permission enforcement, campaign state transitions, audit persistence, and durable outbox/compensation paths.
+
+Principal suites include `trialCampaignEligibility.service.test.js`, `trialCampaignClaim.service.test.js`, `trialCampaignClaim.integration.test.js`, `trialCampaignClaimRoutes.test.js`, `trialLifecycle.service.test.js`, `trialCourseAccessLifecycle.integration.test.js`, `adminTrialCampaignSafety.test.js`, `adminTrialCampaignControllerSafety.test.js`, `adminTrialCampaignAudit.integration.test.js`, `adminTrialGrantAtomicity.test.js`, `adminTrialGrantAudit.integration.test.js`, and `adminRoutePermissionCoverage.test.js`.
+
+**Verification:** all 1,153 backend tests passed, including MongoDB replica-set-backed integration tests, on exact commit `b5242fd2469f21a4598abed852b170f59ba8dfbb` (run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392)).
+
+## Task 28 frontend quality and accessibility — reverified
+
+Task 28's frontend implementation and accessibility remediations were already present in the V2.2 candidate. The stale tracker row is now reconciled against fresh exact-SHA CI evidence rather than reimplementing the same work.
+
+**Verification on `b5242fd2469f21a4598abed852b170f59ba8dfbb`:**
+
+- Frontend lint and TypeScript typecheck passed.
+- Frontend unit tests and Vercel deployment configuration tests passed.
+- Production frontend build passed.
+- Playwright browser navigation, admin access and accessibility checks: **126 passed**.
+- Backend suite: **1,153 passed, 0 failed**.
+- Production release gate: passed.
+
+Run [45157423392](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45157423392). This is repository CI evidence; it is not a substitute for live staging or production verification.

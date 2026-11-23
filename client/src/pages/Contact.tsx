@@ -5,7 +5,9 @@ import PublicSocialLinks from "@/components/PublicSocialLinks";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 
-export default function Contact() {\n  const { settings } = useSiteSettings();\n  const supportEmail = settings.contact.supportEmail;
+export default function Contact() {
+  const { settings } = useSiteSettings();
+  const supportEmail = settings.contact.supportEmail;
   return (
     <main className="bfs-public-page">
       <section className="bfs-public-hero bfs-public-hero--compact">

@@ -11,6 +11,7 @@ import * as adminOperationsController from "../controllers/adminOperations.contr
 import * as aiPromptController from "../controllers/aiPrompt.controller.js";
 import * as privacyController from "../controllers/privacyRequests.controller.js";
 import * as siteSettingsController from "../controllers/siteSettings.controller.js";
+import * as faqController from "../controllers/faq.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);

@@ -53,7 +53,7 @@ services:
     startCommand: npm run start
     healthCheckPath: /api/health/ready
     maxShutdownDelaySeconds: 120
-    autoDeployTrigger: off
+    autoDeployTrigger: 'off'
     envVars:
       - fromGroup: buddyforstudy-production-runtime
       - key: MONGO_URI
@@ -101,7 +101,7 @@ services:
     branch: buddy-for-study-v2.2
     buildCommand: npm ci && npm run build && npm run write:release-manifest
     staticPublishPath: dist
-    autoDeployTrigger: off
+    autoDeployTrigger: 'off'
     envVars:
       - key: VITE_API_URL
         sync: false

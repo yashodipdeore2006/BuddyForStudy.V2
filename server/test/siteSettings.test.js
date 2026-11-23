@@ -90,5 +90,5 @@ test("public route is unauthenticated and admin writes remain protected by setti
   ]);
   assert.match(publicRoutes, /router\.get\("\/site-settings", getPublicSiteSettings\)/);
   assert.match(adminRoutes, /router\.get\("\/site-settings", adminPermissionMiddleware\("settings\.read"\)/);
-  assert.match(adminRoutes, /router\.put\("\/site-settings", adminPermissionMiddleware\("settings\.manage"\)/);
+  assert.match(adminRoutes, /router\.put\("\/site-settings", adminPermissionMiddleware\("site_settings\.manage"\)/);
 });

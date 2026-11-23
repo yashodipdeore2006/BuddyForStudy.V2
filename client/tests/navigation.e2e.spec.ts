@@ -2123,6 +2123,53 @@ test.describe("public platform pages and footer", () => {
     }
   });
 
+  test("Help Centre supports quick links, topic filtering and FAQ search", async ({ page }) => {
+    await page.route("**/api/public/faqs", (route) => json(route, {
+      faqs: [
+        {
+          id: "faq-courses",
+          question: "Where can I find courses?",
+          answer: "Open Explore to browse the courses currently available.",
+          category: "courses-learning",
+          displayOrder: 10,
+          featured: true,
+        },
+        {
+          id: "faq-plans",
+          question: "How do I find plans and prices?",
+          answer: "Visit the Pricing page to review the available plans.",
+          category: "plans-payments",
+          displayOrder: 20,
+        },
+      ],
+      categories: [
+        { value: "getting-started", label: "Getting started" },
+        { value: "accounts", label: "Accounts" },
+        { value: "courses-learning", label: "Courses & learning" },
+        { value: "plans-payments", label: "Plans & payments" },
+        { value: "technical-support", label: "Technical support" },
+        { value: "privacy-safety", label: "Privacy & safety" },
+        { value: "other", label: "Other" },
+      ],
+    }));
+    await page.goto(baseURL + "/faq");
+
+    await expect(page.getByRole("heading", { name: "What would you like to do?" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Discover courses/ })).toHaveAttribute("href", "/explore");
+    await expect(page.getByRole("heading", { name: "Choose a help topic" })).toBeVisible();
+
+    await page.getByRole("button", { name: /Plans & payments/ }).click();
+    await expect(page.getByText("How do I find plans and prices?")).toBeVisible();
+    await expect(page.getByText("Where can I find courses?")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /All topics/ }).click();
+    await page.getByLabel("Search frequently asked questions").fill("courses");
+    await expect(page.getByText("Where can I find courses?")).toBeVisible();
+    await expect(page.getByText("How do I find plans and prices?")).toHaveCount(0);
+    await page.getByText("Where can I find courses?").click();
+    await expect(page.getByText("Open Explore to browse the courses currently available.")).toBeVisible();
+  });
+
   test("public aliases redirect to canonical information pages", async ({ page }) => {
     const aliases = [
       { path: "/about-us", canonical: "/about", canonicalUrl: "https://buddyforstudy.example/about" },

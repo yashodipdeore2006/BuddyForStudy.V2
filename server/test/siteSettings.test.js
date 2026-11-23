@@ -61,6 +61,13 @@ test("site href validation allows internal paths and HTTPS URLs only", () => {
   assert.equal(normalizeSiteHref("http://example.com"), "");
 });
 
+test("site href sanitizer rejects control characters and backslashes", () => {
+  assert.equal(normalizeSiteHref("/help" + String.fromCharCode(0) + "now"), "");
+  assert.equal(normalizeSiteHref("/help" + String.fromCharCode(31)), "");
+  assert.equal(normalizeSiteHref("/help" + String.fromCharCode(127)), "");
+  assert.equal(normalizeSiteHref("/help\\\\article"), "");
+});
+
 test("social profiles require HTTPS and reject credentials or non-web protocols", () => {
   assert.equal(normalizeHttpsUrl("https://instagram.com/buddyforstudy"), "https://instagram.com/buddyforstudy");
   assert.equal(normalizeHttpsUrl("http://instagram.com/buddyforstudy"), "");
@@ -83,7 +90,7 @@ test("footer link model validation rejects duplicate IDs and invalid groups", as
   await assert.rejects(invalidGroup.validate());
 });
 
-test("public route is unauthenticated and admin writes remain protected by settings.manage", async () => {
+test("public route is unauthenticated and admin writes require the dedicated site_settings.manage permission", async () => {
   const [publicRoutes, adminRoutes] = await Promise.all([
     readFile(new URL("../src/routes/publicSettings.routes.js", import.meta.url), "utf8"),
     readFile(new URL("../src/routes/adminPro.routes.js", import.meta.url), "utf8"),

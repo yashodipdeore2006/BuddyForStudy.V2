@@ -27,7 +27,7 @@ function FooterDestination({ href, children }: { href: string; children: ReactNo
 const footerGroupLabels: Record<SiteFooterGroup, string> = {
   company: "Company",
   discover: "Discover",
-  support: "Support",
+  plans_support: "Plans & support",
   policies: "Policies",
 };
 
@@ -54,10 +54,21 @@ export default function Footer() {
                 <section className="bfs-footer-column" key={group} aria-labelledby={"footer-" + group + "-title"}>
                   <h2 id={"footer-" + group + "-title"}>{footerGroupLabels[group]}</h2>
                   {links.map((item) => <FooterDestination key={item.id} href={item.href}>{item.label}</FooterDestination>)}
-                  {group === "discover" && isSignedIn && (
+                  {group === "discover" && (isSignedIn ? (
                     <>
                       <Link to={routes.myLearning()}>My learning</Link>
                       <Link to={routes.saved()}>Saved learning</Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link to={routes.login()}>Sign in</Link>
+                      <Link to={routes.register()}>Create an account</Link>
+                    </>
+                  ))}
+                  {group === "plans_support" && isSignedIn && (
+                    <>
+                      <Link to={routes.notifications()}>Notifications</Link>
+                      <Link to={routes.profile()}>My account</Link>
                     </>
                   )}
                 </section>

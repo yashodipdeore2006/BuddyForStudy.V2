@@ -7,15 +7,15 @@ const workflowUrl = new URL("../../.github/workflows/staging-verification.yml", 
 test("staging verification is manual-only and scoped to the V2.2 execution branch", async () => {
   const workflow = await readFile(workflowUrl, "utf8");
 
-  assert.match(workflow, /^on:\n  workflow_dispatch:\s*$/m);
-  assert.doesNotMatch(workflow, /^  (push|pull_request|schedule):/m);
+  assert.match(workflow, /^on:\n\\x20{2}workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(workflow, /^\\x20{2}(push|pull_request|schedule):/m);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/buddy-for-study-v2\.2'/);
 });
 
 test("staging workflow uses read-only repository permission and a non-deployment staging environment", async () => {
   const workflow = await readFile(workflowUrl, "utf8");
 
-  assert.match(workflow, /permissions:\n  contents: read/);
+  assert.match(workflow, /permissions:\n\\x20{2}contents: read/);
   assert.doesNotMatch(workflow, /contents:\s*write|actions:\s*write|deployments:\s*write/);
   assert.match(workflow, /environment:\n\s+name: staging\n\s+deployment: false/);
   assert.match(workflow, /persist-credentials: false/);

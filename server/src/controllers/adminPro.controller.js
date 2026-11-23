@@ -27,7 +27,7 @@ import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRe
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { SiteSettings } from "../models/SiteSettings.js";
 import { SITE_SETTINGS_KEY } from "../utils/siteSettings.js";
-import { PUBLIC_SOCIAL_PLATFORMS } from "../utils/publicSocialLinks.js";
+import { PUBLIC_SOCIAL_PLATFORMS, toPublicSocialLinks } from "../utils/publicSocialLinks.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
 import { isAIPromptActiveSettingKey } from "../services/aiPrompt.service.js";
@@ -3076,16 +3076,29 @@ export async function upsertSetting(req, res, next) {
     if (socialValidation.isSocialSetting) {
       const platform = PUBLIC_SOCIAL_PLATFORMS.find((item) => item.settingKey === settingKey);
       if (platform) {
+        const exists = await SiteSettings.exists({ key: SITE_SETTINGS_KEY });
+        if (!exists) {
+          const legacyRows = await PlatformSetting.find({
+            key: { $in: PUBLIC_SOCIAL_PLATFORMS.map((item) => item.settingKey) },
+            isPublic: true,
+          }).select("key value isPublic").lean();
+          const migratedLinks = toPublicSocialLinks(legacyRows);
+          migratedLinks[platform.id] = value;
+          try {
+            await SiteSettings.create({
+              key: SITE_SETTINGS_KEY,
+              socialLinks: migratedLinks,
+              updatedBy: req.user.user._id,
+            });
+          } catch (migrationError) {
+            // Another concurrent social-link save may have created the singleton.
+            if (migrationError?.code !== 11000) throw migrationError;
+          }
+        }
         await SiteSettings.findOneAndUpdate(
           { key: SITE_SETTINGS_KEY },
-          {
-            $set: {
-              ["socialLinks." + platform.id]: value,
-              updatedBy: req.user.user._id,
-            },
-            $setOnInsert: { key: SITE_SETTINGS_KEY },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
+          { $set: { ["socialLinks." + platform.id]: value, updatedBy: req.user.user._id } },
+          { new: true, runValidators: true },
         );
       }
     }

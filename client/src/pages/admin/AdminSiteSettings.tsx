@@ -10,7 +10,7 @@ type SettingsResponse = { settings?: SiteSettings; updatedAt?: string | null };
 const FOOTER_GROUPS: Array<{ value: SiteFooterGroup; label: string }> = [
   { value: "company", label: "Company" },
   { value: "discover", label: "Discover" },
-  { value: "support", label: "Support" },
+  { value: "plans_support", label: "Plans & support" },
   { value: "policies", label: "Policies" },
 ];
 

@@ -10,6 +10,7 @@ import CommandPalette from "@/components/CommandPalette";
 import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 type ThemeMode = "light" | "dark" | "system";
 type EnrollmentLessonSummary = { _id?: string; id?: string };
@@ -48,6 +49,7 @@ function resolveTheme(mode: ThemeMode): "light" | "dark" {
 
 export default function Navbar() {
   const { profile, session, signOut } = useAuth();
+  const { settings } = useSiteSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement>(null);

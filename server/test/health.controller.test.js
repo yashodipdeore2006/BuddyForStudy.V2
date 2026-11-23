@@ -18,17 +18,52 @@ function responseRecorder() {
   };
 }
 
-test("liveness stays healthy without requiring a database connection", () => {
+test("liveness stays healthy and exposes the exact non-secret Render release SHA", () => {
   const originalState = mongoose.connection.readyState;
+  const originalRenderSha = process.env.RENDER_GIT_COMMIT;
+  const originalVercelSha = process.env.VERCEL_GIT_COMMIT_SHA;
+  const releaseSha = "a".repeat(40);
   try {
     mongoose.connection.readyState = 0;
+    process.env.RENDER_GIT_COMMIT = releaseSha;
+    delete process.env.VERCEL_GIT_COMMIT_SHA;
     const res = responseRecorder();
     health({}, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.success, true);
     assert.equal(res.body.status, "ok");
+    assert.equal(res.body.releaseSha, releaseSha);
   } finally {
     mongoose.connection.readyState = originalState;
+    if (originalRenderSha === undefined) delete process.env.RENDER_GIT_COMMIT;
+    else process.env.RENDER_GIT_COMMIT = originalRenderSha;
+    if (originalVercelSha === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA = originalVercelSha;
+  }
+});
+
+test("liveness does not expose an invalid or abbreviated build identifier as a release SHA", () => {
+  const originalState = mongoose.connection.readyState;
+  const originalRenderSha = process.env.RENDER_GIT_COMMIT;
+  const originalVercelSha = process.env.VERCEL_GIT_COMMIT_SHA;
+  const originalGitSha = process.env.GIT_COMMIT_SHA;
+  try {
+    mongoose.connection.readyState = 0;
+    process.env.RENDER_GIT_COMMIT = "abc1234";
+    delete process.env.VERCEL_GIT_COMMIT_SHA;
+    delete process.env.GIT_COMMIT_SHA;
+    const res = responseRecorder();
+    health({}, res);
+    assert.equal(res.body.status, "ok");
+    assert.equal(res.body.releaseSha, null);
+  } finally {
+    mongoose.connection.readyState = originalState;
+    if (originalRenderSha === undefined) delete process.env.RENDER_GIT_COMMIT;
+    else process.env.RENDER_GIT_COMMIT = originalRenderSha;
+    if (originalVercelSha === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA = originalVercelSha;
+    if (originalGitSha === undefined) delete process.env.GIT_COMMIT_SHA;
+    else process.env.GIT_COMMIT_SHA = originalGitSha;
   }
 });
 

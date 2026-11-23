@@ -67,19 +67,21 @@ test("final release gate checks the latest exact-SHA CI run and all required job
   assert.match(workflow, /ci_run_url=/);
 });
 
-test("final release approval requires staging verification and a separately protected environment", async () => {
+test("final repository readiness gate does not require staging services or deployment secrets", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
-  assert.match(workflow, /ref: \$\{\{ needs\.verify-exact-commit-ci\.outputs\.candidate_sha \}\}/);
-  assert.match(workflow, /EXPECTED_RELEASE_SHA: \$\{\{ needs\.verify-exact-commit-ci\.outputs\.candidate_sha \}\}/);
-  assert.match(workflow, /needs:\n\x20{6}- verify-exact-commit-ci\n\x20{6}- verify-staging/);
-  assert.match(workflow, /name: production-release\n\x20{6}deployment: false/);
-  assert.match(workflow, /human release approval/);
-  assert.match(workflow, /The V2\.2 branch advanced while release approval was pending/);
-  assert.match(workflow, /No deployment was performed by this workflow/);
+  assert.match(workflow, /name: Final repository readiness gate/);
+  assert.match(workflow, /needs: verify-exact-commit-ci/);
+  assert.match(workflow, /Confirm V2\\.2 still points to the verified candidate/);
+  assert.match(workflow, /V2\\.2 repository readiness: PASS/);
+  assert.match(workflow, /not a deployment approval/);
+  assert.doesNotMatch(workflow, /verify-staging|STAGING_API_URL|STAGING_FRONTEND_URL|STAGING_OPERATIONS_ADMIN_TOKEN/);
+  assert.doesNotMatch(workflow, /environment:\\s*\\n\\s+name: (staging|production-release)/);
+  assert.match(workflow, /No deployment was performed/);
 });
 
-test("final release gate uses read-only GitHub permissions and contains no deployment step", async () => {
+
+test("final repository readiness gate uses read-only GitHub permissions and contains no deployment step", async () => {
   const workflow = await readFile(finalGateWorkflowUrl, "utf8");
 
   assert.match(workflow, /permissions:\n\x20{2}contents: read\n\x20{2}actions: read/);

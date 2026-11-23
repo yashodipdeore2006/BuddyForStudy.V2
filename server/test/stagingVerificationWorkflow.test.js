@@ -62,7 +62,7 @@ test("final release gate checks the latest exact-SHA CI run and all required job
   assert.match(workflow, /branchState\.commit\?\.sha !== CANDIDATE_SHA/);
   assert.match(workflow, /head_sha === CANDIDATE_SHA/);
   assert.match(workflow, /run\.name === "BuddyForStudy CI"/);
-  assert.match(workflow, /run\.status !== "completed" \|\| ciRun\.conclusion !== "success"/);
+  assert.match(workflow, /ciRun\.status !== "completed" \|\| ciRun\.conclusion !== "success"/);
   assert.match(workflow, /\["backend", "frontend", "Production release gate"\]/);
   assert.match(workflow, /ci_run_url=/);
 });

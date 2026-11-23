@@ -574,7 +574,7 @@ Implemented on `buddy-for-study-v2.2`:
 
 - Added the strict read-only deployment verifier with bounded retries for transient network and HTTP 408/425/5xx failures.
 - Added optional exact Google OAuth client-ID verification and an authenticated, read-only `/api/health/operations` check for configured worker mode, heartbeat, and job-lease health.
-- Aligned the public root `/health` route with the release-aware liveness controller so it exposes `status: "ok"` and the non-secret release SHA required by exact-release verification.
+- Kept the existing root `/health` response contract unchanged and updated the strict deployment verifier to check `/api/health`, the release-aware liveness controller that exposes `status: "ok"` and the non-secret release SHA.
 - Added a regression test proving the root endpoint is wired to the same release-aware health controller.
 - Added `.github/workflows/staging-verification.yml` as a separate, manual, V2.2-only, read-only option for an operator who later chooses to verify an independently deployed staging copy.
 - Added the operations runbook and deployment/environment documentation describing the low-cost inline scheduler topology, environment requirements, verification evidence, and known production risks.

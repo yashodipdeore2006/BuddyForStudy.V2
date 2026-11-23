@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 const API_PATHS = [
-  "/health",
+  "/api/health",
   "/api/health/ready",
   "/api/billing/plans",
   "/api/auth/google/config",
@@ -182,10 +182,10 @@ export async function verifyDeployment({
     if (body.success === false) throw new Error("API check " + path + " returned an unsuccessful response.");
 
     // The API liveness controller's current public contract is status="ok".
-    if (path === "/health" && body.status !== "ok") {
+    if (path === "/api/health" && body.status !== "ok") {
       throw new Error("API liveness check returned an unexpected status.");
     }
-    if (path === "/health" && releaseSha && body.releaseSha !== releaseSha) {
+    if (path === "/api/health" && releaseSha && body.releaseSha !== releaseSha) {
       throw new Error("API release SHA does not match EXPECTED_RELEASE_SHA.");
     }
     if (path === "/api/health/ready" && (body.status !== "ready" || body.database !== "connected")) {

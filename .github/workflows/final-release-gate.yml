@@ -143,11 +143,13 @@ jobs:
           {
             echo "## V2.2 repository readiness: PASS"
             echo
-            echo "- Candidate: `$CANDIDATE_SHA`"
+            echo "- Candidate: \`$CANDIDATE_SHA\`"
             echo "- Exact-SHA CI: [verified]($CI_RUN_URL)"
             echo "- Required jobs: backend, frontend, Production release gate"
             echo
             echo "**Scope:** repository-level code, build, test and production-configuration CI evidence only."
+            echo
             echo "**Not covered:** live staging/production hosts, DNS/TLS/CORS/OAuth, provider credentials/delivery, database backup/restore, monitoring, privacy/legal approvals, rollback rehearsal, production reviewer approval, or deployment."
+            echo
             echo "**No deployment was performed.** The operator must complete environment-specific checks and separately deploy the approved SHA."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -90,15 +90,15 @@ jobs:
           const output = [
             "candidate_sha=" + CANDIDATE_SHA,
             "ci_run_url=" + ciRun.html_url
-          ].join("\\n") + "\\n";
+          ].join("\n") + "\n";
           const { appendFile } = await import("node:fs/promises");
           await appendFile(process.env.GITHUB_OUTPUT, output);
           await appendFile(
             process.env.GITHUB_STEP_SUMMARY,
-            "## Exact-commit repository CI: PASS\\n\\n" +
-            "- Candidate: `" + CANDIDATE_SHA + "`\\n" +
-            "- CI run: " + ciRun.html_url + "\\n" +
-            "- Required jobs: backend, frontend, Production release gate\\n"
+            "## Exact-commit repository CI: PASS\n\n" +
+            "- Candidate: `" + CANDIDATE_SHA + "`\n" +
+            "- CI run: " + ciRun.html_url + "\n" +
+            "- Required jobs: backend, frontend, Production release gate\n"
           );
           NODE
 
@@ -147,9 +147,7 @@ jobs:
             echo "- Exact-SHA CI: [verified]($CI_RUN_URL)"
             echo "- Required jobs: backend, frontend, Production release gate"
             echo
-            echo "**Scope:** repository-level code, build, test and production-configuration CI evidence only.
-            echo
-            echo "**Not covered:** live staging/production hosts, DNS/TLS/CORS/OAuth, provider credentials/delivery, database backup/restore, monitoring, privacy/legal approvals, rollback rehearsal, production reviewer approval, or deployment.
-            echo
+            echo "**Scope:** repository-level code, build, test and production-configuration CI evidence only."
+            echo "**Not covered:** live staging/production hosts, DNS/TLS/CORS/OAuth, provider credentials/delivery, database backup/restore, monitoring, privacy/legal approvals, rollback rehearsal, production reviewer approval, or deployment."
             echo "**No deployment was performed.** The operator must complete environment-specific checks and separately deploy the approved SHA."
           } >> "$GITHUB_STEP_SUMMARY"

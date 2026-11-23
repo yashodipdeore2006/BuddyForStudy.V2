@@ -13,6 +13,7 @@ export const routes = {
   faq: () => "/faq",
   adminHome: () => "/admin",
   adminSettings: () => "/admin/settings",
+  adminSiteSettings: () => "/admin/site-settings",
   adminUsers: () => "/admin/users",
   adminCourses: () => "/admin/courses",
   adminAnalytics: () => "/admin/analytics",

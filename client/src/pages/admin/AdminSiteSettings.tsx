@@ -115,9 +115,15 @@ export default function AdminSiteSettings() {
 
   function moveFooterLink(index: number, offset: -1 | 1) {
     setSettings((current) => {
+      const item = current.footerLinks[index];
+      if (!item) return current;
+      const groupIndices = current.footerLinks
+        .map((link, currentIndex) => link.group === item.group ? currentIndex : -1)
+        .filter((currentIndex) => currentIndex >= 0);
+      const groupPosition = groupIndices.indexOf(index);
+      const target = groupIndices[groupPosition + offset];
+      if (target === undefined) return current;
       const next = [...current.footerLinks];
-      const target = index + offset;
-      if (target < 0 || target >= next.length) return current;
       [next[index], next[target]] = [next[target], next[index]];
       return { ...current, footerLinks: next };
     });
@@ -247,8 +253,8 @@ export default function AdminSiteSettings() {
                   <Field id={"footer-href-" + link.id} label="Destination" value={link.href} maxLength={500} disabled={!canManage} onChange={(value) => updateFooterLink(index, "href", value)} placeholder="/about or https://example.com" />
                   <div className="space-y-1.5"><label htmlFor={"footer-group-" + link.id} className="block text-sm font-semibold text-slate-800">Section</label><select id={"footer-group-" + link.id} value={link.group} disabled={!canManage} onChange={(event) => updateFooterLink(index, "group", event.target.value)} className="input-field w-full">{FOOTER_GROUPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
                   <div className="flex gap-1">
-                    <button type="button" className="admin-icon-button" aria-label={"Move " + (link.label || "footer link") + " up"} title="Move up" disabled={!canManage || index === 0} onClick={() => moveFooterLink(index, -1)}><ArrowUp size={16} /></button>
-                    <button type="button" className="admin-icon-button" aria-label={"Move " + (link.label || "footer link") + " down"} title="Move down" disabled={!canManage || index === settings.footerLinks.length - 1} onClick={() => moveFooterLink(index, 1)}><ArrowDown size={16} /></button>
+                    <button type="button" className="admin-icon-button" aria-label={"Move " + (link.label || "footer link") + " up"} title="Move up" disabled={!canManage || group.links[0]?.index === index} onClick={() => moveFooterLink(index, -1)}><ArrowUp size={16} /></button>
+                    <button type="button" className="admin-icon-button" aria-label={"Move " + (link.label || "footer link") + " down"} title="Move down" disabled={!canManage || group.links[group.links.length - 1]?.index === index} onClick={() => moveFooterLink(index, 1)}><ArrowDown size={16} /></button>
                     <button type="button" className="admin-icon-button text-red-600" aria-label={"Remove " + (link.label || "footer link")} title="Remove link" disabled={!canManage} onClick={() => removeFooterLink(index)}><Trash2 size={16} /></button>
                   </div>
                 </div>

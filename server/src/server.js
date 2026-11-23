@@ -30,7 +30,6 @@ import achievementRoutes from "./routes/achievement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import healthRoutes from "./routes/health.routes.js";
-import { health as livenessHealth } from "./controllers/health.controller.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
 import legalRoutes from "./routes/legal.routes.js";
@@ -69,8 +68,14 @@ app.use(cors({
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(morgan(safeRequestLog));
-// Keep release-aware liveness probes available before the shared rate limiter.
-app.get("/health", livenessHealth);
+// Keep health probes available even if the shared rate-limit store is unavailable.
+app.get("/health", (_req, res) => {
+  res.json({
+    success: true,
+    service: "BuddyForStudy API",
+    status: "healthy"
+  });
+});
 
 app.use("/api/health", healthRoutes);
 

@@ -202,6 +202,7 @@ Create one row per check. Use a restricted evidence system for screenshots/log e
 |---|---|---|---|---|---|---|---|
 | 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / see linked Actions run | Backend/frontend automated tests and repository release gate | PASS for recorded CI SHA | Release operator | GitHub Actions run 45159094313 | Repository verification only; not staging verification |
 | 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / `786babc3e899d293b313cdb6cb7a4e05aa73ce80` | Backend 1,181 tests; frontend 93 unit + 7 deployment-config tests; Playwright 126 browser tests; production release gate | PASS | Release operator | [GitHub Actions run 45187112505](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45187112505) | Exact-HEAD repository verification only; live staging, providers, backups, privacy and rollback remain unverified |
+| 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / `2de8c19073814946d019822fba04ac16db8eefdb` | Backend 1,181; frontend 93 unit + 7 deployment-config; Playwright 126; exact-SHA Production release gate | PASS | Release operator | [GitHub Actions run 45201504200](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45201504200) | Repository-only proof; staging, provider delivery, backups/restore, privacy, monitoring and rollback still require environment evidence |
 | 2026-11-23 | Repository CI | `buddy-for-study-v2.2` / `f39addbf8caf9c27440666f55380f256bec0dbde` | Task 29 repository checks; backend 1,181 tests; frontend 93 unit + 7 config tests; Playwright 126; production release gate | PASS | Release operator | [GitHub Actions run 45199762469](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45199762469) | Exact-HEAD repository verification only; live staging/API/provider status, database backups, privacy operations, monitoring and rollback are not proven by CI |
 | Pending | Staging | Pending | Read-only deployment verifier | UNVERIFIED | Unassigned | Pending workflow run | Configure `staging` environment and staging service variables/secrets |
 | Pending | Staging | Pending | DNS/TLS/CORS/OAuth + email + AI/YouTube provider checks | UNVERIFIED | Unassigned | Pending | Real provider-console and end-to-end evidence required |
@@ -237,6 +238,19 @@ Before dispatch:
 2. Confirm the automatic **BuddyForStudy CI** workflow has a completed successful run for that exact SHA. The gate independently looks up the latest matching run and verifies that `backend`, `frontend`, and `Production release gate` are each completed successfully.
 3. Configure the GitHub repository environment named `production-release` before relying on it. Add the designated release reviewer(s) as required reviewers, restrict permitted branches to the V2.2 execution branch where supported, and document the approval owner. Do not assume an environment created automatically by workflow use has protection rules.
 4. Confirm the `staging` environment is configured as described in Section 3, and that the staging candidate has already been deployed by the separately approved deployment process.
+
+Before approving the `production-release` environment review, the designated reviewer must inspect the current evidence register and verify each applicable release prerequisite against the exact candidate SHA and named environment:
+
+- [ ] Exact-SHA CI is complete and successful; no newer or different candidate is being approved.
+- [ ] The staging deployment reports the same SHA for API and frontend, and the read-only staging workflow passes CORS, OAuth scope, database readiness, frontend routes, worker mode, heartbeat and job-lease checks.
+- [ ] DNS, TLS, canonical domain, CORS and OAuth configuration have attributable staging evidence.
+- [ ] MongoDB topology supports transactions; required indexes are present; an isolated backup restore has been exercised and recorded.
+- [ ] Required email, OTP, notification, Gemini and YouTube flows have been verified with staging-only credentials and safe quota budgets; disabled payment checkout remains disabled unless separately authorized.
+- [ ] Worker/scheduler behaviour, alert routing, monitoring event delivery, and incident owners have been verified.
+- [ ] Privacy/data-rights scope, approved retention schedule, deletion/anonymization implementation, backup expiry and learner disclosures are approved. An incomplete deletion workflow must remain an explicit blocker unless an authorized launch-scope decision says otherwise.
+- [ ] A known-good deployment SHA, rollback owner, database compatibility plan and staging rollback rehearsal are recorded.
+- [ ] Every unresolved issue has a named owner and an explicit accepted-risk decision from the authorized approver. A missing evidence row is not an implicit acceptance.
+- [ ] The `production-release` environment has the designated required reviewer(s) and V2.2 branch restriction configured; a green job without configured protection is not independent approval.
 
 Dispatch **Final release approval gate** from `buddy-for-study-v2.2`:
 

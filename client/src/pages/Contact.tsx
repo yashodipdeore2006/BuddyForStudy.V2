@@ -1,15 +1,11 @@
-import { ArrowUpRight, Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Clock3, Mail, MapPin, MessageCircle, Phone, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { routes } from "@/lib/routes";
 import PublicSocialLinks from "@/components/PublicSocialLinks";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
-const rawSupportEmail = import.meta.env.VITE_PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
-const EMAIL_PATTERN = /^[A-Z0-9.!#$%&'*+/=?^`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
-const supportEmail = rawSupportEmail.length <= 254 && EMAIL_PATTERN.test(rawSupportEmail)
-  ? rawSupportEmail
-  : "";
 
-export default function Contact() {
+export default function Contact() {\n  const { settings } = useSiteSettings();\n  const supportEmail = settings.contact.supportEmail;
   return (
     <main className="bfs-public-page">
       <section className="bfs-public-hero bfs-public-hero--compact">
@@ -22,14 +18,14 @@ export default function Contact() {
           <span className="bfs-public-pillar__icon"><Mail size={22} aria-hidden="true" /></span>
           <h2>Email support</h2>
           {supportEmail ? <>
-            <p>For questions about the platform, account access, or learning experience, send us a message.</p>
+            <p>For questions about the platform, account access, or learning experience, use the official support email below.</p>
             <a className="bfs-contact-email" href={`mailto:${encodeURIComponent(supportEmail).replace(/%40/g, "@")}`}>
               {supportEmail} <ArrowUpRight size={16} aria-hidden="true" />
             </a>
-          </> : <>
-            <p>The official support email is not configured with a valid address yet. This page does not send messages through a contact form.</p>
-            <p className="bfs-public-note">When an official support address is available, the platform team can configure <code>VITE_PUBLIC_SUPPORT_EMAIL</code> in the frontend environment.</p>
-          </>}
+          </> : <p>The official support email has not been published yet. Please check the Help Centre for self-service answers.</p>}
+          {settings.contact.supportPhone && <p className="mt-3 flex items-center gap-2"><Phone size={15} aria-hidden="true" /><a href={`tel:${settings.contact.supportPhone.replace(/[^+0-9]/g, "")}`}>{settings.contact.supportPhone}</a></p>}
+          {settings.contact.businessHours && <p className="mt-2 flex items-center gap-2"><Clock3 size={15} aria-hidden="true" />{settings.contact.businessHours}</p>}
+          {settings.contact.officeAddress && <p className="mt-2 flex items-start gap-2"><MapPin size={15} aria-hidden="true" /><span>{settings.contact.officeAddress}</span></p>}
         </article>
         <article className="bfs-contact-card">
           <span className="bfs-public-pillar__icon"><ShieldCheck size={22} aria-hidden="true" /></span>

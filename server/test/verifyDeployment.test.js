@@ -36,7 +36,11 @@ function healthyFetcher(overrides = {}) {
   return async (input, options = {}) => {
     const url = new URL(input);
     if (url.origin === apiOrigin) {
-      if (url.pathname === "/health") return response(200, { success: true, status: "ok" }, { "content-type": "application/json" });
+      if (url.pathname === "/health") return response(200, {
+        success: true,
+        status: "ok",
+        releaseSha: overrides.releaseSha || "a".repeat(40)
+      }, { "content-type": "application/json" });
       if (url.pathname === "/api/health/ready") {
         return response(overrides.readinessStatus || 200, overrides.readinessBody || { success: true, status: "ready", database: "connected" }, {
           "content-type": "application/json",
@@ -50,6 +54,9 @@ function healthyFetcher(overrides = {}) {
       if (url.pathname === "/api/health/operations") {
         return response(200, overrides.operationsBody || healthyOperationsBody(), { "content-type": "application/json" });
       }
+    }
+    if (url.origin === frontendOrigin && url.pathname === "/release.json") {
+      return response(200, { commit: overrides.frontendReleaseSha || "a".repeat(40) }, { "content-type": "application/json" });
     }
     if (url.origin === frontendOrigin && ["/", "/login", "/pricing"].includes(url.pathname)) {
       return response(200, "<!doctype html><html></html>", { "content-type": "text/html; charset=utf-8" });
@@ -95,6 +102,8 @@ test("deployment verification matches the API liveness contract and checks API, 
     apiChecks: 4,
     operationsChecks: 0,
     frontendChecks: 3,
+    releaseSha: null,
+    releaseManifestChecks: 0,
   });
   assert.equal(calls.length, 7);
   assert.equal(calls.find((call) => call.url.endsWith("/api/health/ready")).options.headers.Origin, frontendOrigin);
@@ -322,6 +331,69 @@ test("invalid retry configuration is rejected before network requests", async ()
       fetchImpl: async () => { calls += 1; return response(200, {}); },
     }),
     /retryAttempts must be an integer from 0 to 5/,
+  );
+  assert.equal(calls, 0);
+});
+
+
+test("strict release verification confirms API and frontend are running the exact candidate SHA", async () => {
+  const expectedReleaseSha = "a".repeat(40);
+  const calls = [];
+  const fetchImpl = async (input, options = {}) => {
+    calls.push({ url: String(input), options });
+    return healthyFetcher()(input, options);
+  };
+
+  const result = await verifyDeployment({
+    deploymentUrl: apiOrigin,
+    frontendDeploymentUrl: frontendOrigin,
+    expectedReleaseSha,
+    fetchImpl,
+    logger: {},
+  });
+
+  assert.equal(calls.some((call) => call.url === apiOrigin + "/health"), true);
+  assert.equal(calls.some((call) => call.url === frontendOrigin + "/release.json"), true);
+  assert.equal(result.releaseSha, expectedReleaseSha);
+  assert.equal(result.releaseManifestChecks, 1);
+});
+
+test("strict release verification rejects an API deployed from another commit", async () => {
+  await assert.rejects(
+    verifyDeployment({
+      deploymentUrl: apiOrigin,
+      frontendDeploymentUrl: frontendOrigin,
+      expectedReleaseSha: "b".repeat(40),
+      fetchImpl: healthyFetcher({ releaseSha: "a".repeat(40) }),
+      logger: {},
+    }),
+    /API release SHA does not match EXPECTED_RELEASE_SHA/,
+  );
+});
+
+test("strict release verification rejects a frontend deployed from another commit", async () => {
+  await assert.rejects(
+    verifyDeployment({
+      deploymentUrl: apiOrigin,
+      frontendDeploymentUrl: frontendOrigin,
+      expectedReleaseSha: "a".repeat(40),
+      fetchImpl: healthyFetcher({ frontendReleaseSha: "b".repeat(40) }),
+      logger: {},
+    }),
+    /Frontend release SHA does not match EXPECTED_RELEASE_SHA/,
+  );
+});
+
+test("strict release verification requires a full 40-character SHA before network access", async () => {
+  let calls = 0;
+  await assert.rejects(
+    verifyDeployment({
+      deploymentUrl: apiOrigin,
+      frontendDeploymentUrl: frontendOrigin,
+      expectedReleaseSha: "short-sha",
+      fetchImpl: async () => { calls += 1; return response(200, {}); },
+    }),
+    /EXPECTED_RELEASE_SHA must be a full 40-character Git commit SHA/,
   );
   assert.equal(calls, 0);
 });

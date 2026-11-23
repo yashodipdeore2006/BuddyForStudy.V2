@@ -94,7 +94,7 @@ export default function AdminFAQs() {
     });
   }, [items, search, statusFilter]);
 
-  const load = useCallback(async (preferredId?: string | null) => {
+  const load = useCallback(async (preferredId: string | null = null) => {
     setLoading(true);
     setError("");
     try {
@@ -107,9 +107,8 @@ export default function AdminFAQs() {
       setCategories(faqResponse.categories?.length ? faqResponse.categories : DEFAULT_CATEGORIES);
       setStarterFaqsAvailable(Boolean(faqResponse.starterFaqsAvailable));
       setPermissions(accessResponse.access?.permissions || []);
-      const nextId = preferredId ?? selectedId;
-      if (nextId) {
-        const nextItem = rows.find((item) => item.id === nextId);
+      if (preferredId) {
+        const nextItem = rows.find((item) => item.id === preferredId);
         if (nextItem) {
           setSelectedId(nextItem.id);
           setDraft(toDraft(nextItem));
@@ -123,7 +122,7 @@ export default function AdminFAQs() {
     } finally {
       setLoading(false);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(null); }, 0);

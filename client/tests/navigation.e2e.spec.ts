@@ -2904,6 +2904,6 @@ test.describe("guest enrollment authentication choice", () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true }).last()).toBeVisible();
   });
 });

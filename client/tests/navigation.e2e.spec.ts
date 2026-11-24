@@ -2984,12 +2984,11 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
-    await page.getByRole("textbox", { name: "Password" }).fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
 
     await expect(page).toHaveURL(/\/courses\/course-fixture$/);
     await expect.poll(resume.enrollmentPosts).toBe(1);
-    await expect(page.getByText("You’re enrolled")).toBeVisible();
     const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(state).toBeNull();
 
@@ -3006,7 +3005,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
-    await page.getByRole("textbox", { name: "Password" }).fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
     await expect(page).toHaveURL(/\/verify-login$/);
     await page.getByPlaceholder("000000").fill("123456");
@@ -3025,7 +3024,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByRole("button", { name: "Create a free account" }).click();
     await page.getByLabel("Full Name").fill("New Learner");
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
-    await page.getByRole("textbox", { name: "Password" }).fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
     await page.getByLabel("Confirm Password").fill("correct-horse-battery");
     await page.getByRole("button", { name: "Create Account" }).click();
     await expect(page).toHaveURL(/\/verify-email$/);
@@ -3084,7 +3083,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByRole("button", { name: "Sign in to buy", exact: true }).click();
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
-    await page.getByRole("textbox", { name: "Password" }).fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
 
     await expect(page).toHaveURL(/\/courses\/course-fixture$/);

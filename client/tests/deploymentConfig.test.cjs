@@ -109,3 +109,74 @@ test("new Build with AI rollout flags remain opt-in in the production blueprint"
       `${key} must remain disabled for initial production rollout`);
   }
 });
+
+
+test("Render and Vercel static frontends apply compatible security headers", () => {
+  const globalHeaders = vercel.headers.find((rule) => rule.source === "/(.*)")?.headers || [];
+  const readHeader = (headers, key) => headers.find((header) => header.key === key)?.value;
+  const policy = readHeader(globalHeaders, "Content-Security-Policy") || "";
+
+  for (const key of [
+    "Content-Security-Policy",
+    "Strict-Transport-Security",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+  ]) {
+    assert.ok(readHeader(globalHeaders, key), "Vercel must set " + key);
+  }
+  for (const origin of [
+    "https://accounts.google.com",
+    "https://www.youtube.com",
+    "https://www.youtube-nocookie.com",
+    "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+  ]) {
+    assert.ok(policy.includes(origin), "CSP must preserve integration origin " + origin);
+  }
+  assert.match(policy, /frame-ancestors 'none'/);
+  assert.match(policy, /object-src 'none'/);
+  assert.match(policy, /script-src 'self'/);
+  assert.match(policy, /connect-src 'self' https: wss:/);
+
+  const renderFrontend = render.slice(render.indexOf("name: buddyforstudy-web"));
+  for (const key of [
+    "Content-Security-Policy",
+    "Strict-Transport-Security",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+  ]) {
+    assert.ok(renderFrontend.includes("name: " + key), "Render must set " + key);
+  }
+  for (const origin of [
+    "https://accounts.google.com",
+    "https://www.youtube.com",
+    "https://www.youtube-nocookie.com",
+    "https://checkout.razorpay.com",
+  ]) {
+    assert.ok(renderFrontend.includes(origin), "Render CSP must preserve " + origin);
+  }
+});
+
+test("About, Contact and Help Centre remain route-split and built assets stay immutable", () => {
+  const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
+  for (const statement of [
+    "const About = lazy(() => import('@/pages/About'));",
+    "const Contact = lazy(() => import('@/pages/Contact'));",
+    "const FAQ = lazy(() => import('@/pages/FAQ'));",
+  ]) {
+    assert.ok(app.includes(statement), "Public page route must remain lazy-loaded: " + statement);
+  }
+  const renderFrontend = render.slice(render.indexOf("name: buddyforstudy-web"));
+  const cacheSegment = renderFrontend.slice(renderFrontend.indexOf("path: /assets/*"), renderFrontend.indexOf("name: Content-Security-Policy"));
+  assert.match(cacheSegment, /immutable/);
+  const assetHeaders = vercel.headers.find((rule) => rule.source === "/assets/(.*)")?.headers || [];
+  assert.ok(assetHeaders.some((header) => header.key === "Cache-Control" && /immutable/.test(header.value)));
+});

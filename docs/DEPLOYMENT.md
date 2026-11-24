@@ -1,3 +1,5 @@
+For the implemented public pages, admin scope, real content placeholders and outstanding CMS requirements, see [the Public Pages Release Handover](PUBLIC_PAGES_RELEASE_HANDOVER.md).
+
 ## 1. Render static frontend (recommended low-cost deployment)
 
 The V2.2 Blueprint includes a free Render Static Site so the frontend can deploy without relying on the current Vercel build quota. Render static sites are served through a global CDN and do not require a continuously running Node process.
@@ -8,7 +10,7 @@ The V2.2 Blueprint includes a free Render Static Site so the frontend can deploy
 | Branch | `buddy-for-study-v2.2` |
 | Root directory | `client` |
 | Runtime | Static |
-| Build command | `npm ci && npm run build` |
+| Build command | `npm ci && npm run build && npm run write:release-manifest` |
 | Publish directory | `dist` |
 
 Set these build-time variables on the static site in Render:
@@ -21,7 +23,7 @@ Set these build-time variables on the static site in Render:
 | `VITE_INTENT_V2` | `false` for the initial release |
 | `VITE_ASYNC_ROADMAP` | `false` for the initial release |
 
-Vite embeds `VITE_*` values into the static bundle at build time. These values are public; never put secrets in them. Changing an API URL or public client ID requires a new frontend build. The Blueprint includes the SPA rewrite to `/index.html` and immutable caching for hashed assets. Attach the custom domain to this Render Static Site and verify its DNS/TLS status before switching production traffic.
+Vite embeds `VITE_*` values into the static bundle at build time. These values are public; never put secrets in them. Changing an API URL or public client ID requires a new frontend build. The build generates route-specific HTML for the public pages plus `robots.txt` and `sitemap.xml`. Render maps `/about`, `/contact`, `/faq`, `/explore`, `/pricing` and `/legal` to those generated HTML files before applying the general SPA fallback. Hashed assets keep immutable caching. Attach the custom domain to this Render Static Site and verify its DNS/TLS status before switching production traffic.
 
 Render documents static sites as free to deploy, subject to workspace bandwidth and pipeline usage. The API remains a separate web service; a free API instance can spin down after inactivity and is not a production-grade always-on service. Treat this combined free deployment as staging/preview or a constrained launch only when the API's sleep and background-job limitations are acceptable. For reliable production service, use an always-on API plan and verify the selected MongoDB region, backups, alerts, and rollback process.
 
@@ -45,7 +47,7 @@ Import the repository into Vercel and set the project root to `client/`. **While
 | Framework preset | Vite |
 | Production branch | `buddy-for-study-v2.2` |
 | Install command | `npm ci` (runs in `client/`) |
-| Build command | `npm run build` (runs in `client/`) |
+| Build command | `npm run build && npm run write:release-manifest` (runs in `client/`) |
 | Output directory | `dist` |
 
 Set these Vercel environment variables for Production (and separately for Preview/Staging):
@@ -60,7 +62,7 @@ Set these Vercel environment variables for Production (and separately for Previe
 | `VITE_INTENT_V2` | Keep unset or `false` until the server-side `INTENT_V2` rollout is staged |
 | `VITE_ASYNC_ROADMAP` | Keep unset or `false` until the server-side `ASYNC_ROADMAP` endpoints are deployed and smoke-tested |
 
-The checked-in `vercel.json` configures the Vite SPA fallback so direct requests to client routes (for example, `/login`, `/learn/:courseId`, and `/admin`) serve `index.html`. It also applies long-lived immutable caching only to Vite's hashed `/assets/` output.
+The checked-in `vercel.json` maps the generated public HTML routes (`/about`, `/contact`, `/faq`, `/explore`, `/pricing` and `/legal`) to their route-specific `dist/<route>/index.html` files before the general SPA fallback. Other client routes (for example, `/login`, `/learn/:courseId` and `/admin`) continue to use `index.html`. It also applies long-lived immutable caching only to Vite's hashed `/assets/` output.
 
 Attach the production domain to the Vercel project. A domain being verified at the registrar is not sufficient: it must be assigned to this project and show a valid deployment. Verify both the root domain and `www` behavior in Vercel.
 

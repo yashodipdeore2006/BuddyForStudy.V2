@@ -8,6 +8,7 @@ This directory is the single home for project documentation. Start with [the rep
 - [Backend API, environment variables, AI provider setup, and deployment checks](backend/README.md)
 - [Deployment runbook](DEPLOYMENT.md)
 - [Public-page SEO and frontend security headers](PUBLIC_PAGE_SEO_AND_SECURITY.md)
+- [Public pages and admin CMS release handover](PUBLIC_PAGES_RELEASE_HANDOVER.md)
 - [Operations readiness runbook](OPERATIONS_READINESS_RUNBOOK.md)
 - [Hybrid background work architecture](BACKGROUND_WORK_HYBRID_ARCHITECTURE.md)
 - [Environment variables](ENVIRONMENT_VARIABLES.md)

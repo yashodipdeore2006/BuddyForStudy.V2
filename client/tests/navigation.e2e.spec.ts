@@ -2855,7 +2855,8 @@ test.describe("guest enrollment authentication choice", () => {
   test("guest enrollment offers login or free registration and preserves course intent for login", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture");
-    await page.getByRole("button", { name: "Sign in to view plans" }).click();
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Course fixture");
@@ -2867,14 +2868,15 @@ test.describe("guest enrollment authentication choice", () => {
     const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(state).toMatchObject({
       from: { pathname: "/courses/course-fixture" },
-      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "subscription" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
     });
   });
 
   test("guest enrollment preserves course intent when choosing account creation and switching auth methods", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture");
-    await page.getByRole("button", { name: "Sign in to view plans" }).click();
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
     await dialog.getByRole("button", { name: "Create a free account" }).click();
     await expect(page).toHaveURL(/register$/);
@@ -2882,25 +2884,26 @@ test.describe("guest enrollment authentication choice", () => {
     const registerState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(registerState).toMatchObject({
       from: { pathname: "/courses/course-fixture" },
-      resumeIntent: { type: "enroll", courseId: "course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
     });
     await page.getByRole("link", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/login$/);
     const loginState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(loginState).toMatchObject({
       from: { pathname: "/courses/course-fixture" },
-      resumeIntent: { type: "enroll", courseId: "course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
     });
   });
 
   test("enrollment choice dialog can be dismissed with Escape", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture");
-    await page.getByRole("button", { name: "Sign in to view plans" }).click();
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Sign in to view plans" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in to enroll", exact: true })).toBeVisible();
   });
 });

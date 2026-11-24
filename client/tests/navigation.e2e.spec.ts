@@ -2886,7 +2886,7 @@ test.describe("guest enrollment authentication choice", () => {
       from: { pathname: "/courses/course-fixture" },
       resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
     });
-    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.getByRole("main").getByRole("link", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/login$/);
     const loginState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(loginState).toMatchObject({
@@ -2904,6 +2904,6 @@ test.describe("guest enrollment authentication choice", () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Sign in to enroll", exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true })).toBeVisible();
   });
 });

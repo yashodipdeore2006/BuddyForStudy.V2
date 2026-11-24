@@ -7,21 +7,29 @@ export type EnrollmentResumeIntent = {
 export type AuthReturnLocation = { pathname: string; search?: string; hash?: string };
 export type AuthNavigationState = { from?: AuthReturnLocation; resumeIntent?: EnrollmentResumeIntent };
 
+function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 function safeLocation(value: unknown): AuthReturnLocation | undefined {
   if (typeof value === "string") value = { pathname: value };
   if (!value || typeof value !== "object") return undefined;
   const candidate = value as Record<string, unknown>;
   const pathname = typeof candidate.pathname === "string" ? candidate.pathname : "";
   if (!pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("\\") ||
-      pathname.length > 1024 || /[\u0000-\u001f]/.test(pathname)) return undefined;
+      pathname.length > 1024 || hasControlCharacters(pathname)) return undefined;
   let parsed: URL;
   try { parsed = new URL(pathname, "https://buddyforstudy.invalid"); }
   catch { return undefined; }
   if (parsed.origin !== "https://buddyforstudy.invalid") return undefined;
   const search = typeof candidate.search === "string" && candidate.search.startsWith("?") &&
-    candidate.search.length <= 2048 && !/[\u0000-\u001f]/.test(candidate.search) ? candidate.search : "";
+    candidate.search.length <= 2048 && !hasControlCharacters(candidate.search) ? candidate.search : "";
   const hash = typeof candidate.hash === "string" && candidate.hash.startsWith("#") &&
-    candidate.hash.length <= 512 && !/[\u0000-\u001f]/.test(candidate.hash) ? candidate.hash : "";
+    candidate.hash.length <= 512 && !hasControlCharacters(candidate.hash) ? candidate.hash : "";
   return { pathname: parsed.pathname, ...(search ? { search } : {}), ...(hash ? { hash } : {}) };
 }
 
@@ -31,7 +39,7 @@ function safeResumeIntent(value: unknown): EnrollmentResumeIntent | undefined {
   const type = candidate.type;
   const courseId = typeof candidate.courseId === "string" ? candidate.courseId.trim() : "";
   if ((type !== "enroll" && type !== "checkout") || !courseId || courseId.length > 128 ||
-      /[\u0000-\u001f/\\]/.test(courseId)) return undefined;
+      (/[\\/]/.test(courseId) || hasControlCharacters(courseId))) return undefined;
   const accessPreference = candidate.accessPreference;
   return { type, courseId, ...(accessPreference === "subscription" || accessPreference === "individual" ? { accessPreference } : {}) };
 }

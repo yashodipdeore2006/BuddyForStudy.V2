@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -19,8 +19,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
-  const authFlow = readAuthNavigationState(location.state);
-  const destination = getAuthDestination(authFlow, routes.home());
+  const authFlow = useMemo(() => readAuthNavigationState(location.state), [location.state]);
+  const destination = useMemo(() => getAuthDestination(authFlow, routes.home()), [authFlow]);
 
   useEffect(() => {
     if (session && profile) {
@@ -33,7 +33,7 @@ export default function Login() {
         navigate(destination.to, { replace: true, state: destination.state });
       }
     }
-  }, [session, profile, navigate, location.state]);
+  }, [session, profile, navigate, authFlow, destination]);
 
   const handleGoogle = async (credential: string) => {
     googleProfileRedirect.current = !profile?.phone_number || !profile?.address?.line1 || profile.phone_number_verified !== true;

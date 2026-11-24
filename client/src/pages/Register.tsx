@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -10,8 +10,8 @@ import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } fr
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
-  const authFlow = readAuthNavigationState(location.state);
-  const destination = getAuthDestination(authFlow, routes.home());
+  const authFlow = useMemo(() => readAuthNavigationState(location.state), [location.state]);
+  const destination = useMemo(() => getAuthDestination(authFlow, routes.home()), [authFlow]);
   const { session, profile, signUp, signInWithGoogle } = useAuth();
   const googleProfileRedirect = useRef(false);
   const [name, setName] = useState('');
@@ -34,7 +34,7 @@ export default function Register() {
         navigate(destination.to, { replace: true, state: destination.state });
       }
     }
-  }, [session, profile, navigate, location.state]);
+  }, [session, profile, navigate, authFlow, destination]);
 
   const handleGoogle = async (credential: string) => {
     googleProfileRedirect.current = true;

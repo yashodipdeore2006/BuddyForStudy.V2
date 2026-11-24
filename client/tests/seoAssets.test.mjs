@@ -50,7 +50,7 @@ test("build writes route-specific crawler-readable HTML and index files", async 
       '<meta property="og:title" content="Default title" />',
       '<meta property="og:description" content="Default description" />',
       '<meta name="twitter:card" content="summary_large_image" />',
-      "</head><body><div id=\\"root\\"></div></body></html>",
+      '</head><body><div id="root"></div></body></html>',
     ].join("\n"), "utf8");
 
     const result = await writeSeoAssets({

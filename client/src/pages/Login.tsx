@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { routes } from "@/lib/routes";
+import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } from "@/lib/authNavigation";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,7 +19,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
+  const authFlow = readAuthNavigationState(location.state);
+  const destination = getAuthDestination(authFlow, routes.home());
 
   useEffect(() => {
     if (session && profile) {
@@ -26,14 +28,12 @@ export default function Login() {
         navigate(routes.adminHome(), { replace: true });
       } else if (googleProfileRedirect.current) {
         googleProfileRedirect.current = false;
-        navigate(routes.profile(), { replace: true });
-      } else if (from) {
-        navigate(from, { replace: true });
+        navigate(routes.profile(), { replace: true, state: toAuthNavigationState(authFlow) });
       } else {
-        navigate(routes.home(), { replace: true });
+        navigate(destination.to, { replace: true, state: destination.state });
       }
     }
-  }, [session, profile, navigate, from]);
+  }, [session, profile, navigate, location.state]);
 
   const handleGoogle = async (credential: string) => {
     googleProfileRedirect.current = !profile?.phone_number || !profile?.address?.line1 || profile.phone_number_verified !== true;
@@ -57,7 +57,7 @@ export default function Login() {
     try {
       const result = await signIn(email, password);
       if ("requiresOtp" in result) {
-        navigate(routes.verifyLogin(), { replace: true, state: { email: result.email, from } });
+        navigate(routes.verifyLogin(), { replace: true, state: toAuthNavigationState(authFlow, { email: result.email }) });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
@@ -75,7 +75,7 @@ export default function Login() {
       footer={
         <>
           Don't have an account?{' '}
-          <Link to={routes.register()} className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.register()} state={toAuthNavigationState(authFlow)} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign up
           </Link>
 

@@ -32,6 +32,8 @@ import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
+import EnrollmentAuthDialog from "@/components/EnrollmentAuthDialog";
+import type { EnrollmentResumeIntent } from "@/lib/authNavigation";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
@@ -163,6 +165,11 @@ export default function CourseDetails() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
+  const [authPromptIntent, setAuthPromptIntent] = useState<EnrollmentResumeIntent | null>(null);
+  const openEnrollmentAuthPrompt = (type: EnrollmentResumeIntent["type"], accessPreference?: EnrollmentResumeIntent["accessPreference"]) => {
+    if (!courseId) return;
+    setAuthPromptIntent({ type, courseId: String(courseId), ...(accessPreference ? { accessPreference } : {}) });
+  };
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -422,7 +429,7 @@ export default function CourseDetails() {
 
   const handleCheckout = async () => {
     if (!session) {
-      navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } });
+      openEnrollmentAuthPrompt("checkout", "individual");
       return;
     }
     if (!courseId || !course) return;
@@ -498,7 +505,7 @@ export default function CourseDetails() {
   };
 
   const handleEnroll = async (accessPreference?: "subscription" | "individual") => {
-    if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
+    if (!session) { openEnrollmentAuthPrompt("enroll", accessPreference); return; }
     if (!course || !course.is_published) return;
     if (getEffectiveCoursePrice(course.pricing) === null) {
       setError('Course pricing is unavailable or invalid. Enrollment is paused until an administrator fixes it.');
@@ -543,7 +550,7 @@ export default function CourseDetails() {
     // Do not charge until the learner enters the actual billing flow.
     if (purchaseChoice === 'subscription') {
       if (!session) {
-        navigate(routes.login(), { state: { from: { pathname: routes.pricing() } } });
+        openEnrollmentAuthPrompt("enroll", "subscription");
         return;
       }
       navigate(routes.pricing());
@@ -1415,6 +1422,13 @@ export default function CourseDetails() {
           </div>
         </section>
       )}
+
+      <EnrollmentAuthDialog
+        open={Boolean(authPromptIntent)}
+        courseTitle={course?.title || "Selected course"}
+        intent={authPromptIntent}
+        onClose={() => setAuthPromptIntent(null)}
+      />
 
       {previewOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>

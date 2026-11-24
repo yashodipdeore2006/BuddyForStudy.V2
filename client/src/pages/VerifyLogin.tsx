@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
 import { routes } from "@/lib/routes";
+import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } from "@/lib/authNavigation";
 
 const RESEND_SECONDS = 60;
 
@@ -12,8 +13,10 @@ export default function VerifyLogin() {
   const location = useLocation();
   const navigate = useNavigate();
   const { verifyLogin } = useAuth();
-  const state = location.state as { email?: string; from?: string } | null;
-  const email = state?.email || "";
+  const locationState = location.state as { email?: string } | null;
+  const authFlow = readAuthNavigationState(location.state);
+  const destination = getAuthDestination(authFlow, routes.home());
+  const email = locationState?.email || "";
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -38,7 +41,8 @@ export default function VerifyLogin() {
     setLoading(true);
     try {
       const profile = await verifyLogin(email, otp);
-      navigate(profile.role === "admin" ? "/admin" : state?.from || "/dashboard", { replace: true });
+      if (profile.role === "admin") navigate("/admin", { replace: true });
+      else navigate(destination.to, { replace: true, state: destination.state });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to verify the login code.");
     } finally {
@@ -72,7 +76,7 @@ export default function VerifyLogin() {
       footer={
         <>
           Need another account?{" "}
-          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} state={toAuthNavigationState(authFlow)} className="font-semibold text-blue-600 hover:text-blue-700">
             Back to sign in
           </Link>
         </>

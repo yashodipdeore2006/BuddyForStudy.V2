@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
 import { routes } from "@/lib/routes";
+import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } from "@/lib/authNavigation";
 
 const RESEND_SECONDS = 60;
 
@@ -12,7 +13,10 @@ export default function VerifyEmail() {
   const location = useLocation();
   const navigate = useNavigate();
   const { verifyEmail } = useAuth();
-  const stateEmail = (location.state as { email?: string } | null)?.email || "";
+  const locationState = location.state as { email?: string } | null;
+  const authFlow = readAuthNavigationState(location.state);
+  const destination = getAuthDestination(authFlow, routes.home());
+  const stateEmail = locationState?.email || "";
   const [email, setEmail] = useState(stateEmail);
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(0);
@@ -34,7 +38,7 @@ export default function VerifyEmail() {
     setLoading(true);
     try {
       await verifyEmail(email, otp);
-      navigate(routes.home(), { replace: true });
+      navigate(destination.to, { replace: true, state: destination.state });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to verify your email.");
     } finally {
@@ -68,7 +72,7 @@ export default function VerifyEmail() {
       footer={
         <>
           Already verified?{" "}
-          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} state={toAuthNavigationState(authFlow)} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign in
           </Link>
         </>

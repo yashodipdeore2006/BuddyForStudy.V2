@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { routes } from "@/lib/routes";
+import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } from "@/lib/authNavigation";
 
 export default function Register() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const authFlow = readAuthNavigationState(location.state);
+  const destination = getAuthDestination(authFlow, routes.home());
   const { session, profile, signUp, signInWithGoogle } = useAuth();
   const googleProfileRedirect = useRef(false);
   const [name, setName] = useState('');
@@ -25,12 +29,12 @@ export default function Register() {
         navigate(routes.adminHome(), { replace: true });
       } else if (googleProfileRedirect.current) {
         googleProfileRedirect.current = false;
-        navigate(routes.profile(), { replace: true });
+        navigate(routes.profile(), { replace: true, state: toAuthNavigationState(authFlow) });
       } else {
-        navigate(routes.home(), { replace: true });
+        navigate(destination.to, { replace: true, state: destination.state });
       }
     }
-  }, [session, profile, navigate]);
+  }, [session, profile, navigate, location.state]);
 
   const handleGoogle = async (credential: string) => {
     googleProfileRedirect.current = true;
@@ -63,7 +67,7 @@ export default function Register() {
         marketingEmailConsent
       });
       if ("requiresVerification" in result) {
-        navigate(routes.verifyEmail(), { state: { email: result.email } });
+        navigate(routes.verifyEmail(), { state: toAuthNavigationState(authFlow, { email: result.email }) });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -79,7 +83,7 @@ export default function Register() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} state={toAuthNavigationState(authFlow)} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign in
           </Link>
         </>

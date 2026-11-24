@@ -16,6 +16,14 @@ test("production frontend requires an explicit deployed API origin", () => {
     "production must never silently fall back to localhost");
 });
 
+test("Vercel does not automatically deploy the active implementation branch", () => {
+  assert.equal(
+    vercel.git?.deploymentEnabled?.["buddy-for-study-v2.2"],
+    false,
+    "the working branch must remain non-deploying; releases are manual"
+  );
+});
+
 test("Vercel config builds the Vite app and serves client-side routes directly", () => {
   assert.equal(vercel.framework, "vite");
   assert.equal(vercel.buildCommand, "npm run build && npm run write:release-manifest");

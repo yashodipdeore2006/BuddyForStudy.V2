@@ -335,6 +335,7 @@ async function mockAppApi(page: Page, options: {
 
 type EnrollmentResumeAuthOptions = {
   loginRequiresOtp?: boolean;
+  loginRequiresEmailVerification?: boolean;
   registrationRequiresVerification?: boolean;
 };
 
@@ -348,6 +349,9 @@ async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAut
     : json(route, { message: "Authentication required" }, 401));
 
   await page.route("**/api/auth/login", async (route) => {
+    if (options.loginRequiresEmailVerification) {
+      return json(route, { message: "Email not verified. Please verify your email before signing in." }, 403);
+    }
     if (options.loginRequiresOtp) {
       return json(route, { requiresOtp: true, email: learner.email });
     }
@@ -2995,6 +2999,37 @@ test.describe("authenticated enrollment intent resumption", () => {
 
     await page.reload();
     await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the selected course through email verification reached from an unverified login", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginRequiresEmailVerification: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page.getByRole("link", { name: "Verify your email" })).toBeVisible();
+    await page.getByRole("link", { name: "Verify your email" }).click();
+    await expect(page).toHaveURL(/\\/verify-email$/);
+    const verificationState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(verificationState).toMatchObject({
+      from: { pathname: "/courses/course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
+      email: learner.email,
+    });
+
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page).toHaveURL(/\\/courses\\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+
+    await page.reload();
+    await expect(page).toHaveURL(/\\/courses\\/course-fixture$/);
     await expect.poll(resume.enrollmentPosts).toBe(1);
   });
 

@@ -142,7 +142,7 @@ export default function Login() {
         {needsVerification && (
           <Link
             to={routes.verifyEmail()}
-            state={{ email }}
+            state={toAuthNavigationState(authFlow, { email })}
             className="block rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700 hover:bg-blue-100"
           >
             Verify your email

@@ -76,5 +76,10 @@
         }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "buddy-for-study-v2.2": false
+    }
+  }
 }

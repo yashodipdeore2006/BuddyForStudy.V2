@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
@@ -33,7 +33,7 @@ import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import EnrollmentAuthDialog from "@/components/EnrollmentAuthDialog";
-import type { EnrollmentResumeIntent } from "@/lib/authNavigation";
+import { readAuthNavigationState, type EnrollmentResumeIntent } from "@/lib/authNavigation";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
@@ -162,8 +162,9 @@ type RawCompletedLesson = { lessonId?: string; type?: string; completedAt?: stri
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [authPromptIntent, setAuthPromptIntent] = useState<EnrollmentResumeIntent | null>(null);
   const openEnrollmentAuthPrompt = (type: EnrollmentResumeIntent["type"], accessPreference?: EnrollmentResumeIntent["accessPreference"]) => {
@@ -206,6 +207,7 @@ export default function CourseDetails() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showStickyMiniHeader, setShowStickyMiniHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const handledResumeIntentRef = useRef<string | null>(null);
   const notesStorageKey = courseId ? 'bfs-course-notes:' + String(session?.user?.id || 'anonymous') + ':' + courseId : '';
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || 'anonymous'), courseId) : '';
 
@@ -307,6 +309,7 @@ export default function CourseDetails() {
 
   useEffect(() => {
     async function fetchCourse() {
+      setLoading(true);
       setPlanCourseAccess(false);
       setPurchaseChoice("individual");
       setEnrollment(null);
@@ -424,8 +427,9 @@ export default function CourseDetails() {
         setLoading(false);
       }
     }
+    if (authLoading) return;
     fetchCourse();
-  }, [courseId, session]);
+  }, [courseId, session, authLoading]);
 
   const handleCheckout = async () => {
     if (!session) {
@@ -563,6 +567,82 @@ export default function CourseDetails() {
     }
     void handleEnroll('individual');
   };
+
+  // Keep the latest handler available to the one-time auth-resume effect without
+  // making the effect re-run for every render caused by enrollment state changes.
+  const handleEnrollRef = useRef(handleEnroll);
+  useEffect(() => {
+    handleEnrollRef.current = handleEnroll;
+  }, [handleEnroll]);
+
+  useEffect(() => {
+    const intent = readAuthNavigationState(location.state).resumeIntent;
+    if (
+      authLoading ||
+      !session ||
+      loading ||
+      !course ||
+      !intent ||
+      String(intent.courseId) !== String(courseId)
+    ) return;
+
+    const resumeKey = [location.key, intent.type, intent.courseId, intent.accessPreference || ""].join(":");
+    if (handledResumeIntentRef.current === resumeKey) return;
+    handledResumeIntentRef.current = resumeKey;
+
+    // Remove the history-state intent before performing a side effect. This
+    // prevents refresh, StrictMode effect replay, or Back/Forward from enrolling twice.
+    navigate(location.pathname + location.search + location.hash, {
+      replace: true,
+      state: null,
+    });
+
+    const existingStatus = String(enrollment?.status || "").toLowerCase();
+    if (existingStatus === "active" || existingStatus === "completed") {
+      setCheckoutNotice("You're already enrolled in this course. Your learning access is ready.");
+      return;
+    }
+
+    if (intent.type === "checkout") {
+      setPurchaseChoice("individual");
+      setCheckoutNotice("You're signed in. Review the course price and choose Buy to continue to secure checkout. No payment has been started.");
+      return;
+    }
+
+    const accessPreference = intent.accessPreference || "individual";
+    if (accessPreference === "subscription") {
+      setPurchaseChoice("subscription");
+      if (planCourseAccess) {
+        void handleEnrollRef.current("subscription");
+      } else {
+        setCheckoutNotice("You're signed in. Review the subscription option and choose View plans to continue. No payment has been started.");
+      }
+      return;
+    }
+
+    setPurchaseChoice("individual");
+    if (course.pricing?.mode === "paid") {
+      setCheckoutNotice("You're signed in. Review the course price and choose Buy to continue to secure checkout. No payment has been started.");
+      return;
+    }
+
+    void handleEnrollRef.current("individual");
+  }, [
+    authLoading,
+    session,
+    loading,
+    course,
+    courseId,
+    location.key,
+    location.pathname,
+    location.search,
+    location.hash,
+    location.state,
+    enrollment?.status,
+    planCourseAccess,
+    navigate,
+  ]);
+
 
 
   const submitReview = async () => {

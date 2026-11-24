@@ -37,7 +37,8 @@ export default function Register() {
   }, [session, profile, navigate, authFlow, destination]);
 
   const handleGoogle = async (credential: string) => {
-    googleProfileRedirect.current = true;
+    // Enrollment auth returns directly to the course so its pending intent can resume.
+    googleProfileRedirect.current = !authFlow.resumeIntent;
     setError(null);
     setLoading(true);
     try {

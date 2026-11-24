@@ -332,6 +332,72 @@ async function mockAppApi(page: Page, options: {
   });
 }
 
+
+type EnrollmentResumeAuthOptions = {
+  loginRequiresOtp?: boolean;
+  registrationRequiresVerification?: boolean;
+};
+
+async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAuthOptions = {}) {
+  let authenticated = false;
+  let enrollmentPosts = 0;
+  let checkoutPosts = 0;
+
+  await page.route("**/api/auth/me", async (route) => authenticated
+    ? json(route, { user: learner })
+    : json(route, { message: "Authentication required" }, 401));
+
+  await page.route("**/api/auth/login", async (route) => {
+    if (options.loginRequiresOtp) {
+      return json(route, { requiresOtp: true, email: learner.email });
+    }
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/verify-login", async (route) => {
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/register", async (route) => json(route, {
+    requiresVerification: options.registrationRequiresVerification !== false,
+    email: learner.email,
+  }));
+
+  await page.route("**/api/auth/verify-email", async (route) => {
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/google", async (route) => {
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/enrollments/course-fixture", async (route) => {
+    if (route.request().method() === "POST") {
+      enrollmentPosts += 1;
+      return json(route, { enrollment: { status: "active" } }, 201);
+    }
+    return json(route, { enrollment: enrollmentPosts ? { status: "active" } : null });
+  });
+
+  await page.route("**/api/enrollments/course/course-fixture", async (route) => {
+    return json(route, { enrollment: enrollmentPosts ? { status: "active" } : null });
+  });
+
+  await page.route("**/api/payments/course/order", async (route) => {
+    checkoutPosts += 1;
+    return json(route, { message: "Checkout fixture intentionally blocked." }, 503);
+  });
+
+  return {
+    enrollmentPosts: () => enrollmentPosts,
+    checkoutPosts: () => checkoutPosts,
+  };
+}
+
 test.describe("privacy and consent controls", () => {
   test("Google Identity SDK is not loaded on pages without Google sign-in UI", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
@@ -2905,5 +2971,126 @@ test.describe("guest enrollment authentication choice", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true }).last()).toBeVisible();
+  });
+});
+
+
+test.describe("authenticated enrollment intent resumption", () => {
+  test("completes a free individual enrollment once after password login and does not replay after refresh", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByLabel("Email").fill(learner.email);
+    await page.getByLabel("Password").fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+    await expect(page.getByText("You’re enrolled")).toBeVisible();
+    const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(state).toBeNull();
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the intended course through login OTP verification before enrolling", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginRequiresOtp: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByLabel("Email").fill(learner.email);
+    await page.getByLabel("Password").fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL(/\/verify-login$/);
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify & Sign In" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the intended course through registration email verification before enrolling", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Create a free account" }).click();
+    await page.getByLabel("Full Name").fill("New Learner");
+    await page.getByLabel("Email").fill(learner.email);
+    await page.getByLabel("Password").fill("correct-horse-battery");
+    await page.getByLabel("Confirm Password").fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Create Account" }).click();
+    await expect(page).toHaveURL(/\/verify-email$/);
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("resumes enrollment after Google sign-in without detouring through profile", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.route("**/api/auth/google/config", async (route) => json(route, {
+      enabled: true,
+      clientId: "test-web-client.apps.googleusercontent.com",
+    }));
+    await page.route("https://accounts.google.com/gsi/client", async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: `
+        window.google = {
+          accounts: {
+            id: {
+              initialize(config) { window.__bfsGoogleResumeCallback = config.callback; },
+              renderButton(container) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = "Mock Continue with Google";
+                button.addEventListener("click", () => window.__bfsGoogleResumeCallback?.({ credential: "google-resume-token" }));
+                container.appendChild(button);
+              }
+            }
+          }
+        };
+      `,
+    }));
+
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Mock Continue with Google" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("returns to the selected paid course but waits for an explicit Buy action before checkout", async ({ page }) => {
+    await mockAppApi(page, {
+      course: courseFixture("course-fixture", { pricing: { mode: "paid", price: 499, currency: "INR" } }),
+    });
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Buy individual course/ }).check();
+    await page.getByRole("button", { name: "Sign in to buy", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByLabel("Email").fill(learner.email);
+    await page.getByLabel("Password").fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect(page.getByRole("radio", { name: /Buy individual course/ })).toBeChecked();
+    await expect(page.getByRole("status").filter({ hasText: "No payment has been started" })).toBeVisible();
+    expect(resume.checkoutPosts()).toBe(0);
+    await page.getByRole("main").getByRole("button", { name: /Buy for/ }).click();
+    await expect.poll(resume.checkoutPosts).toBe(1);
   });
 });

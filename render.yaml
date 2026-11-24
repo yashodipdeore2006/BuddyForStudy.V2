@@ -115,6 +115,24 @@ services:
         value: "false"
     routes:
       - type: rewrite
+        source: /about
+        destination: /about/index.html
+      - type: rewrite
+        source: /contact
+        destination: /contact/index.html
+      - type: rewrite
+        source: /faq
+        destination: /faq/index.html
+      - type: rewrite
+        source: /explore
+        destination: /explore/index.html
+      - type: rewrite
+        source: /pricing
+        destination: /pricing/index.html
+      - type: rewrite
+        source: /legal
+        destination: /legal/index.html
+      - type: rewrite
         source: /*
         destination: /index.html
     headers:

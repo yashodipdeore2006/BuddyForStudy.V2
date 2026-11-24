@@ -5,6 +5,30 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/about",
+      "destination": "/about/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact/index.html"
+    },
+    {
+      "source": "/faq",
+      "destination": "/faq/index.html"
+    },
+    {
+      "source": "/explore",
+      "destination": "/explore/index.html"
+    },
+    {
+      "source": "/pricing",
+      "destination": "/pricing/index.html"
+    },
+    {
+      "source": "/legal",
+      "destination": "/legal/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

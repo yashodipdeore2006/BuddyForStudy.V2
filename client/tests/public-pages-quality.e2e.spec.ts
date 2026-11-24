@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const route of publicPages) {
   test(route.name + " serves route-specific crawler metadata", async ({ page }) => {
-    const response = await page.request.get(baseURL + route.path);
+    const response = await page.request.get(baseURL + route.path + "/index.html");
     expect(response.ok()).toBeTruthy();
     const html = await response.text();
     expect(html).toContain("<title>" + route.title + "</title>");
@@ -38,6 +38,7 @@ for (const route of publicPages) {
     expect(html).toContain('rel="canonical" href="https://buddyforstudy.example' + route.path + '"');
     expect(html).toContain('property="og:url" content="https://buddyforstudy.example' + route.path + '"');
     expect(html).toContain('name="twitter:card" content="summary"');
+    expect(html).toContain('name="robots" content="index,follow,max-image-preview:large"');
 
     await page.goto(baseURL + route.path, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

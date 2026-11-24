@@ -180,3 +180,22 @@ test("About, Contact and Help Centre remain route-split and built assets stay im
   const assetHeaders = vercel.headers.find((rule) => rule.source === "/assets/(.*)")?.headers || [];
   assert.ok(assetHeaders.some((header) => header.key === "Cache-Control" && /immutable/.test(header.value)));
 });
+
+
+test("public SEO route files are explicitly mapped before the SPA fallback", () => {
+  const expected = ["/about", "/contact", "/faq", "/explore", "/pricing", "/legal"];
+  const fallbackIndex = vercel.rewrites.findIndex((rule) => rule.source === "/(.*)" && rule.destination === "/index.html");
+  assert.ok(fallbackIndex >= 0, "Vercel must retain the SPA fallback");
+  for (const path of expected) {
+    const index = vercel.rewrites.findIndex((rule) => rule.source === path && rule.destination === path + "/index.html");
+    assert.ok(index >= 0 && index < fallbackIndex, "Vercel must route " + path + " to its generated HTML before the SPA fallback");
+  }
+  const renderRoutes = render.slice(render.indexOf("    routes:"), render.indexOf("    headers:"));
+  const renderFallbackIndex = renderRoutes.indexOf("source: /*");
+  assert.ok(renderFallbackIndex >= 0, "Render must retain its SPA fallback");
+  for (const path of expected) {
+    const mapping = "source: " + path + "\\n        destination: " + path + "/index.html";
+    const index = renderRoutes.indexOf(mapping);
+    assert.ok(index >= 0 && index < renderFallbackIndex, "Render must route " + path + " to its generated HTML before the SPA fallback");
+  }
+});

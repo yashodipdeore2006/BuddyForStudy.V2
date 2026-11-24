@@ -926,6 +926,49 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("heading", { name: /Welcome back|Your learning/i })).toHaveCount(0);
   });
 
+  test("guest landing is shown at / and /home without loading learner-only data", async ({ page }) => {
+    await mockAppApi(page);
+    const learnerDataRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        url.pathname === "/api/enrollments" ||
+        url.pathname === "/api/achievements/me" ||
+        (url.pathname === "/api/courses" && url.searchParams.get("limit") === "24") ||
+        url.pathname.startsWith("/api/progress/")
+      ) learnerDataRequests.push(url.pathname + url.search);
+    });
+
+    for (const path of ["/", "/home"]) {
+      await page.goto(baseURL + path);
+      await expect(page.getByRole("heading", { name: "Find your next skill. Know what to do next." })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Explore courses", exact: true }).first()).toHaveAttribute("href", "/explore");
+      await expect(page.getByRole("link", { name: "Create your account", exact: true })).toHaveAttribute("href", "/register");
+      await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login");
+      await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Badges" })).toHaveCount(0);
+    }
+
+    expect(learnerDataRequests).toEqual([]);
+  });
+
+  test("authenticated learners receive the personalized dashboard at /", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/");
+    await expect(page.getByRole("heading", { name: "Welcome back, Learner" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find your next skill. Know what to do next." })).toHaveCount(0);
+  });
+
+  test("guest Explore, course details, login and registration routes remain public", async ({ page }) => {
+    await mockAppApi(page);
+    for (const path of ["/explore", "/courses/course-fixture", "/login", "/register"]) {
+      await page.goto(baseURL + path);
+      expect(new URL(page.url()).pathname).toBe(path);
+      await expect(page.locator("h1").first()).toBeVisible();
+    }
+  });
+
   test("Home navigation is canonical", async ({ page }) => {
     await page.goto(baseURL + "/home");
     await expect(page).toHaveURL(/\/home$/);

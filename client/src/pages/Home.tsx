@@ -10,6 +10,7 @@ import { useLearningStats } from '@/hooks/useLearningStats';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
+import GuestLanding from '@/components/GuestLanding';
 import '@/styles/user-home.css';
 
 import { routes } from "@/lib/routes";
@@ -271,7 +272,7 @@ export default function Home() {
     ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.next_lesson_id ? '/' + encodeURIComponent(resumeProgress.next_lesson_id) : '')
     : '/courses';
 
-  if (authLoading || loading) {
+  if (authLoading || (session && loading)) {
     return <main className="user-home" id="main-content"><div className="user-home__shell user-home__stack">
       <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
       <SkeletonResume />
@@ -279,6 +280,8 @@ export default function Home() {
       <CourseGridSkeleton count={4} />
     </div></main>;
   }
+  if (!session) return <GuestLanding />;
+
   if (error) {
     const accessError = fatalErrorStatus === 403 || fatalErrorStatus === 404;
     return <main className="user-home" id="main-content"><div className="user-home__shell">

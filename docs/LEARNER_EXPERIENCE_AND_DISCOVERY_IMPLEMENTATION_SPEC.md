@@ -2,7 +2,7 @@
 
 **Repository:** `yashodipdeore2006/BuddyForStudy.V2`  
 **Execution branch:** `buddy-for-study-v2.2` only  
-**Baseline commit:** `c718773eb313f89ba6c24a519c8339df7289e70e`  
+**Baseline commit reconciled for this programme:** `49a51dc10e53e8a1b2ecd2ca5fa14a6b2fdacc40`  
 **Task programme:** 24 tasks; progress is reported after every task as `N / 24`  
 **Release policy:** no deployment, merge, pull request, new branch or change to `main` without explicit authorization.
 
@@ -111,7 +111,7 @@ A task is counted complete only after its acceptance criteria and tests pass on 
 
 | # | Task ID | Scope and completion evidence | Initial status |
 |---:|---|---|---|
-| 1 | LXP-001 | Freeze this product/technical specification, acceptance rules and 24-task tracker in repository documentation. | In progress |
+| 1 | LXP-001 | Freeze this product/technical specification, acceptance rules and 24-task tracker in repository documentation. | **Done** — specification verified, baseline reconciled and progress tracking activated. |
 | 2 | AUTH-001 | Build accessible enrollment sign-in/sign-up choice dialog and connect it to existing full auth routes without losing course context. | Pending |
 | 3 | AUTH-002 | Resume the intended enrollment once after authentication; preserve course/action through email verification/Google flow; keep paid checkout explicit. | Pending |
 | 4 | AUTH-003 | Implement guest landing and authenticated dashboard behavior at `/`; preserve public exploration and dedicated login/register routes. | Pending |
@@ -148,16 +148,18 @@ A task is counted complete only after its acceptance criteria and tests pass on 
 
 ## 6. Baseline audit — what already exists (not yet accepted as complete)
 
+**Reconciled baseline:** `49a51dc10e53e8a1b2ecd2ca5fa14a6b2fdacc40` on `buddy-for-study-v2.2` (24 November 2026). Task 1 is complete; Tasks 2–24 remain pending verification/implementation.
+
 The following foundations were found on the baseline commit; each corresponding task must still verify behavior and tests before being credited:
 
-- `App.tsx` routes `/` to `Home`, `/explore` to `Courses`, and provides separate `/login` and `/register` routes. Logged-out Home currently shows a learner-start state and exploration/build CTAs; it is not yet a dedicated conversion-focused guest landing.
-- `CourseDetails.tsx` redirects a guest who clicks Enroll to Login with course path state. It does not show the recommended choice dialog or automatically resume the enrollment action after login.
+- `App.tsx` routes `/` and `/home` to `Home`, `/explore` to `Courses`, and provides separate `/login` and `/register` routes. Logged-out Home currently shows a learner-start state and exploration/build CTAs; it is not yet a dedicated conversion-focused guest landing. Authenticated Home is personalized, but the explicit root-route decision still needs implementation and tests.
+- `CourseDetails.tsx` now includes `EnrollmentAuthDialog` for guest enrollment/checkout and carries a validated typed return intent through `authNavigation.ts`; `Login.tsx` and `Register.tsx` preserve that state through their existing OTP/Google/profile routes. The returned `resumeIntent` is not yet consumed by `CourseDetails` to automatically resume enrollment exactly once; this is a remaining AUTH-002 acceptance item. Payment authorization must remain a separate explicit action.
 - `Courses.tsx` keeps its search/filter/sort/page state in component state. It currently does not canonicalize the full search state in the URL or reliably restore previous result/scroll state.
 - `course.service.js` already aggregates approved rating counts and supports recent/popular ordering, and direct course/module/YouTube fallback search. It does not yet implement the full controlled-domain filter and weighted quality ranking specified above.
 - The Course schema has a free-text `category` field; a canonical domain taxonomy/backfill is not evidenced in the current schema.
 - The backend already has a canonical Free-plan resolver/assignment service and regression tests. Verify registration, legacy users and paid/trial transitions before changing it.
-- Admin trial campaign routes, campaign models, eligibility/claim services, an admin screen and a learner popup already exist. They include explicit claims and idempotency protections. Audit exact eligibility, timing, campaign configuration and expiry behavior before changing this system.
-- Build with AI already has a persisted `RoadmapDraft`, admission leases, stored events, polling and an authenticated event-stream endpoint. The frontend currently stores an active draft ID in local storage and polls status; its visible loading state does not yet provide the requested complete stage/node progress UX. The Render Blueprint keeps async roadmap rollout disabled by default.
+- Admin trial campaign routes, campaign models, eligibility/claim services, an admin screen and a learner popup already exist. Claims are explicit and the server claim service includes transaction/idempotency protections. The current popup can appear on eligible authenticated non-excluded routes after a delay and uses client-side dismissal memory; audit timing, cross-device dismissal, campaign setup usability and expiry behavior before changing this system.
+- Build with AI already has a persisted `RoadmapDraft`, admission leases, stored node/skeleton/progress events, polling and an authenticated event-stream endpoint. The frontend currently stores an active draft ID in local storage and resumes by polling only when the Explore/Courses page is mounted; a global progress/resume experience and truthful stage-level progress UX remain outstanding. The current cancel endpoint can cancel queued jobs but returns a conflict once a job is already building; cooperative cancellation is not yet complete. The Render Blueprint keeps async roadmap rollout disabled by default.
 - `RoadmapDraft` currently has a one-hour TTL based on `createdAt`; confirm this is sufficient for long builds and recovery before changing retention.
 
 ## 7. Operational safety and release policy

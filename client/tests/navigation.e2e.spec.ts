@@ -3015,7 +3015,7 @@ test.describe("authenticated enrollment intent resumption", () => {
 
     await expect(page.getByRole("link", { name: "Verify your email" })).toBeVisible();
     await page.getByRole("link", { name: "Verify your email" }).click();
-    await expect(page).toHaveURL(/\\/verify-email$/);
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
     const verificationState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(verificationState).toMatchObject({
       from: { pathname: "/courses/course-fixture" },
@@ -3025,11 +3025,11 @@ test.describe("authenticated enrollment intent resumption", () => {
 
     await page.getByPlaceholder("000000").fill("123456");
     await page.getByRole("button", { name: "Verify Email" }).click();
-    await expect(page).toHaveURL(/\\/courses\\/course-fixture$/);
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
     await expect.poll(resume.enrollmentPosts).toBe(1);
 
     await page.reload();
-    await expect(page).toHaveURL(/\\/courses\\/course-fixture$/);
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
     await expect.poll(resume.enrollmentPosts).toBe(1);
   });
 

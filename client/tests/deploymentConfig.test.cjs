@@ -194,8 +194,9 @@ test("public SEO route files are explicitly mapped before the SPA fallback", () 
   const renderFallbackIndex = renderRoutes.indexOf("source: /*");
   assert.ok(renderFallbackIndex >= 0, "Render must retain its SPA fallback");
   for (const path of expected) {
-    const mapping = "source: " + path + "\\n        destination: " + path + "/index.html";
-    const index = renderRoutes.indexOf(mapping);
-    assert.ok(index >= 0 && index < renderFallbackIndex, "Render must route " + path + " to its generated HTML before the SPA fallback");
+    const sourceIndex = renderRoutes.indexOf("source: " + path);
+    const destinationIndex = renderRoutes.indexOf("destination: " + path + "/index.html", sourceIndex);
+    assert.ok(sourceIndex >= 0 && sourceIndex < renderFallbackIndex, "Render must declare " + path + " before the SPA fallback");
+    assert.ok(destinationIndex > sourceIndex && destinationIndex < renderFallbackIndex, "Render must route " + path + " to its generated HTML before the SPA fallback");
   }
 });

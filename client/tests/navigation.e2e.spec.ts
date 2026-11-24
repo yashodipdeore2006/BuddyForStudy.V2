@@ -2862,7 +2862,7 @@ test.describe("guest enrollment authentication choice", () => {
     await expect(dialog.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Create a free account" })).toBeVisible();
     await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\\/login$/);
+    await expect(page).toHaveURL(/login$/);
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(state).toMatchObject({
@@ -2877,7 +2877,7 @@ test.describe("guest enrollment authentication choice", () => {
     await page.getByRole("button", { name: "Sign in to view plans" }).click();
     const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
     await dialog.getByRole("button", { name: "Create a free account" }).click();
-    await expect(page).toHaveURL(/\\/register$/);
+    await expect(page).toHaveURL(/register$/);
     await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
     const registerState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(registerState).toMatchObject({
@@ -2885,7 +2885,7 @@ test.describe("guest enrollment authentication choice", () => {
       resumeIntent: { type: "enroll", courseId: "course-fixture" },
     });
     await page.getByRole("link", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\\/login$/);
+    await expect(page).toHaveURL(/login$/);
     const loginState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(loginState).toMatchObject({
       from: { pathname: "/courses/course-fixture" },

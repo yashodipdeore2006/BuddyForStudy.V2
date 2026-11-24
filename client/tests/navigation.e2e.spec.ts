@@ -2989,6 +2989,7 @@ test.describe("authenticated enrollment intent resumption", () => {
 
     await expect(page).toHaveURL(/\/courses\/course-fixture$/);
     await expect.poll(resume.enrollmentPosts).toBe(1);
+    await expect(page.getByRole("button", { name: "Continue Learning", exact: true })).toBeVisible();
     const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(state).toBeNull();
 
@@ -3025,7 +3026,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByLabel("Full Name").fill("New Learner");
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
     await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
-    await page.getByLabel("Confirm Password").fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Confirm Password", exact: true }).fill("correct-horse-battery");
     await page.getByRole("button", { name: "Create Account" }).click();
     await expect(page).toHaveURL(/\/verify-email$/);
     await page.getByPlaceholder("000000").fill("123456");

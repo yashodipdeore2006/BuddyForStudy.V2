@@ -172,6 +172,8 @@ export default function CourseDetails() {
     setAuthPromptIntent({ type, courseId: String(courseId), ...(accessPreference ? { accessPreference } : {}) });
   };
   const [loading, setLoading] = useState(true);
+  const [courseAccessReady, setCourseAccessReady] = useState(false);
+  const courseAccessReadyRef = useRef(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [learningStats, setLearningStats] = useState<{ currentStreak?: number; longestStreak?: number } | null>(null);
@@ -309,6 +311,10 @@ export default function CourseDetails() {
 
   useEffect(() => {
     async function fetchCourse() {
+      // Resume an auth intent only after existing entitlement/enrollment state
+      // has loaded. The ref closes the passive-effect ordering gap on login.
+      courseAccessReadyRef.current = false;
+      setCourseAccessReady(false);
       setLoading(true);
       setPlanCourseAccess(false);
       setPurchaseChoice("individual");
@@ -316,6 +322,8 @@ export default function CourseDetails() {
       if (!courseId) {
         setError('Invalid course');
         setLoading(false);
+        courseAccessReadyRef.current = true;
+        setCourseAccessReady(true);
         return;
       }
 
@@ -425,6 +433,8 @@ export default function CourseDetails() {
         setError(err instanceof Error ? err.message : 'Unable to load course');
       } finally {
         setLoading(false);
+        courseAccessReadyRef.current = true;
+        setCourseAccessReady(true);
       }
     }
     if (authLoading) return;
@@ -581,6 +591,8 @@ export default function CourseDetails() {
       authLoading ||
       !session ||
       loading ||
+      !courseAccessReady ||
+      !courseAccessReadyRef.current ||
       !course ||
       !intent ||
       String(intent.courseId) !== String(courseId)
@@ -631,6 +643,7 @@ export default function CourseDetails() {
     authLoading,
     session,
     loading,
+    courseAccessReady,
     course,
     courseId,
     location.key,

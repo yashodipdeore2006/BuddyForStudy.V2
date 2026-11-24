@@ -2,7 +2,7 @@
 
 **Repository:** `yashodipdeore2006/BuddyForStudy.V2`  
 **Execution branch:** `buddy-for-study-v2.2` only  
-**Latest implementation baseline:** `938111145cdea3188f77839c3afab7d9555053fc`  
+**Latest implementation baseline:** `964f4651e5471bb7e8e19b44b002a545ad37c137`  
 **Task programme:** 24 tasks; progress is reported after every task as `N / 24`  
 **Release policy:** no deployment, merge, pull request, new branch or change to `main` without explicit authorization.
 
@@ -113,7 +113,7 @@ A task is counted complete only after its acceptance criteria and tests pass on 
 |---:|---|---|---|
 | 1 | LXP-001 | Freeze this product/technical specification, acceptance rules and 24-task tracker in repository documentation. | **Done** — specification verified, baseline reconciled and progress tracking activated. |
 | 2 | AUTH-001 | Build accessible enrollment sign-in/sign-up choice dialog and connect it to existing full auth routes without losing course context. | **Done** — commit [`9381111`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/938111145cdea3188f77839c3afab7d9555053fc); exact-head CI [run 45344121212](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45344121212) passed all 3 jobs, including 139/139 Playwright tests. Course selection and typed intent are preserved through Login/Register navigation; no enrollment/payment is auto-submitted. |
-| 3 | AUTH-002 | Resume the intended enrollment once after authentication; preserve course/action through email verification/Google flow; keep paid checkout explicit. | Pending |
+| 3 | AUTH-002 | Resume the intended enrollment once after authentication; preserve course/action through email verification/Google flow; keep paid checkout explicit. | **Done** — commit [`964f465`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/964f4651e5471bb7e8e19b44b002a545ad37c137); exact-head CI [run 45449700667](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45449700667) passed all 3 jobs: 145/145 Playwright browser tests, 1,197/1,197 backend tests, frontend lint/typecheck/unit/config tests/build and production release gate. Login now preserves the validated course/enrollment intent when redirecting an unverified user to email verification. The browser regression verifies verification, one enrollment POST and no repeat after refresh. Vercel automatic deployments are disabled for this branch only; releases remain manual. |
 | 4 | AUTH-003 | Implement guest landing and authenticated dashboard behavior at `/`; preserve public exploration and dedicated login/register routes. | Pending |
 | 5 | AUTH-004 | Add unit/E2E coverage for guest enrollment, login, registration, verification, cancellation, reload, return and duplicate-enrollment safety. | Pending |
 | 6 | EXP-001 | Make Explore query/filter/sort/page state canonical in URL parameters with browser history support. | Pending |
@@ -148,12 +148,13 @@ A task is counted complete only after its acceptance criteria and tests pass on 
 
 ## 6. Baseline audit — what already exists (not yet accepted as complete)
 
-**Reconciled baseline:** `938111145cdea3188f77839c3afab7d9555053fc` on `buddy-for-study-v2.2` (24 November 2026). Tasks 1–2 are complete; Tasks 3–24 remain pending verification/implementation.
+**Reconciled baseline:** `964f4651e5471bb7e8e19b44b002a545ad37c137` on `buddy-for-study-v2.2` (24 November 2026). Tasks 1–3 are complete; Tasks 4–24 remain pending verification/implementation.
 
 The following foundations were found on the baseline commit; each corresponding task must still verify behavior and tests before being credited:
 
 - `App.tsx` routes `/` and `/home` to `Home`, `/explore` to `Courses`, and provides separate `/login` and `/register` routes. Logged-out Home currently shows a learner-start state and exploration/build CTAs; it is not yet a dedicated conversion-focused guest landing. Authenticated Home is personalized, but the explicit root-route decision still needs implementation and tests.
-- **AUTH-001 verified:** `CourseDetails.tsx` presents an accessible `EnrollmentAuthDialog` for guest enrollment and checkout. `authNavigation.ts` validates internal return paths and typed course intents. `Login.tsx`, `Register.tsx`, `VerifyEmail.tsx` and `VerifyLogin.tsx` carry the intent through the existing authentication/verification navigation; the E2E suite verifies the login and registration choices, preserved course context, switching auth methods and Escape dismissal. Exact-head CI run 45344121212 passed the frontend, backend and production release-gate jobs, including 139/139 browser tests. The intent is deliberately not yet consumed to auto-resume enrollment: that is AUTH-002. Payment authorization remains a separate explicit action.
+- **AUTH-001 verified:** `CourseDetails.tsx` presents an accessible `EnrollmentAuthDialog` for guest enrollment and checkout. `authNavigation.ts` validates internal return paths and typed course intents. `Login.tsx`, `Register.tsx`, `VerifyEmail.tsx` and `VerifyLogin.tsx` carry the intent through the existing authentication/verification navigation; the E2E suite verifies the login and registration choices, preserved course context, switching auth methods and Escape dismissal. Exact-head CI run 45344121212 passed the frontend, backend and production release-gate jobs, including 139/139 browser tests. Payment authorization remains a separate explicit action.
+- **AUTH-002 verified:** `CourseDetails.tsx` resumes a preserved enrollment intent once after authentication and waits for the course/access bootstrap before acting. Login's unverified-email path now carries both the validated return location and enrollment intent to `VerifyEmail.tsx`. The new E2E regression verifies that a learner returns to the selected course, creates exactly one enrollment, and does not replay it after refresh. CI run 45449700667 passed 145/145 browser tests and 1,197/1,197 backend tests; lint, typecheck, frontend unit/config tests, production build and the release gate also passed. Paid course checkout still requires an explicit learner action.
 - `Courses.tsx` keeps its search/filter/sort/page state in component state. It currently does not canonicalize the full search state in the URL or reliably restore previous result/scroll state.
 - `course.service.js` already aggregates approved rating counts and supports recent/popular ordering, and direct course/module/YouTube fallback search. It does not yet implement the full controlled-domain filter and weighted quality ranking specified above.
 - The Course schema has a free-text `category` field; a canonical domain taxonomy/backfill is not evidenced in the current schema.

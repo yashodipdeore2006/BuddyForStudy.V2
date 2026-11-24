@@ -944,7 +944,7 @@ test.describe("canonical learner navigation", () => {
       await expect(page.getByRole("heading", { name: "Find your next skill. Know what to do next." })).toBeVisible();
       await expect(page.getByRole("link", { name: "Explore courses", exact: true }).first()).toHaveAttribute("href", "/explore");
       await expect(page.getByRole("link", { name: "Create your account", exact: true })).toHaveAttribute("href", "/register");
-      await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login");
+      await expect(page.getByRole("link", { name: "Sign in", exact: true }).first()).toHaveAttribute("href", "/login");
       await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toHaveCount(0);
       await expect(page.getByRole("heading", { name: "Badges" })).toHaveCount(0);
     }

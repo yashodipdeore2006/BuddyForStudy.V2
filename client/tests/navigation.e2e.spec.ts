@@ -2989,6 +2989,7 @@ test.describe("authenticated enrollment intent resumption", () => {
 
     await expect(page).toHaveURL(/\/courses\/course-fixture$/);
     await expect.poll(resume.enrollmentPosts).toBe(1);
+    console.log("[AUTH-RESUME-DIAGNOSTIC]", await page.locator("body").innerText());
     await expect(page.getByRole("button", { name: "Continue Learning", exact: true })).toBeVisible();
     const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
     expect(state).toBeNull();

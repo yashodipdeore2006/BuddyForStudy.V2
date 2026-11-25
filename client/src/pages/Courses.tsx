@@ -312,6 +312,18 @@ export default function Courses() {
   }, [location.pathname, navigationType]);
 
   useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // If the browser restores this document from its back/forward cache, React state
+      // is resumed without a route remount. Revalidate the public catalogue on restore.
+      hasInitialSnapshot.current = true;
+      setCatalogRetryKey((current) => current + 1);
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  useEffect(() => {
     const entryKey = location.key;
     const pathname = location.pathname;
     const search = location.search;

@@ -3330,7 +3330,7 @@ test.describe("Explore result restoration", () => {
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 420));
     await page.getByRole("link", { name: "Open course details for Cached Course 01" }).click();
-    await expect(page).toHaveURL(/\\/courses\\/cache-0$/);
+    await expect(page).toHaveURL(/\/courses\/cache-0$/);
 
     let releaseRefresh: () => void = () => undefined;
     const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
@@ -3342,7 +3342,7 @@ test.describe("Explore result restoration", () => {
     });
 
     await page.goBack();
-    await expect(page).toHaveURL(/\\/explore\\?q=Cached$/);
+    await expect(page).toHaveURL(/\/explore\\?q=Cached$/);
     await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toHaveCount(0);

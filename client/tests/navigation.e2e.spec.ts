@@ -3372,7 +3372,7 @@ test.describe("Explore result restoration", () => {
     });
     await page.goBack();
 
-    await expect(page).toHaveURL(/\/explore\\?q=Previously$/);
+    await expect(page).toHaveURL(/\/explore\?q=Previously$/);
     await expect.poll(() => failedRevalidationRequests).toBe(1);
     await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
     await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();

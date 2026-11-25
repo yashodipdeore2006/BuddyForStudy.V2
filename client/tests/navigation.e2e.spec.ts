@@ -1211,6 +1211,7 @@ test.describe("learner control and state regression", () => {
 
     await page.goto(baseURL + "/explore");
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
+    await expect.poll(() => releaseCatalog !== undefined).toBe(true);
     await expect(page.getByRole("group", { name: "Loading courses" })).toBeVisible();
     releaseCatalog?.();
     await expect(page.getByRole("heading", { name: "Loaded after skeleton" })).toBeVisible();

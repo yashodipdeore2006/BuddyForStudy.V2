@@ -540,6 +540,7 @@ export default function Courses() {
       } catch (error) {
         // Keep the last rendered catalogue on revalidation failure. A first-load request
         // already starts with an empty array, so there is nothing to clear in that case.
+        if (allRows.length > 0) setCourses(allRows.map(mapCourse));
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
       } finally {
         hasInitialSnapshot.current = false;

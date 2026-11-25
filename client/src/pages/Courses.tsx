@@ -299,28 +299,27 @@ export default function Courses() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const wasExploreRouteActive = useRef(location.pathname === "/explore");
   useEffect(() => {
-    const isExploreRouteActive = location.pathname === "/explore";
-    const returnedToExplore = isExploreRouteActive && !wasExploreRouteActive.current && navigationType === "POP";
-    wasExploreRouteActive.current = isExploreRouteActive;
-    if (!returnedToExplore) return;
-    // A router may retain this page component across a detail/auth transition. In that
-    // case the mount-time catalogue effect will not run again, so explicitly revalidate.
-    hasInitialSnapshot.current = true;
-    setCatalogRetryKey((current) => current + 1);
-  }, [location.pathname, navigationType]);
-
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted) return;
-      // If the browser restores this document from its back/forward cache, React state
-      // is resumed without a route remount. Revalidate the public catalogue on restore.
+    const revalidateOnHistoryReturn = () => {
+      if (window.location.pathname !== "/explore") return;
+      // The Explore component may be retained while another route is shown. A
+      // popstate event still signals a history return even when it is not remounted.
       hasInitialSnapshot.current = true;
       setCatalogRetryKey((current) => current + 1);
     };
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
+    const revalidateOnPageRestore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // A document restored from the back/forward cache resumes its previous React
+      // tree, so explicitly refresh the public catalogue after the browser restores it.
+      hasInitialSnapshot.current = true;
+      setCatalogRetryKey((current) => current + 1);
+    };
+    window.addEventListener("popstate", revalidateOnHistoryReturn);
+    window.addEventListener("pageshow", revalidateOnPageRestore);
+    return () => {
+      window.removeEventListener("popstate", revalidateOnHistoryReturn);
+      window.removeEventListener("pageshow", revalidateOnPageRestore);
+    };
   }, []);
 
   useEffect(() => {

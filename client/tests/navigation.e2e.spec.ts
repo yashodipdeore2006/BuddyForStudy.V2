@@ -3284,3 +3284,62 @@ test.describe("authenticated enrollment intent resumption", () => {
     await expect.poll(resume.checkoutPosts).toBe(1);
   });
 });
+
+
+test.describe("Explore canonical URL state", () => {
+  test("deep links restore search, filters, sorting and pagination after reload", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "deep-link-" + index,
+      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=title&page=2");
+
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+    await expect(page.locator(".bfs-course-results-grid").last().getByRole("heading")).toHaveCount(2);
+
+    await page.reload();
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+  });
+
+  test("search, filter and page changes are navigable with Back and Forward", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "history-" + index,
+      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: index % 2 ? "Advanced" : "Beginner", category: "Development" }
+    ));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore");
+
+    await page.getByRole("textbox", { name: "Search courses" }).fill("Linux");
+    await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
+    await expect(page).toHaveURL(/q=Linux/);
+
+    await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
+    await expect(page).toHaveURL(/level=Advanced/);
+
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
+    await expect(page).toHaveURL(/sort=title/);
+
+    await page.getByRole("button", { name: "Next course page" }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+
+    await page.goBack();
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await page.goBack();
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+    await page.goForward();
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await page.goForward();
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+  });
+});

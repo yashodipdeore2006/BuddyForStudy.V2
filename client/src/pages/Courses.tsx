@@ -178,6 +178,22 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
   return [...new Set(String(value || "").split(/[,|]/).map((item) => item.trim()).filter(Boolean))];
 }
 
+type CatalogUrlState = { query: string; level: CourseLevel | "all"; category: string; sort: "recent" | "popular" | "title"; page: number };
+
+function readCatalogUrlState(search: string): CatalogUrlState {
+  const params = new URLSearchParams(search);
+  const level = params.get("level");
+  const sort = params.get("sort");
+  const requestedPage = Number(params.get("page") || 1);
+  return {
+    query: (params.get("q") || "").trim(),
+    level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
+    category: (params.get("category") || "").trim() || "all",
+    sort: sort === "popular" || sort === "title" ? sort : "recent",
+    page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1,
+  };
+}
+
 function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
@@ -221,14 +237,61 @@ export default function Courses() {
   const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
-  const [searchQuery, setSearchQuery] = useState('');
-  const [catalogQuery, setCatalogQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">("recent");
-  const [catalogPage, setCatalogPage] = useState(1);
+  const initialCatalogState = readCatalogUrlState(location.search);
+  const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
+  const [catalogQuery, setCatalogQuery] = useState(initialCatalogState.query);
+  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>(initialCatalogState.level);
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCatalogState.category);
+  const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">(initialCatalogState.sort);
+  const [catalogPage, setCatalogPage] = useState(initialCatalogState.page);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
   const catalogPageSize = 12;
+
+  const updateCatalogUrl = useCallback((updates: Partial<CatalogUrlState>, options: { replace?: boolean } = {}) => {
+    const params = new URLSearchParams(location.search);
+    const current = readCatalogUrlState(location.search);
+    const next = { ...current, ...updates };
+    const setOrDelete = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) params.delete(key);
+      else params.set(key, value);
+    };
+    setOrDelete("q", next.query.trim(), "");
+    setOrDelete("level", next.level, "all");
+    setOrDelete("category", next.category, "all");
+    setOrDelete("sort", next.sort, "recent");
+    setOrDelete("page", String(next.page), "1");
+    const search = params.toString();
+    const nextSearch = search ? `?${search}` : "";
+    if (nextSearch !== location.search) {
+      navigate({ pathname: location.pathname, search: nextSearch }, { replace: options.replace ?? false, state: location.state });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
+    const next = readCatalogUrlState(location.search);
+    setCatalogQuery(next.query);
+    setSearchQuery(next.query);
+    setSelectedLevel(next.level);
+    setSelectedCategory(next.category);
+    setCatalogSort(next.sort);
+    setCatalogPage(next.page);
+
+    const params = new URLSearchParams(location.search);
+    const canonical = new URLSearchParams(params);
+    const canonicalSet = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) canonical.delete(key);
+      else canonical.set(key, value);
+    };
+    canonicalSet("q", next.query, "");
+    canonicalSet("level", next.level, "all");
+    canonicalSet("category", next.category, "all");
+    canonicalSet("sort", next.sort, "recent");
+    canonicalSet("page", String(next.page), "1");
+    if (canonical.toString() !== params.toString()) {
+      const search = canonical.toString();
+      navigate({ pathname: location.pathname, search: search ? `?${search}` : "" }, { replace: true, state: location.state });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
@@ -459,7 +522,7 @@ export default function Courses() {
           type="button"
           aria-label="Previous course page"
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
+          onClick={() => updateCatalogUrl({ page: Math.max(1, currentCatalogPage - 1) })}
           disabled={currentCatalogPage <= 1}
         >Previous</button>
         <span aria-live="polite" className="min-w-24 text-center text-sm font-semibold text-slate-700">Page {currentCatalogPage} of {catalogPageCount}</span>
@@ -467,28 +530,19 @@ export default function Courses() {
           type="button"
           aria-label="Next course page"
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => setCatalogPage((page) => Math.min(catalogPageCount, page + 1))}
+          onClick={() => updateCatalogUrl({ page: Math.min(catalogPageCount, currentCatalogPage + 1) })}
           disabled={currentCatalogPage >= catalogPageCount}
         >Next</button>
       </div>
     </nav>
   ) : null;
 
-  useEffect(() => {
-    setCatalogPage(1);
-  }, [catalogQuery, selectedLevel, selectedCategory, catalogSort]);
-
   const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 
   const clearFilters = () => {
-    setSearchQuery('');
-    setCatalogQuery('');
-    setSelectedLevel('all');
-    setSelectedCategory('all');
-    setCatalogSort("recent");
-    setCatalogPage(1);
     setAiRoadmap(null);
     setAiError(null);
+    updateCatalogUrl({ query: "", level: "all", category: "all", sort: "recent", page: 1 });
   };
 
   useEffect(() => {
@@ -990,9 +1044,9 @@ export default function Courses() {
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    setCatalogQuery(query);
     setAiRoadmap(null);
     setAiError(null);
+    updateCatalogUrl({ query, page: 1 });
   };
 
   const roadmapDuration = aiRoadmap ? getRoadmapDurationSummary({
@@ -1084,7 +1138,7 @@ export default function Courses() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.value as CourseLevel | 'all')}
+              onChange={(e) => updateCatalogUrl({ level: e.target.value as CourseLevel | 'all', page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by level"
             >
@@ -1098,7 +1152,7 @@ export default function Courses() {
 
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by category"
             >
@@ -1113,7 +1167,7 @@ export default function Courses() {
             <select
               aria-label="Sort courses"
               value={catalogSort}
-              onChange={(e) => { setCatalogSort(e.target.value as "recent" | "popular" | "title"); setCatalogPage(1); }}
+              onChange={(e) => updateCatalogUrl({ sort: e.target.value as "recent" | "popular" | "title", page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
             >
               <option value="recent">Recently added</option>

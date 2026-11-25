@@ -1022,14 +1022,14 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux" && query.get("level") === "Advanced" && query.get("category") === "Development")).toBe(true);
 
     await page.getByRole("button", { name: /Clear filters/ }).click();
-    await expect(page).toHaveURL(/\\/explore$/);
+    await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
-    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && !query.has("sort") && !query.has("page"))).toBe(true);
+    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && query.get("sort") === "recent" && query.get("page") === "1")).toBe(true);
   });
 
   test("[BUILD-WITH-AI-FORM-001] course search opens the compact personalized course intake", async ({ page }) => {
@@ -3363,7 +3363,7 @@ test.describe("Explore result restoration", () => {
     await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
 
     await page.getByRole("link", { name: "Open course details for Previously loaded Explore result" }).click();
-    await expect(page).toHaveURL(/\\/courses\\/preserved-on-error$/);
+    await expect(page).toHaveURL(/\/courses\/preserved-on-error$/);
 
     let failedRevalidationRequests = 0;
     await page.route("**/api/courses**", async (route) => {
@@ -3372,7 +3372,7 @@ test.describe("Explore result restoration", () => {
     });
     await page.goBack();
 
-    await expect(page).toHaveURL(/\\/explore\\?q=Previously$/);
+    await expect(page).toHaveURL(/\/explore\\?q=Previously$/);
     await expect.poll(() => failedRevalidationRequests).toBe(1);
     await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
     await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
@@ -3388,7 +3388,7 @@ test.describe("Explore result restoration", () => {
     await page.goto(baseURL + "/explore?q=Expiry");
     await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
     await page.getByRole("link", { name: "Open course details for Fresh course after snapshot expiry" }).click();
-    await expect(page).toHaveURL(/\\/courses\\/fresh-after-expiry$/);
+    await expect(page).toHaveURL(/\/courses\/fresh-after-expiry$/);
     await page.goBack();
     await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
 
@@ -3434,7 +3434,7 @@ test.describe("Explore result restoration", () => {
     await page.goto(baseURL + "/explore?q=Malformed");
     await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
     await page.getByRole("link", { name: "Open course details for Catalogue recovered from malformed snapshot" }).click();
-    await expect(page).toHaveURL(/\\/courses\\/fresh-after-malformed$/);
+    await expect(page).toHaveURL(/\/courses\/fresh-after-malformed$/);
     await page.goBack();
     await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
 
@@ -3554,7 +3554,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
 
     await page.goBack();
-    await expect(page).toHaveURL(/\\/explore$/);
+    await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");

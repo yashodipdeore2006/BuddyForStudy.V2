@@ -3130,7 +3130,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
 
     await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
-    await expect(page.getByRole("status")).toContainText("already enrolled in this course");
+    await expect(page.getByText("Your learning progress", { exact: true })).toBeVisible();
     expect(resume.enrollmentPosts()).toBe(0);
   });
 

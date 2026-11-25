@@ -1211,7 +1211,7 @@ test.describe("learner control and state regression", () => {
 
     await page.goto(baseURL + "/explore");
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
-    await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
+    await expect(page.getByRole("group", { name: "Loading courses" })).toBeVisible();
     releaseCatalog?.();
     await expect(page.getByRole("heading", { name: "Loaded after skeleton" })).toBeVisible();
     await expect(page.locator(".bfs-course-results-grid .animate-pulse")).toHaveCount(0);
@@ -3365,15 +3365,21 @@ test.describe("Explore result restoration", () => {
     await page.getByRole("link", { name: "Open course details for Previously loaded Explore result" }).click();
     await expect(page).toHaveURL(/\/courses\/preserved-on-error$/);
 
+    let releaseFailure: () => void = () => undefined;
+    const failureGate = new Promise<void>((resolve) => { releaseFailure = resolve; });
     let failedRevalidationRequests = 0;
     await page.route("**/api/courses**", async (route) => {
+      if (new URL(route.request().url()).pathname !== "/api/courses") return route.continue();
       failedRevalidationRequests += 1;
+      await failureGate;
       await route.abort("internetdisconnected");
     });
     await page.goBack();
 
     await expect(page).toHaveURL(/\/explore\?q=Previously$/);
     await expect.poll(() => failedRevalidationRequests).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+    releaseFailure();
     await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
     await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
   });
@@ -3395,19 +3401,19 @@ test.describe("Explore result restoration", () => {
     await page.addInitScript(() => {
       const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
         .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
-      const storageKey = keys.find((key) => {
+      const matchingKeys = keys.filter((key) => {
         try {
           const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
           return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
         } catch { return false; }
       });
-      if (storageKey) {
+      for (const storageKey of matchingKeys) {
         const snapshot = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
         snapshot.savedAt = Date.now() - 6 * 60 * 1000;
         snapshot.courses = snapshot.courses.map((course: { title?: string }) => ({ ...course, title: "Expired snapshot must not render" }));
         window.sessionStorage.setItem(storageKey, JSON.stringify(snapshot));
       }
-      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", storageKey ? "1" : "missing");
+      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", String(matchingKeys.length));
     });
 
     let releaseFreshResponse: () => void = () => undefined;
@@ -3421,7 +3427,7 @@ test.describe("Explore result restoration", () => {
 
     await page.reload();
     await expect.poll(() => refreshRequests).toBe(1);
-    await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bfs-test-expired-snapshot-injected"))).toBe("1");
+    await expect.poll(() => page.evaluate(() => Number(window.sessionStorage.getItem("bfs-test-expired-snapshot-injected") || "0"))).toBeGreaterThan(0);
     await expect(page.getByRole("heading", { name: "Expired snapshot must not render" })).toHaveCount(0);
     await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
     releaseFreshResponse();
@@ -3445,18 +3451,18 @@ test.describe("Explore result restoration", () => {
     await page.addInitScript(() => {
       const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
         .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
-      const storageKey = keys.find((key) => {
+      const matchingKeys = keys.filter((key) => {
         try {
           const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
           return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
         } catch { return false; }
       });
-      if (storageKey) window.sessionStorage.setItem(storageKey, "{ malformed Explore snapshot");
-      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", storageKey ? "1" : "missing");
+      matchingKeys.forEach((key) => window.sessionStorage.setItem(key, "{ malformed Explore snapshot"));
+      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", String(matchingKeys.length));
     });
 
     await page.reload();
-    await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bfs-test-malformed-snapshot-injected"))).toBe("1");
+    await expect.poll(() => page.evaluate(() => Number(window.sessionStorage.getItem("bfs-test-malformed-snapshot-injected") || "0"))).toBeGreaterThan(0);
     await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
   });

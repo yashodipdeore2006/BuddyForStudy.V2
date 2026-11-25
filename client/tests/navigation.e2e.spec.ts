@@ -3342,7 +3342,7 @@ test.describe("Explore result restoration", () => {
     });
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/explore\\?q=Cached$/);
+    await expect(page).toHaveURL(/\/explore\?q=Cached$/);
     await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toHaveCount(0);

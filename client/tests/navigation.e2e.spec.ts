@@ -3313,7 +3313,7 @@ test.describe("Explore canonical URL state", () => {
   test("search, filter and page changes are navigable with Back and Forward", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "history-" + index,
-      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: index % 2 ? "Advanced" : "Beginner", category: "Development" }
+      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
     ));
     await mockAppApi(page, { catalogCourses });
     await page.goto(baseURL + "/explore");

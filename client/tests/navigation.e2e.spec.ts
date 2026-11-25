@@ -1212,7 +1212,7 @@ test.describe("learner control and state regression", () => {
     await page.goto(baseURL + "/explore");
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
     await expect.poll(() => releaseCatalog !== undefined).toBe(true);
-    await expect(page.getByRole("group", { name: "Loading courses" })).toBeVisible();
+    await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
     releaseCatalog?.();
     await expect(page.getByRole("heading", { name: "Loaded after skeleton" })).toBeVisible();
     await expect(page.locator(".bfs-course-results-grid .animate-pulse")).toHaveCount(0);
@@ -3430,7 +3430,7 @@ test.describe("Explore result restoration", () => {
     await expect.poll(() => refreshRequests).toBe(1);
     await expect.poll(() => page.evaluate(() => Number(window.sessionStorage.getItem("bfs-test-expired-snapshot-injected") || "0"))).toBeGreaterThan(0);
     await expect(page.getByRole("heading", { name: "Expired snapshot must not render" })).toHaveCount(0);
-    await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
+    await expect(page.getByRole("group", { name: "Loading courses" })).toBeVisible();
     releaseFreshResponse();
     await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
   });

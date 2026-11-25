@@ -1942,7 +1942,7 @@ export default function Courses() {
             <div className="mt-5 rounded-2xl">
               <CourseGridSkeleton count={6} />
             </div>
-          ) : catalogError ? null : (
+          ) : (
             <div className="mt-5 rounded-2xl">
               {visibleCourses.length > 0 && (
                 <div className="bfs-course-results-grid grid gap-4">
@@ -1967,7 +1967,7 @@ export default function Courses() {
                 />
               )}
 
-              {filteredCourses.length === 0 && !youtubeDiscovery && (
+              {filteredCourses.length === 0 && !youtubeDiscovery && !catalogError && (
                 <div className="py-8">
                   <EmptyState
                     icon={<BookOpen className="h-8 w-8" />}
@@ -1992,9 +1992,9 @@ export default function Courses() {
             <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
             </div>
-          ) : catalogError ? null : filteredCourses.length === 0 ? (
+          ) : filteredCourses.length === 0 ? (catalogError ? null : (
             <div className="mt-5"><EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available" description="Published courses will appear here. Try changing your filters or search." /></div>
-          ) : (
+          )) : (
             <>
               <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {visibleCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}

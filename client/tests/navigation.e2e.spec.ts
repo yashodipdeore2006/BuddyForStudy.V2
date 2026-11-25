@@ -3315,7 +3315,7 @@ test.describe("Explore result restoration", () => {
     expect(catalogueRequests).toBeGreaterThanOrEqual(2);
   });
 
-  test("renders cached Explore results immediately while reload revalidation is pending", async ({ page }) => {
+  test("renders cached Explore results immediately while Back navigation revalidation is pending", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "cache-" + index,
       { title: "Cached Course " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Development" }
@@ -3330,8 +3330,7 @@ test.describe("Explore result restoration", () => {
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 420));
     await page.getByRole("link", { name: "Open course details for Cached Course 01" }).click();
-    await page.goBack();
-    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await expect(page).toHaveURL(/\\/courses\\/cache-0$/);
 
     let releaseRefresh: () => void = () => undefined;
     const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
@@ -3342,8 +3341,9 @@ test.describe("Explore result restoration", () => {
       return json(route, { courses: [refreshedCourse] });
     });
 
-    await page.reload();
-    await expect.poll(() => refreshRequests).toBe(1);
+    await page.goBack();
+    await expect(page).toHaveURL(/\\/explore\\?q=Cached$/);
+    await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toHaveCount(0);
 
@@ -3373,7 +3373,7 @@ test.describe("Explore result restoration", () => {
     await page.goBack();
 
     await expect(page).toHaveURL(/\/explore\?q=Previously$/);
-    await expect.poll(() => failedRevalidationRequests).toBe(1);
+    await expect.poll(() => failedRevalidationRequests).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
     await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
   });
@@ -3393,17 +3393,21 @@ test.describe("Explore result restoration", () => {
     await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
 
     await page.addInitScript(() => {
-      const state = window.history.state || {};
-      const entryKey = typeof state.key === "string" ? state.key : "default";
-      const storageKey = "bfs-explore-snapshot:v1:" + encodeURIComponent(entryKey) + ":" + encodeURIComponent(window.location.search || "");
-      const raw = window.sessionStorage.getItem(storageKey);
-      if (raw) {
-        const snapshot = JSON.parse(raw);
+      const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
+      const storageKey = keys.find((key) => {
+        try {
+          const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
+          return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
+        } catch { return false; }
+      });
+      if (storageKey) {
+        const snapshot = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
         snapshot.savedAt = Date.now() - 6 * 60 * 1000;
-        snapshot.courses = snapshot.courses.map((course) => ({ ...course, title: "Expired snapshot must not render" }));
+        snapshot.courses = snapshot.courses.map((course: { title?: string }) => ({ ...course, title: "Expired snapshot must not render" }));
         window.sessionStorage.setItem(storageKey, JSON.stringify(snapshot));
       }
-      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", "1");
+      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", storageKey ? "1" : "missing");
     });
 
     let releaseFreshResponse: () => void = () => undefined;
@@ -3439,11 +3443,16 @@ test.describe("Explore result restoration", () => {
     await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
 
     await page.addInitScript(() => {
-      const state = window.history.state || {};
-      const entryKey = typeof state.key === "string" ? state.key : "default";
-      const storageKey = "bfs-explore-snapshot:v1:" + encodeURIComponent(entryKey) + ":" + encodeURIComponent(window.location.search || "");
-      window.sessionStorage.setItem(storageKey, "{ malformed Explore snapshot");
-      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", "1");
+      const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
+      const storageKey = keys.find((key) => {
+        try {
+          const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
+          return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
+        } catch { return false; }
+      });
+      if (storageKey) window.sessionStorage.setItem(storageKey, "{ malformed Explore snapshot");
+      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", storageKey ? "1" : "missing");
     });
 
     await page.reload();

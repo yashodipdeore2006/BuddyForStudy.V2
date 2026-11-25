@@ -3302,7 +3302,7 @@ test.describe("Explore result restoration", () => {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const previousScroll = await page.evaluate(() => window.scrollY);
     await page.getByRole("link", { name: /Open course details for Restoration Course/ }).last().click();
-    await expect(page).toHaveURL(/\/courses\/restore-0$/);
+    await expect(page).toHaveURL(/\/courses\/restore-11$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();

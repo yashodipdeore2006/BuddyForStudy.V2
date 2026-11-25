@@ -299,16 +299,17 @@ export default function Courses() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const lastObservedExploreLocationKey = useRef(location.key);
+  const wasExploreRouteActive = useRef(location.pathname === "/explore");
   useEffect(() => {
-    const historyEntryChanged = lastObservedExploreLocationKey.current !== location.key;
-    lastObservedExploreLocationKey.current = location.key;
-    if (!historyEntryChanged || navigationType !== "POP" || location.pathname !== "/explore") return;
+    const isExploreRouteActive = location.pathname === "/explore";
+    const returnedToExplore = isExploreRouteActive && !wasExploreRouteActive.current && navigationType === "POP";
+    wasExploreRouteActive.current = isExploreRouteActive;
+    if (!returnedToExplore) return;
     // A router may retain this page component across a detail/auth transition. In that
     // case the mount-time catalogue effect will not run again, so explicitly revalidate.
     hasInitialSnapshot.current = true;
     setCatalogRetryKey((current) => current + 1);
-  }, [location.key, location.pathname, navigationType]);
+  }, [location.pathname, navigationType]);
 
   useEffect(() => {
     const entryKey = location.key;
@@ -477,7 +478,7 @@ export default function Courses() {
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
           const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, {
             showFeatureUpgrade: Boolean(catalogQuery.trim()),
-            ...(hasInitialSnapshot.current ? { cache: "no-store" as const } : {}),
+            ...(hasInitialSnapshot.current || navigationType === "POP" ? { cache: "no-store" as const } : {}),
           });
           batch = response.courses || response.items || [];
           if (response.discovery) searchDiscovery = response.discovery;

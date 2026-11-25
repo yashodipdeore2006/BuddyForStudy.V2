@@ -464,7 +464,10 @@ export default function Courses() {
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
+          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, {
+            showFeatureUpgrade: Boolean(catalogQuery.trim()),
+            ...(hasInitialSnapshot.current ? { cache: "no-store" as const } : {}),
+          });
           batch = response.courses || response.items || [];
           if (response.discovery) searchDiscovery = response.discovery;
           allRows.push(...batch);

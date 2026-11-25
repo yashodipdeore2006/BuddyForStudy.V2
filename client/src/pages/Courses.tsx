@@ -473,12 +473,12 @@ export default function Courses() {
   useEffect(() => {
     async function fetchCourses() {
       setLoading(!hasInitialSnapshot.current);
+      const allRows: RawCourse[] = [];
       try {
         setCatalogError("");
         setYoutubeDiscovery(null);
         setYoutubePlaylistsLoading(false);
         setYoutubePlaylistError("");
-        const allRows: RawCourse[] = [];
         let page = 1;
         let batch: RawCourse[] = [];
         let searchDiscovery: SearchDiscovery | null = null;

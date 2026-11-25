@@ -1009,22 +1009,27 @@ test.describe("learner control and state regression", () => {
 
     await page.getByRole("textbox", { name: "Search courses" }).fill("linux");
     await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
+    await expect(page).toHaveURL(/q=linux/);
     await expect(page.getByRole("heading", { name: "Courses for “linux”" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toHaveCount(0);
     await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux")).toBe(true);
 
     await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
+    await expect(page).toHaveURL(/level=Advanced/);
     await page.getByRole("combobox", { name: "Filter by category" }).selectOption("Development");
+    await expect(page).toHaveURL(/category=Development/);
     await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux" && query.get("level") === "Advanced" && query.get("category") === "Development")).toBe(true);
 
     await page.getByRole("button", { name: /Clear filters/ }).click();
+    await expect(page).toHaveURL(/\\/explore$/);
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && !query.has("sort") && !query.has("page"))).toBe(true);
   });
 
   test("[BUILD-WITH-AI-FORM-001] course search opens the compact personalized course intake", async ({ page }) => {
@@ -3310,11 +3315,16 @@ test.describe("Explore result restoration", () => {
     expect(catalogueRequests).toBeGreaterThanOrEqual(2);
   });
 
-  test("uses cached Explore results immediately and refreshes them after reload", async ({ page }) => {
+  test("renders cached Explore results immediately while reload revalidation is pending", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "cache-" + index,
       { title: "Cached Course " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Development" }
     ));
+    const refreshedCourse = courseFixture("cache-refreshed", {
+      title: "Freshly revalidated catalogue result",
+      level: "Beginner",
+      category: "Development",
+    });
     await mockAppApi(page, { catalogCourses });
     await page.goto(baseURL + "/explore?q=Cached");
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
@@ -3322,12 +3332,152 @@ test.describe("Explore result restoration", () => {
     await page.getByRole("link", { name: "Open course details for Cached Course 01" }).click();
     await page.goBack();
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+
+    let releaseRefresh: () => void = () => undefined;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await refreshGate;
+      return json(route, { courses: [refreshedCourse] });
+    });
+
     await page.reload();
+    await expect.poll(() => refreshRequests).toBe(1);
     await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toHaveCount(0);
+
+    releaseRefresh();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toHaveCount(0);
+  });
+
+  test("keeps cached Explore results visible when catalogue revalidation fails after returning from details", async ({ page }) => {
+    const catalogCourse = courseFixture("preserved-on-error", {
+      title: "Previously loaded Explore result",
+      level: "Intermediate",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [catalogCourse] });
+    await page.goto(baseURL + "/explore?q=Previously");
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Open course details for Previously loaded Explore result" }).click();
+    await expect(page).toHaveURL(/\\/courses\\/preserved-on-error$/);
+
+    let failedRevalidationRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      failedRevalidationRequests += 1;
+      await route.abort("internetdisconnected");
+    });
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\\/explore\\?q=Previously$/);
+    await expect.poll(() => failedRevalidationRequests).toBe(1);
+    await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+  });
+
+  test("ignores expired Explore snapshots and loads the fresh catalogue", async ({ page }) => {
+    const freshCourse = courseFixture("fresh-after-expiry", {
+      title: "Fresh course after snapshot expiry",
+      level: "Beginner",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [freshCourse] });
+    await page.goto(baseURL + "/explore?q=Expiry");
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+    await page.getByRole("link", { name: "Open course details for Fresh course after snapshot expiry" }).click();
+    await expect(page).toHaveURL(/\\/courses\\/fresh-after-expiry$/);
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+
+    await page.addInitScript(() => {
+      const state = window.history.state || {};
+      const entryKey = typeof state.key === "string" ? state.key : "default";
+      const storageKey = "bfs-explore-snapshot:v1:" + encodeURIComponent(entryKey) + ":" + encodeURIComponent(window.location.search || "");
+      const raw = window.sessionStorage.getItem(storageKey);
+      if (raw) {
+        const snapshot = JSON.parse(raw);
+        snapshot.savedAt = Date.now() - 6 * 60 * 1000;
+        snapshot.courses = snapshot.courses.map((course) => ({ ...course, title: "Expired snapshot must not render" }));
+        window.sessionStorage.setItem(storageKey, JSON.stringify(snapshot));
+      }
+      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", "1");
+    });
+
+    let releaseFreshResponse: () => void = () => undefined;
+    const freshResponseGate = new Promise<void>((resolve) => { releaseFreshResponse = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await freshResponseGate;
+      return json(route, { courses: [freshCourse] });
+    });
+
+    await page.reload();
+    await expect.poll(() => refreshRequests).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bfs-test-expired-snapshot-injected"))).toBe("1");
+    await expect(page.getByRole("heading", { name: "Expired snapshot must not render" })).toHaveCount(0);
+    await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
+    releaseFreshResponse();
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+  });
+
+  test("ignores malformed Explore snapshots without breaking catalogue loading", async ({ page }) => {
+    const freshCourse = courseFixture("fresh-after-malformed", {
+      title: "Catalogue recovered from malformed snapshot",
+      level: "Beginner",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [freshCourse] });
+    await page.goto(baseURL + "/explore?q=Malformed");
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+    await page.getByRole("link", { name: "Open course details for Catalogue recovered from malformed snapshot" }).click();
+    await expect(page).toHaveURL(/\\/courses\\/fresh-after-malformed$/);
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+
+    await page.addInitScript(() => {
+      const state = window.history.state || {};
+      const entryKey = typeof state.key === "string" ? state.key : "default";
+      const storageKey = "bfs-explore-snapshot:v1:" + encodeURIComponent(entryKey) + ":" + encodeURIComponent(window.location.search || "");
+      window.sessionStorage.setItem(storageKey, "{ malformed Explore snapshot");
+      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", "1");
+    });
+
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bfs-test-malformed-snapshot-injected"))).toBe("1");
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
   });
 });
 
 test.describe("Explore canonical URL state", () => {
+  test("changing filters from page two resets pagination and removes the stale page parameter", async ({ page }) => {
+    const advancedCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "page-reset-advanced-" + index,
+      { title: "Advanced Development " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    const beginnerCourses = Array.from({ length: 13 }, (_, index) => courseFixture(
+      "page-reset-beginner-" + index,
+      { title: "Beginner Data " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Data" }
+    ));
+    await mockAppApi(page, { catalogCourses: [...advancedCourses, ...beginnerCourses] });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 3")).toBeVisible();
+    await page.getByRole("button", { name: "Next course page" }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 3")).toBeVisible();
+
+    await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Beginner");
+    await expect(page).toHaveURL(/level=Beginner/);
+    await expect(page).not.toHaveURL(/page=2/);
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Beginner Data 01" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Advanced Development 01" })).toHaveCount(0);
+  });
+
   test("deep links restore search, filters, sorting and pagination after reload", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "deep-link-" + index,
@@ -3351,7 +3501,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
   });
 
-  test("search, filter and page changes are navigable with Back and Forward", async ({ page }) => {
+  test("search, filters, sorting and pagination restore every state through Back and Forward", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "history-" + index,
       { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
@@ -3362,25 +3512,68 @@ test.describe("Explore canonical URL state", () => {
     await page.getByRole("textbox", { name: "Search courses" }).fill("Linux");
     await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
     await expect(page).toHaveURL(/q=Linux/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
 
     await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
     await expect(page).toHaveURL(/level=Advanced/);
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+
+    await page.getByRole("combobox", { name: "Filter by category" }).selectOption("Development");
+    await expect(page).toHaveURL(/category=Development/);
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
 
     await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
     await expect(page).toHaveURL(/sort=title/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
 
     await page.getByRole("button", { name: "Next course page" }).click();
     await expect(page).toHaveURL(/page=2/);
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
 
     await page.goBack();
+    await expect(page).not.toHaveURL(/page=2/);
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+
     await page.goBack();
+    await expect(page).not.toHaveURL(/sort=title/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/category=Development/);
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/level=Advanced/);
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\\/explore$/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+
     await page.goForward();
+    await expect(page).toHaveURL(/q=Linux/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await page.goForward();
+    await expect(page).toHaveURL(/level=Advanced/);
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await page.goForward();
+    await expect(page).toHaveURL(/category=Development/);
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await page.goForward();
+    await expect(page).toHaveURL(/sort=title/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
     await page.goForward();
+    await expect(page).toHaveURL(/page=2/);
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
   });
 });

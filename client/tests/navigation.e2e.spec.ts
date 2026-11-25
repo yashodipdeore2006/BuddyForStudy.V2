@@ -336,6 +336,9 @@ async function mockAppApi(page: Page, options: {
 type EnrollmentResumeAuthOptions = {
   loginRequiresOtp?: boolean;
   loginRequiresEmailVerification?: boolean;
+  loginFailsOnce?: boolean;
+  verifyEmailFailsOnce?: boolean;
+  alreadyEnrolled?: boolean;
   registrationRequiresVerification?: boolean;
 };
 
@@ -343,12 +346,18 @@ async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAut
   let authenticated = false;
   let enrollmentPosts = 0;
   let checkoutPosts = 0;
+  let loginAttempts = 0;
+  let emailVerificationAttempts = 0;
 
   await page.route("**/api/auth/me", async (route) => authenticated
     ? json(route, { user: learner })
     : json(route, { message: "Authentication required" }, 401));
 
   await page.route("**/api/auth/login", async (route) => {
+    loginAttempts += 1;
+    if (options.loginFailsOnce && loginAttempts === 1) {
+      return json(route, { message: "Invalid email or password." }, 401);
+    }
     if (options.loginRequiresEmailVerification) {
       return json(route, { message: "Email not verified. Please verify your email before signing in." }, 403);
     }
@@ -370,6 +379,10 @@ async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAut
   }));
 
   await page.route("**/api/auth/verify-email", async (route) => {
+    emailVerificationAttempts += 1;
+    if (options.verifyEmailFailsOnce && emailVerificationAttempts === 1) {
+      return json(route, { message: "The verification code is invalid or expired." }, 400);
+    }
     authenticated = true;
     return json(route, { token: "resume-e2e-token", user: learner });
   });
@@ -384,11 +397,11 @@ async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAut
       enrollmentPosts += 1;
       return json(route, { enrollment: { status: "active" } }, 201);
     }
-    return json(route, { enrollment: enrollmentPosts ? { status: "active" } : null });
+    return json(route, { enrollment: options.alreadyEnrolled || enrollmentPosts ? { status: "active" } : null });
   });
 
   await page.route("**/api/enrollments/course/course-fixture", async (route) => {
-    return json(route, { enrollment: enrollmentPosts ? { status: "active" } : null });
+    return json(route, { enrollment: options.alreadyEnrolled || enrollmentPosts ? { status: "active" } : null });
   });
 
   await page.route("**/api/payments/course/order", async (route) => {
@@ -3008,6 +3021,21 @@ test.describe("guest enrollment authentication choice", () => {
     });
   });
 
+  test("closing guest enrollment options cancels without navigating or creating an enrollment", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Sign in to enroll" })).toBeVisible();
+    await page.getByRole("button", { name: "Close sign-in options" }).click();
+
+    await expect(page.getByRole("dialog", { name: "Sign in to enroll" })).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    expect(resume.enrollmentPosts()).toBe(0);
+    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true }).last()).toBeVisible();
+  });
+
   test("enrollment choice dialog can be dismissed with Escape", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture");
@@ -3023,6 +3051,89 @@ test.describe("guest enrollment authentication choice", () => {
 
 
 test.describe("authenticated enrollment intent resumption", () => {
+  test("reloading the login page preserves the pending course enrollment intent", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/login");
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("login failure can be retried without losing the selected course intent", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginFailsOnce: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("incorrect-password");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Invalid email or password");
+    await expect(page).toHaveURL((url) => url.pathname === "/login");
+    expect(resume.enrollmentPosts()).toBe(0);
+
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("invalid email verification keeps the course intent and never enrolls before verification succeeds", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, {
+      loginRequiresEmailVerification: true,
+      verifyEmailFailsOnce: true,
+    });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await page.getByRole("link", { name: "Verify your email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
+
+    await page.getByPlaceholder("000000").fill("000001");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page.getByText("The verification code is invalid or expired.")).toBeVisible();
+    expect(resume.enrollmentPosts()).toBe(0);
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
+
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("an existing enrollment is detected after login and is never posted again", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { alreadyEnrolled: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect(page.getByRole("status")).toContainText("already enrolled in this course");
+    expect(resume.enrollmentPosts()).toBe(0);
+  });
+
   test("completes a free individual enrollment once after password login and does not replay after refresh", async ({ page }) => {
     await mockAppApi(page);
     const resume = await mockEnrollmentResumeAuth(page);

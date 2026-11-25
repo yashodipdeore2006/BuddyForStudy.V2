@@ -538,8 +538,7 @@ export default function Courses() {
           setYoutubePlaylistError("");
         }
       } catch (error) {
-        // Keep the last rendered catalogue on revalidation failure. A first-load request
-        // already starts with an empty array, so there is nothing to clear in that case.
+        // Preserve any complete pages already fetched when a later catalogue page fails.
         if (allRows.length > 0) setCourses(allRows.map(mapCourse));
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
       } finally {

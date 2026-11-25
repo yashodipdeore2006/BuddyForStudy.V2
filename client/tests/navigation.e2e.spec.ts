@@ -3286,6 +3286,47 @@ test.describe("authenticated enrollment intent resumption", () => {
 });
 
 
+test.describe("Explore result restoration", () => {
+  test("restores cached results and scroll when returning from course details", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 30 }, (_, index) => courseFixture(
+      "restore-" + index,
+      { title: "Restoration Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    let catalogueRequests = 0;
+    await mockAppApi(page, { catalogCourses });
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/courses") catalogueRequests += 1;
+    });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const previousScroll = await page.evaluate(() => window.scrollY);
+    await page.getByRole("link", { name: "Open course details for Restoration Course 01" }).click();
+    await expect(page).toHaveURL(/\/courses\/restore-0$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/explore$/);
+    await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.max(0, previousScroll - 4));
+    expect(catalogueRequests).toBeGreaterThanOrEqual(2);
+  });
+
+  test("uses cached Explore results immediately and refreshes them after reload", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "cache-" + index,
+      { title: "Cached Course " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Development" }
+    ));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Cached");
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 420));
+    await page.getByRole("link", { name: "Open course details for Cached Course 01" }).click();
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+  });
+});
+
 test.describe("Explore canonical URL state", () => {
   test("deep links restore search, filters, sorting and pagination after reload", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(

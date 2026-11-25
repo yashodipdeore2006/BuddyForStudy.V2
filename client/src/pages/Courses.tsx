@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback, type FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } from '@/types';
@@ -194,6 +194,47 @@ function readCatalogUrlState(search: string): CatalogUrlState {
   };
 }
 
+
+type ExploreSnapshot = {
+  version: 1;
+  savedAt: number;
+  pathname: string;
+  search: string;
+  scrollY: number;
+  courses: Course[];
+  youtubeDiscovery: SearchDiscovery | null;
+};
+const EXPLORE_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
+const EXPLORE_SNAPSHOT_PREFIX = "bfs-explore-snapshot:v1:";
+function exploreSnapshotKey(entryKey: string, search: string): string {
+  return EXPLORE_SNAPSHOT_PREFIX + encodeURIComponent(entryKey || "default") + ":" + encodeURIComponent(search || "");
+}
+function readExploreSnapshot(entryKey: string, pathname: string, search: string): ExploreSnapshot | null {
+  try {
+    const raw = window.sessionStorage.getItem(exploreSnapshotKey(entryKey, search));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as ExploreSnapshot;
+    if (value.version !== 1 || value.pathname !== pathname || value.search !== search || !Array.isArray(value.courses) || !Number.isFinite(value.savedAt) || Date.now() - value.savedAt > EXPLORE_SNAPSHOT_TTL_MS) return null;
+    return value;
+  } catch { return null; }
+}
+function writeExploreSnapshot(entryKey: string, snapshot: ExploreSnapshot): void {
+  try {
+    const key = exploreSnapshotKey(entryKey, snapshot.search);
+    window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+    const keys: string[] = [];
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const candidate = window.sessionStorage.key(index);
+      if (candidate?.startsWith(EXPLORE_SNAPSHOT_PREFIX)) keys.push(candidate);
+    }
+    keys.sort((a, b) => {
+      try { return (JSON.parse(window.sessionStorage.getItem(b) || "{}").savedAt || 0) - (JSON.parse(window.sessionStorage.getItem(a) || "{}").savedAt || 0); }
+      catch { return 0; }
+    });
+    keys.slice(12).forEach((candidate) => window.sessionStorage.removeItem(candidate));
+  } catch { /* Storage may be unavailable or full; Explore remains functional. */ }
+}
+
 function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
@@ -229,12 +270,15 @@ function mapCourse(raw: RawCourse): Course {
 export default function Courses() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const navigationType = useNavigationType();
+  const initialSnapshot = readExploreSnapshot(location.key, location.pathname, location.search);
+  const hasInitialSnapshot = useRef(Boolean(initialSnapshot));
+  const [courses, setCourses] = useState<Course[]>(initialSnapshot?.courses || []);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [catalogError, setCatalogError] = useState("");
-  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(null);
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(initialSnapshot?.youtubeDiscovery || null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
   const initialCatalogState = readCatalogUrlState(location.search);
@@ -246,6 +290,32 @@ export default function Courses() {
   const [catalogPage, setCatalogPage] = useState(initialCatalogState.page);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
   const catalogPageSize = 12;
+
+  useEffect(() => {
+    if (!initialSnapshot || navigationType !== "POP") return;
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: Math.max(0, initialSnapshot.scrollY || 0), behavior: "auto" }));
+    return () => window.cancelAnimationFrame(frame);
+    // Restore once for this history entry; later URL changes must not replay an old scroll position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const entryKey = location.key;
+    const pathname = location.pathname;
+    const search = location.search;
+    return () => {
+      if (loading) return;
+      writeExploreSnapshot(entryKey, {
+        version: 1,
+        savedAt: Date.now(),
+        pathname,
+        search,
+        scrollY: Math.max(0, window.scrollY || 0),
+        courses,
+        youtubeDiscovery,
+      });
+    };
+  }, [courses, loading, location.key, location.pathname, location.search, youtubeDiscovery]);
 
   const updateCatalogUrl = useCallback((updates: Partial<CatalogUrlState>, options: { replace?: boolean } = {}) => {
     const params = new URLSearchParams(location.search);
@@ -379,7 +449,7 @@ export default function Courses() {
 
   useEffect(() => {
     async function fetchCourses() {
-      setLoading(true);
+      setLoading(!hasInitialSnapshot.current);
       try {
         setCatalogError("");
         setYoutubeDiscovery(null);
@@ -401,6 +471,7 @@ export default function Courses() {
           page += 1;
         } while (batch.length === 50 && page <= 200);
         setCourses(allRows.map(mapCourse));
+        hasInitialSnapshot.current = false;
 
         if (
           searchDiscovery?.mode === 'youtube_fallback' ||
@@ -441,9 +512,10 @@ export default function Courses() {
           setYoutubePlaylistError("");
         }
       } catch (error) {
-        setCourses([]);
+        if (!hasInitialSnapshot.current) setCourses([]);
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
       } finally {
+        hasInitialSnapshot.current = false;
         setLoading(false);
       }
     }

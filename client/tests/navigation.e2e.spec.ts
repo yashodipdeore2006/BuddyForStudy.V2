@@ -3316,6 +3316,48 @@ test.describe("Explore result restoration", () => {
     expect(catalogueRequests).toBeGreaterThanOrEqual(2);
   });
 
+  test("persists the latest Explore snapshot on reload and restores cached results and scroll before revalidation", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 30 }, (_, index) => courseFixture(
+      "reload-restore-" + index,
+      { title: "Reload Restoration Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    const refreshedCourse = courseFixture("reload-refreshed", {
+      title: "Freshly revalidated after reload",
+      level: "Advanced",
+      category: "Development",
+    });
+
+    // Disable the browser's native scroll restoration so this test verifies the
+    // application's own session snapshot rather than browser-managed scroll state.
+    await page.addInitScript(() => { history.scrollRestoration = "manual"; });
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Reload");
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const previousScroll = await page.evaluate(() => window.scrollY);
+    expect(previousScroll).toBeGreaterThan(0);
+
+    let releaseRefresh: () => void = () => undefined;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await refreshGate;
+      return json(route, { courses: [refreshedCourse] });
+    });
+
+    await page.reload();
+    await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.max(0, previousScroll - 4));
+    await expect(page.getByRole("heading", { name: "Freshly revalidated after reload" })).toHaveCount(0);
+
+    releaseRefresh();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated after reload" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toHaveCount(0);
+  });
+
   test("renders cached Explore results immediately while Back navigation revalidation is pending", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "cache-" + index,

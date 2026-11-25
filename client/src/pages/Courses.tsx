@@ -340,6 +340,35 @@ export default function Courses() {
     };
   }, [courses, loading, location.key, location.pathname, location.search, youtubeDiscovery]);
 
+  // React effect cleanup is not guaranteed during a full document reload. Persist
+  // the latest complete Explore view on pagehide and when the tab becomes hidden.
+  // This keeps the session snapshot available before the next document initializes.
+  useEffect(() => {
+    if (loading || location.pathname !== "/explore") return;
+
+    const persistSnapshot = () => {
+      writeExploreSnapshot(location.key, {
+        version: 1,
+        savedAt: Date.now(),
+        pathname: location.pathname,
+        search: location.search,
+        scrollY: Math.max(0, window.scrollY || 0),
+        courses,
+        youtubeDiscovery,
+      });
+    };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === "hidden") persistSnapshot();
+    };
+
+    window.addEventListener("pagehide", persistSnapshot);
+    document.addEventListener("visibilitychange", persistWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", persistSnapshot);
+      document.removeEventListener("visibilitychange", persistWhenHidden);
+    };
+  }, [courses, loading, location.key, location.pathname, location.search, youtubeDiscovery]);
+
   const updateCatalogUrl = useCallback((updates: Partial<CatalogUrlState>, options: { replace?: boolean } = {}) => {
     const params = new URLSearchParams(location.search);
     const current = readCatalogUrlState(location.search);

@@ -1028,8 +1028,34 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
-    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && query.get("sort") === "recent" && query.get("page") === "1")).toBe(true);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
+    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && query.get("sort") === "best_match" && query.get("page") === "1")).toBe(true);
+  });
+
+  test("[EXP-SORT-MODES-001] Explore exposes supported sorts and preserves sort in URL and API requests", async ({ page }) => {
+    const catalogQueries: URLSearchParams[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/courses") catalogQueries.push(url.searchParams);
+    });
+    await mockAppApi(page);
+    await page.goto(baseURL + "/explore");
+    const sort = page.getByRole("combobox", { name: "Sort courses" });
+    await expect(sort).toHaveValue("best_match");
+    await expect(sort.locator("option")).toHaveText([
+      "Best match", "Highest quality", "Most popular", "Highest rated", "Newest"
+    ]);
+
+    for (const value of ["quality", "popular", "highest_rated", "newest", "best_match"]) {
+      await sort.selectOption(value);
+      if (value === "best_match") {
+        await expect(page).not.toHaveURL(/sort=/);
+      } else {
+        await expect(page).toHaveURL(new RegExp("sort=" + value));
+      }
+      await expect(sort).toHaveValue(value);
+      await expect.poll(() => catalogQueries.some((query) => query.get("sort") === value)).toBe(true);
+    }
   });
 
   test("[BUILD-WITH-AI-FORM-001] course search opens the compact personalized course intake", async ({ page }) => {
@@ -1177,9 +1203,24 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("No BuddyForStudy or YouTube results found")).toHaveCount(0);
   });
 
-  test("[EXP-CATALOG-SORT-PAGE-001] catalog sort and pagination operate on the complete filtered result set", async ({ page }) => {
+  test("[EXP-CATALOG-SORT-PAGE-001] quality sort and pagination operate on the complete filtered result set", async ({ page }) => {
     const titles = ["Zeta Course", "Alpha Course", ...Array.from({ length: 12 }, (_, index) => "Course " + String(index + 3).padStart(2, "0"))];
-    const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, { title, category: "Development", level: "Beginner" }));
+    const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, {
+      title,
+      category: "Development",
+      level: "Beginner",
+      ranking: {
+        version: "course-ranking-v1",
+        score: index === 1 ? 99 : index === 0 ? 20 : 70 - index,
+        qualityScore: index === 1 ? 99 : index === 0 ? 20 : 70 - index,
+        weights: { relevance: 35, catalogueCompleteness: 25, curriculumCoverage: 15, confidenceAdjustedRating: 15, popularity: 5, freshness: 5 },
+        components: { relevance: 50, catalogueCompleteness: 75, curriculumCoverage: 70, confidenceAdjustedRating: 80, popularity: 20, freshness: 50 },
+        rating: { score: 80, rawAverage: 4, count: 20, adjustedAverage: 3.9, confidence: 0.66, priorAverage: 3.5, priorStrength: 10 },
+        enrollmentCount: index,
+        reasonCodes: ["structured_curriculum"],
+        reasons: ["Structured learning path"]
+      }
+    }));
     await mockAppApi(page, { catalogCourses });
     await page.goto(baseURL + "/explore");
 
@@ -1188,8 +1229,9 @@ test.describe("learner control and state regression", () => {
     const grid = page.locator(".bfs-course-results-grid").last();
     await expect(grid.getByRole("heading")).toHaveCount(12);
 
-    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("quality");
     await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
+    await expect(grid.getByText("Why this course:")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Next course page" }).click();
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
@@ -3542,12 +3584,12 @@ test.describe("Explore canonical URL state", () => {
       { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
     ));
     await mockAppApi(page, { catalogCourses });
-    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=title&page=2");
+    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=quality&page=2");
 
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
     await expect(page.locator(".bfs-course-results-grid").last().getByRole("heading")).toHaveCount(2);
 
@@ -3581,7 +3623,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
 
     await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
-    await expect(page).toHaveURL(/sort=title/);
+    await expect(page).toHaveURL(/sort=highest_rated/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
 
     await page.getByRole("button", { name: "Next course page" }).click();

@@ -204,7 +204,7 @@ export default function CourseRoadmapExperience({
   const [notice, setNotice] = useState("");
   const drawerRef = useRef<HTMLElement>(null);
 
-  const nodesById = useMemo(() => new Map(document.nodes.map((node) => [node.id, node])), [document.nodes]);
+  const nodesById = useMemo(() => new Map(document.nodes.map((node) => [node.id, node] as const)), [document.nodes]);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) || null : null;
   const selectedPhase = selectedNode
     ? document.phases.find((phase) => phase.id === selectedNode.phaseId) || document.phases[0]
@@ -389,7 +389,7 @@ export default function CourseRoadmapExperience({
         </article>
         <article className="bfs-roadmap-telemetry__metric">
           <span><Clock3 size={16} aria-hidden="true" /> Estimated time left</span>
-          <strong>{document.courseMeta.totalHours > 0 ? formatHours(document.progress.hoursRemaining) : "Not estimated"}</strong>
+          <strong>{document.progress.completedCount === document.progress.totalCount && document.progress.totalCount > 0 ? "0h" : document.progress.hoursRemaining > 0 ? formatHours(document.progress.hoursRemaining) : "Not estimated"}</strong>
           <small>Based on available course durations</small>
         </article>
         <article className="bfs-roadmap-telemetry__metric">

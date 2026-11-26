@@ -11,6 +11,7 @@ import {
 import { Link } from "react-router-dom";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
 import { routes } from "@/lib/routes";
+import LongFormCourseCarousel from "@/components/LongFormCourseCarousel";
 
 const capabilities = [
   {
@@ -130,6 +131,8 @@ export default function GuestLanding() {
           </div>
         </div>
       </section>
+
+      <LongFormCourseCarousel />
 
       <section className="bfs-public-content-section" aria-labelledby="guest-capabilities-title">
         <div className="bfs-public-section-heading">

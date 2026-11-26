@@ -12,7 +12,6 @@ import {
   ExternalLink,
   FileText,
   Github,
-  Layers3,
   Loader2,
   PlayCircle,
   Search,
@@ -204,7 +203,6 @@ export default function CourseRoadmapExperience({
   const [progressError, setProgressError] = useState("");
   const [notice, setNotice] = useState("");
   const drawerRef = useRef<HTMLElement>(null);
-  const selectedTriggerRef = useRef<HTMLElement | null>(null);
 
   const nodesById = useMemo(() => new Map(document.nodes.map((node) => [node.id, node])), [document.nodes]);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) || null : null;
@@ -308,8 +306,7 @@ export default function CourseRoadmapExperience({
     };
   }, [selectedNodeId]);
 
-  const openNode = (node: CourseRoadmapNode, trigger: HTMLElement) => {
-    selectedTriggerRef.current = trigger;
+  const openNode = (node: CourseRoadmapNode) => {
     setProgressError("");
     setNotice("");
     setSelectedNodeId(node.id);
@@ -403,7 +400,7 @@ export default function CourseRoadmapExperience({
         <article className="bfs-roadmap-telemetry__metric">
           <span><Trophy size={16} aria-hidden="true" /> Milestones</span>
           <strong>{document.progress.completedCount} / {document.progress.totalCount}</strong>
-          <small>50 XP per completed milestone</small>
+          <small>Completed across your course roadmap</small>
         </article>
       </section>
 
@@ -465,7 +462,7 @@ export default function CourseRoadmapExperience({
                         node.status === "completed" ? "is-completed" : "",
                         node.status === "in_progress" ? "is-current" : ""
                       ].filter(Boolean).join(" ")}
-                      onClick={(event) => openNode(node, event.currentTarget)}
+                      onClick={() => openNode(node)}
                       aria-label={"Open " + node.title + ". " + getTypeLabel(node.type) + ". " + getStatusLabel(node.status)}
                     >
                       <span className="bfs-roadmap-node__rail">

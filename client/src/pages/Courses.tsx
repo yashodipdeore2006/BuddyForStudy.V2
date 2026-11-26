@@ -1342,6 +1342,7 @@ export default function Courses() {
 
             <select
               aria-label="Sort courses"
+              title="Quality ranking uses catalogue completeness, curriculum structure and confidence-adjusted approved reviews."
               value={catalogSort}
               onChange={(e) => updateCatalogUrl({ sort: e.target.value as CatalogSort, page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"

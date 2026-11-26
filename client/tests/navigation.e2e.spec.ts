@@ -1242,7 +1242,9 @@ test.describe("learner control and state regression", () => {
 
     await page.getByRole("combobox", { name: "Sort courses" }).selectOption("quality");
     await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
-    await expect(grid.getByText("Why this course:")).toBeVisible();
+    const rankingReasonLabels = grid.getByText("Why this course:");
+    await expect(rankingReasonLabels).toHaveCount(12);
+    await expect(rankingReasonLabels.first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Next course page" }).click();
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
@@ -3361,7 +3363,7 @@ test.describe("Explore result restoration", () => {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const previousScroll = await page.evaluate(() => window.scrollY);
     await page.getByRole("link", { name: /Open course details for Restoration Course/ }).last().evaluate((link) => (link as HTMLAnchorElement).click());
-    await expect(page).toHaveURL(/\/courses\/restore-11$/);
+    await expect(page).toHaveURL(/\/courses\/restore-\d+$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();

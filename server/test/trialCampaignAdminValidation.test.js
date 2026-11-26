@@ -126,3 +126,33 @@ test("a selected quick-trial preset can be edited before normal campaign creatio
   assert.equal(result.data.trialDays, trialDays);
   assert.equal(result.data.maxClaims, maxClaims);
 });
+
+
+test("campaigns cannot relax the mandatory exclusion for active paid subscriptions or trials", () => {
+  assert.equal(trialCampaignCreateSchema.safeParse(validCampaign({
+    eligibility: {
+      requireActiveAccount: true,
+      requireVerifiedEmail: true,
+      requireNoActiveSubscription: false,
+      requireNoPreviousTrial: true
+    }
+  })).success, false);
+
+  assert.equal(trialCampaignCreateSchema.safeParse(validCampaign({
+    eligibility: {
+      requireActiveAccount: true,
+      requireVerifiedEmail: false,
+      requireNoActiveSubscription: true,
+      requireNoPreviousTrial: false
+    }
+  })).success, true, "other audience eligibility rules remain configurable");
+
+  assert.equal(trialCampaignUpdateSchema.safeParse({
+    reason: "Policy review of campaign eligibility settings.",
+    eligibility: { requireNoActiveSubscription: false }
+  }).success, false);
+  assert.equal(trialCampaignUpdateSchema.safeParse({
+    reason: "Policy review of campaign eligibility settings.",
+    eligibility: { requireNoActiveSubscription: true }
+  }).success, true);
+});

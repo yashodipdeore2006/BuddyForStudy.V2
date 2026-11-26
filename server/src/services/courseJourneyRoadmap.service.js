@@ -173,7 +173,6 @@ export async function getCourseJourney(courseId, userId = null) {
   const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null }).lean();
   if (!course) return null;
   let cached = course.roadmap?.stages || [];
-  const populatedModuleCount = (course.modules || []).filter((module) => (module.lessons || []).length > 0).length;
   const totalLessonCount = (course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0);
   const minimumGeneratedPhaseCount = Math.min(4, totalLessonCount);
   const generatedRoadmapNeedsMorePhases =

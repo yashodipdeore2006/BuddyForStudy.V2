@@ -92,7 +92,7 @@ export default function LongFormCourseCarousel() {
     let mounted = true;
 
     void apiFetch<PublicCourseCatalogueResponse>(
-      "/api/courses?limit=50&sort=quality",
+      "/api/courses?limit=50&sort=quality&includeLongFormMetadata=true",
       { signal: controller.signal, cache: "no-store" }
     ).then((response) => {
       if (mounted) setCourses(selectLongFormCourses(response.courses));

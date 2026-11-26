@@ -173,7 +173,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 |---:|---|---|---|
 | 20 | Redesign Trial Dashboard | Campaigns, claims, grants, status, and history are separated | DONE |
 | 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | DONE |
-| 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | NOT_STARTED |
+| 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | DONE |
 | 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | NOT_STARTED |
 | 24 | Improve Finance & Governance navigation | Clear grouping, concise labels, descriptions, and permission consistency | NOT_STARTED |
 
@@ -534,6 +534,34 @@ Verified on `buddy-for-study-v2.2`:
 **Exact-SHA verification:** commit `e46ab9c48b2e56a703bb50c7ed4927daa1ca7bc3`, CI run [45850778809](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45850778809):
 - Backend: **1,231 passed, 0 failed, 0 skipped**.
 - Frontend: lint, TypeScript, unit tests, deployment-config tests, and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
+
+
+## Task 22 Course Pricing Studio — verified
+
+**Scope:** Organize administrator course pricing into distinct operational workspaces for Overview, Course catalogue, Bulk pricing, Rules & policy (including smart recommendations), and History.
+
+Verified on `buddy-for-study-v2.2`:
+
+- `client/src/pages/admin/AdminPricingStudio.tsx` provides five dedicated workspaces with labelled navigation.
+- **Overview** summarizes catalogue totals, paid/free courses, enabled rules, shortcuts to pricing operations, latest pricing activity, and the core pricing safety model.
+- **Course catalogue** supports search and category, level, pricing mode, publication status, and base-price filters; paginated results; explicit individual/all-matching selection; and a 500-course batch ceiling.
+- **Bulk pricing** supports fixed, amount/percentage increase and decrease, free/paid and comparison-price operations, optional floors/ceilings, and explicit sale-price handling. Every change begins with a before/after preview showing matched, eligible and skipped counts; previews are bounded, expire after 30 minutes, and are single-use. Applying requires a 10–500 character reason and explicit confirmation.
+- **Smart recommendations** expose level price bands and module/project adjustments; category bands take precedence. Recommendations are previewed before application and remain subject to the same batch and audit safeguards.
+- **Rules & policy** supports rule creation, editing, enabling/disabling, deletion, priority and filter configuration, plus optional opt-in to a manually triggered rule runner. Execution requires a reason and explicit administrator confirmation; no background repricing worker runs these rules.
+- **New-course pricing policy** separately controls defaults for Build With AI, YouTube-derived, extracted-module and other generated courses. It supports free, fixed, level-band and rule-based modes, requires a reason to save, and does not reprice existing courses.
+- **History** is paginated and shows the administrator, reason, operation, applied/skipped counts and per-course before/after snapshots. Rollback is guarded: only courses that still match the original batch snapshot are restored.
+
+Existing payment, enrolment and plan entitlements are not rewritten by course-price edits. Checkout prices remain server-verified, and applied changes create course revisions and audit events.
+
+**Regression coverage:** `client/tests/adminPricingStudio.test.mjs` verifies the five workspaces, catalogue pagination and selection modes, preview-before-apply, rule lifecycle and guarded manual execution, generated-course policy boundaries, and paginated history/detail/rollback. The test is included in the normal frontend unit-test command.
+
+**Exact-SHA verification:** commit `d5b44d0cfeb4c64700af8cdb7f5936bc41f682c5`, CI run [45851874014](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45851874014):
+- Backend: **1,231 passed, 0 failed, 0 skipped**; backend lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
+- Frontend: lint, TypeScript, unit tests, deployment-config checks and production build passed.
 - Browser navigation/accessibility suite: **168 passed**.
 - Production release gate: passed.
 

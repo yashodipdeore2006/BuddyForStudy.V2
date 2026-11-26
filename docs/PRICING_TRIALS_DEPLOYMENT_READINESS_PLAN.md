@@ -172,7 +172,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
 | 20 | Redesign Trial Dashboard | Campaigns, claims, grants, status, and history are separated | DONE |
-| 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | NOT_STARTED |
+| 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | DONE |
 | 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | NOT_STARTED |
 | 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | NOT_STARTED |
 | 24 | Improve Finance & Governance navigation | Clear grouping, concise labels, descriptions, and permission consistency | NOT_STARTED |
@@ -514,7 +514,30 @@ Changes prepared on `buddy-for-study-v2.2`:
 
 No staging/production deployment, pull request, branch creation, or merge was performed.
 
-**Status:** implementation candidate committed for exact-SHA CI and release-gate verification. No staging or production deployment has been performed.
+## Task 21 guided trial creation — verified
+
+**Scope:** Provide a guided administrator workflow to create a reusable self-serve trial campaign, configure eligibility and claim limits, review the complete offer, and publish it only through a separate explicit action.
+
+Verified on `buddy-for-study-v2.2`:
+
+- `client/src/pages/admin/AdminTrialCampaigns.tsx` uses a three-step flow: Trial setup, Campaign details, and Review and save.
+- Trial setup starts from editable 7-, 14-, or 30-day quick presets. Administrators can change the trial entitlement plan, duration, maximum claim capacity, optional campaign window, configurable eligibility rules, and optional paid conversion plan.
+- The configured default Free assignment is excluded from trial-plan choices. The rule excluding active paid subscriptions and active trials is mandatory in the UI and is enforced again by server validation and claim-time eligibility.
+- Campaign details validate the internal name/reason and learner-facing title/description. Editing an unclaimed draft or paused campaign requires a separate administrator change reason.
+- The review step displays the internal and learner-facing details, plan, duration, capacity, schedule, eligibility, and optional conversion terms. It clearly states that saving only creates a draft and does not create a payment or recurring authorization.
+- Saving a new campaign calls the create endpoint with no publication status; the server creates it as `draft`. Publishing is a separate action guarded by an explicit confirmation dialog.
+- The server revalidates active trial-plan and recurring paid-conversion references, campaign date windows, allowed fields, duration, capacity, and the non-overridable active-subscription exclusion. The publish endpoint independently revalidates campaign expiry and plan references.
+- Campaign creation, update, publish, pause, and disable operations remain behind the administrator `trials.manage` permission.
+
+**Regression coverage:** `client/tests/adminTrialCampaigns.test.mjs` verifies editable presets, safe plan selection, the three-step wizard, field and review coverage, draft-only creation, separate explicit publication, audit-reason requirements for edits, and the mandatory active-subscription exclusion. `server/test/trialCampaignAdminValidation.test.js` verifies duration/capacity/date bounds, strict input fields, conversion-plan rules, editable presets, and that the mandatory subscription exclusion cannot be relaxed.
+
+**Exact-SHA verification:** commit `e46ab9c48b2e56a703bb50c7ed4927daa1ca7bc3`, CI run [45850778809](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45850778809):
+- Backend: **1,231 passed, 0 failed, 0 skipped**.
+- Frontend: lint, TypeScript, unit tests, deployment-config tests, and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
 
 
 ## Task 26 implementation — verified

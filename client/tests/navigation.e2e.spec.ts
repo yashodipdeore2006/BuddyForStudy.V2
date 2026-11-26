@@ -969,9 +969,12 @@ test.describe("canonical learner navigation", () => {
 
     for (const path of ["/", "/home"]) {
       await page.goto(baseURL + path);
-      await expect(page.getByRole("heading", { name: "Find your next skill. Know what to do next." })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Find the right course. Follow a clear learning path." })).toBeVisible();
       await expect(page.getByRole("link", { name: "Explore courses", exact: true }).first()).toHaveAttribute("href", "/explore");
-      await expect(page.getByRole("link", { name: "Create your account", exact: true })).toHaveAttribute("href", "/register");
+      await expect(page.getByRole("link", { name: "Create a free account", exact: true })).toHaveAttribute("href", "/register");
+      await expect(page.getByRole("link", { name: "Pricing", exact: true }).first()).toHaveAttribute("href", "/pricing");
+      await expect(page.getByRole("link", { name: "How it works", exact: true }).first()).toHaveAttribute("href", "/#how-it-works");
+      await expect(page.getByRole("heading", { name: "A simple way to keep moving." })).toBeVisible();
       await expect(page.getByRole("link", { name: "Sign in", exact: true }).first()).toHaveAttribute("href", "/login");
       await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toHaveCount(0);
       await expect(page.getByRole("heading", { name: "Badges" })).toHaveCount(0);
@@ -985,7 +988,7 @@ test.describe("canonical learner navigation", () => {
     await page.goto(baseURL + "/");
     await expect(page.getByRole("heading", { name: "Welcome back, Learner" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Find your next skill. Know what to do next." })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Find the right course. Follow a clear learning path." })).toHaveCount(0);
   });
 
   test("guest Explore, course details, login and registration routes remain public", async ({ page }) => {

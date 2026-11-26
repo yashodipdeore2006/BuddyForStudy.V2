@@ -46,6 +46,11 @@ type ResourceVideo = {
 type LessonDetail = {
   description?: string;
   type?: "tutorial" | "project" | "quiz";
+  module?: {
+    title?: string;
+    description?: string;
+    resources?: Array<{ title?: string; url?: string; type?: string }>;
+  };
   tutorial?: { content?: string; resources?: string[]; videos?: ResourceVideo[] };
   project?: {
     description?: string;
@@ -239,6 +244,16 @@ export default function CourseRoadmapExperience({
     ...(lessonDetail?.tutorial?.resources || []),
     ...(lessonDetail?.project?.resources || [])
   ]).map((value) => ({ label: value.replace(/^https?:\/\//i, "").slice(0, 80), url: safeExternalUrl(value) })).filter((item) => item.url);
+  const moduleResources = (lessonDetail?.module?.resources || [])
+    .map((resource) => ({
+      title: String(resource.title || "Course resource"),
+      url: safeExternalUrl(resource.url),
+      type: String(resource.type || "link")
+    }))
+    .filter((resource) => resource.url);
+  const documentationResources = moduleResources.filter((resource) => ["document", "article"].includes(resource.type));
+  const practiceResources = moduleResources.filter((resource) => resource.type === "repository");
+  const otherModuleResources = moduleResources.filter((resource) => !["document", "article", "repository"].includes(resource.type));
   const starterCodeUrl = safeExternalUrl(lessonDetail?.project?.starterCodeUrl);
   const completedPhaseCount = document.phases.filter((phase) => phase.status === "completed").length;
 
@@ -599,6 +614,39 @@ export default function CourseRoadmapExperience({
                     ))}
                   </div>
                 )}
+                {documentationResources.length > 0 && (
+                  <div className="bfs-roadmap-resource-group">
+                    <h4><FileText size={15} />Documentation & articles</h4>
+                    {documentationResources.map((resource) => (
+                      <a key={resource.url} href={resource.url} target="_blank" rel="noopener noreferrer">
+                        <span><strong>{resource.title}</strong><small>Course-provided reference</small></span>
+                        <ExternalLink size={14} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {practiceResources.length > 0 && (
+                  <div className="bfs-roadmap-resource-group">
+                    <h4><Github size={15} />Practice repositories</h4>
+                    {practiceResources.map((resource) => (
+                      <a key={resource.url} href={resource.url} target="_blank" rel="noopener noreferrer">
+                        <span><strong>{resource.title}</strong><small>Course-provided repository</small></span>
+                        <ExternalLink size={14} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {otherModuleResources.length > 0 && (
+                  <div className="bfs-roadmap-resource-group">
+                    <h4><ExternalLink size={15} />More course resources</h4>
+                    {otherModuleResources.map((resource) => (
+                      <a key={resource.url} href={resource.url} target="_blank" rel="noopener noreferrer">
+                        <span><strong>{resource.title}</strong><small>Course-provided link</small></span>
+                        <ExternalLink size={14} />
+                      </a>
+                    ))}
+                  </div>
+                )}
                 {starterCodeUrl && (
                   <div className="bfs-roadmap-resource-group">
                     <h4><Github size={15} />Practice material</h4>
@@ -608,7 +656,7 @@ export default function CourseRoadmapExperience({
                     </a>
                   </div>
                 )}
-                {!detailLoading && enrolled && !detailError && projectVideos.length === 0 && referenceLinks.length === 0 && !starterCodeUrl && (
+                {!detailLoading && enrolled && !detailError && projectVideos.length === 0 && referenceLinks.length === 0 && documentationResources.length === 0 && practiceResources.length === 0 && otherModuleResources.length === 0 && !starterCodeUrl && (
                   <p className="bfs-roadmap-muted">No separate resource links are attached to this lesson. Open it in the player for the lesson content.</p>
                 )}
               </section>

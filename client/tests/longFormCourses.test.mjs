@@ -85,3 +85,12 @@ test("showcase caps at ten real eligible courses without filling missing entries
   assert.equal(selected[0].id, "real-course-0");
   assert.equal(selected[9].id, "real-course-9");
 });
+
+
+test("course cards use module count from the public list projection", () => {
+  const selected = toLongFormCourseCard(course({
+    modules: [],
+    moduleCount: 6
+  }));
+  assert.equal(selected.moduleCount, 6);
+});

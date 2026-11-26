@@ -8,6 +8,7 @@ import {
   getTrialOfferDismissalRemainingMs,
   isTrialOfferDismissed,
   rememberTrialOfferDismissal,
+  canDisplayTrialOfferOnRoute,
 } from "@/lib/trialOffer";
 
 type TrialPlan = { id: string; name: string; description?: string; features?: string[]; limits?: Record<string, number> };
@@ -50,6 +51,8 @@ export default function TrialCampaignOfferPrompt() {
   const location = useLocation();
   const userId = session?.user.id || "";
   const isLearner = session?.user.role === "user";
+  const isDashboardRoute = canDisplayTrialOfferOnRoute(location.pathname, "automatic");
+  const isBillingRoute = canDisplayTrialOfferOnRoute(location.pathname, "manual");
   const excludedRoute = [
     "/login", "/register", "/verify-email", "/verify-login", "/forgot-password",
     "/accept-admin-invitation",
@@ -71,22 +74,62 @@ export default function TrialCampaignOfferPrompt() {
     setError("");
   }, [claiming, claimed, userId, offer]);
 
+  const closePromptRef = useRef<() => void>(() => {});
+  closePromptRef.current = closePrompt;
+
   useEffect(() => {
     if (!visible) return;
     const previousOverflow = document.body.style.overflow;
+    const previousFocusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const dialog = document.getElementById("trial-campaign-offer-dialog");
     document.body.style.overflow = "hidden";
+
+    const getFocusableElements = () => dialog
+      ? Array.from(dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter((element) => element.getAttribute("aria-hidden") !== "true")
+      : [];
+
+    const initialFocus = dialog?.querySelector<HTMLElement>("[data-trial-offer-initial-focus]")
+      || getFocusableElements()[0];
+    initialFocus?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        closePrompt();
+        closePromptRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+      if (event.shiftKey && (activeElement === first || !dialog.contains(activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (activeElement === last || !dialog.contains(activeElement))) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener("keydown", onKeyDown);
+
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
+      if (previousFocusedElement?.isConnected) previousFocusedElement.focus();
     };
-  }, [visible, closePrompt]);
+  }, [visible]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -94,39 +137,97 @@ export default function TrialCampaignOfferPrompt() {
       setVisible(false);
       return;
     }
+
     let active = true;
     let displayTimer: number | undefined;
     let retryTimer: number | undefined;
+    let checking = false;
+    let pendingManualCheck = false;
 
-    const checkOffer = async (attempt = 0) => {
-      if (!active) return;
+    const clearScheduledWork = () => {
       if (displayTimer !== undefined) window.clearTimeout(displayTimer);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       displayTimer = undefined;
       retryTimer = undefined;
-      if (!hasCookieChoice()) { setVisible(false); return; }
+    };
 
+    const hasAnotherModalOpen = () => Array.from(
+      document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
+    ).some((dialog) => dialog.id !== "trial-campaign-offer-dialog");
+
+    const revealWhenAvailable = (manual: boolean) => {
+      if (!active) return;
+      const routeIsAllowed = canDisplayTrialOfferOnRoute(
+        location.pathname,
+        manual ? "manual" : "automatic"
+      );
+      if (!routeIsAllowed || document.visibilityState === "hidden") {
+        setVisible(false);
+        return;
+      }
+      if (hasAnotherModalOpen()) {
+        // Never force this offer over another modal. Recheck until the existing
+        // interaction closes or the user navigates away.
+        retryTimer = window.setTimeout(() => revealWhenAvailable(manual), 1500);
+        return;
+      }
+      setVisible(true);
+      if (manual) window.dispatchEvent(new Event("bfs:trial-offer-opened"));
+    };
+
+    const checkOffer = async (manual = false) => {
+      if (!active) return;
+      const routeIsAllowed = canDisplayTrialOfferOnRoute(
+        location.pathname,
+        manual ? "manual" : "automatic"
+      );
+      if (!routeIsAllowed) {
+        if (!manual) setVisible(false);
+        return;
+      }
+      if (!manual && document.visibilityState === "hidden") return;
+      if (checking) {
+        if (manual) pendingManualCheck = true;
+        return;
+      }
+      if (!manual && document.getElementById("trial-campaign-offer-dialog")) return;
+
+      checking = true;
+      clearScheduledWork();
       try {
+        if (!hasCookieChoice()) {
+          setVisible(false);
+          return;
+        }
+
         const [consentData, offerData] = await Promise.all([
           apiFetch<{ status?: ConsentStatus }>("/api/consent/status"),
           apiFetch<OfferResponse>("/api/trials/offer", { cache: "no-store" }),
         ]);
         if (!active) return;
+
         const consent = consentData.status;
         if (!consent || consent.requiresLegalAcceptance === true || consent.requiresProfileCompletion === true) {
           setVisible(false);
           return;
         }
+
         const nextOffer = offerData.offer;
         if (offerData.available !== true || !nextOffer?.campaignId || !nextOffer.trialPlan?.id) {
           setOffer(null);
           setVisible(false);
+          if (manual) window.dispatchEvent(new Event("bfs:trial-offer-unavailable"));
           return;
         }
-        if (isTrialOfferDismissed(userId, nextOffer.campaignId)) {
+
+        // Automatic prompts respect the 24-hour dismissal cooldown. An explicit
+        // Billing action is a deliberate request to see the current offer again.
+        if (!manual && isTrialOfferDismissed(userId, nextOffer.campaignId)) {
           setVisible(false);
           const remaining = getTrialOfferDismissalRemainingMs(userId, nextOffer.campaignId);
-          if (remaining > 0) retryTimer = window.setTimeout(() => void checkOffer(), remaining + 25);
+          if (remaining > 0) {
+            retryTimer = window.setTimeout(() => void checkOffer(false), remaining + 25);
+          }
           return;
         }
 
@@ -135,37 +236,44 @@ export default function TrialCampaignOfferPrompt() {
         setClaimedEndsAt(null);
         setError("");
         setOffer(nextOffer);
-
-        const revealWhenAvailable = (retries: number) => {
-          if (!active) return;
-          const anotherModalIsOpen = Array.from(
-            document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
-          ).some((dialog) => dialog.id !== "trial-campaign-offer-dialog");
-          if (!anotherModalIsOpen || retries >= 8) { setVisible(true); return; }
-          retryTimer = window.setTimeout(() => revealWhenAvailable(retries + 1), 1200);
-        };
-        displayTimer = window.setTimeout(() => revealWhenAvailable(attempt), 1000);
+        displayTimer = window.setTimeout(() => revealWhenAvailable(manual), 1000);
       } catch {
-        if (active) setVisible(false);
+        if (active) {
+          setVisible(false);
+          if (manual) window.dispatchEvent(new Event("bfs:trial-offer-check-failed"));
+        }
+      } finally {
+        checking = false;
+        if (pendingManualCheck && active) {
+          pendingManualCheck = false;
+          void checkOffer(true);
+        }
       }
     };
 
-    const recheck = () => void checkOffer();
-    void checkOffer();
+    const recheck = () => {
+      if (document.visibilityState === "visible" && isDashboardRoute) void checkOffer(false);
+    };
+    const reopenFromBilling = () => {
+      if (isBillingRoute) void checkOffer(true);
+    };
+
+    void checkOffer(false);
     window.addEventListener("bfs:cookie-consent-updated", recheck);
     window.addEventListener("bfs:account-consent-settled", recheck);
+    window.addEventListener("bfs:trial-offer-open", reopenFromBilling);
     window.addEventListener("focus", recheck);
     document.addEventListener("visibilitychange", recheck);
     return () => {
       active = false;
-      if (displayTimer !== undefined) window.clearTimeout(displayTimer);
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      clearScheduledWork();
       window.removeEventListener("bfs:cookie-consent-updated", recheck);
       window.removeEventListener("bfs:account-consent-settled", recheck);
+      window.removeEventListener("bfs:trial-offer-open", reopenFromBilling);
       window.removeEventListener("focus", recheck);
       document.removeEventListener("visibilitychange", recheck);
     };
-  }, [authLoading, userId, isLearner, excludedRoute]);
+  }, [authLoading, userId, isLearner, excludedRoute, isDashboardRoute, isBillingRoute, location.pathname]);
 
   async function claimTrial() {
     if (!offer || !userId || claiming || claimed) return;
@@ -210,6 +318,7 @@ export default function TrialCampaignOfferPrompt() {
         aria-modal="true"
         aria-labelledby="trial-campaign-offer-title"
         aria-describedby="trial-campaign-offer-description"
+        tabIndex={-1}
         className="relative my-auto max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-violet-100 bg-white text-slate-900 shadow-2xl"
       >
         <button
@@ -233,7 +342,7 @@ export default function TrialCampaignOfferPrompt() {
               <p className="flex items-center gap-2 text-sm font-bold text-emerald-900"><ShieldCheck size={17} aria-hidden="true" /> No automatic payment</p>
               <p className="mt-1 text-xs leading-5 text-emerald-800">No payment method or recurring authorization was created. A future paid subscription requires your separate consent.</p>
             </div>
-            <button type="button" autoFocus onClick={closePrompt} className="btn-primary mt-6 w-full justify-center">Continue learning</button>
+            <button type="button" autoFocus data-trial-offer-initial-focus onClick={closePrompt} className="btn-primary mt-6 w-full justify-center">Continue learning</button>
           </div>
         ) : (
           <>
@@ -285,7 +394,7 @@ export default function TrialCampaignOfferPrompt() {
             </div>
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-9">
               <button type="button" onClick={closePrompt} disabled={claiming} className="min-h-11 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-200/70 disabled:opacity-50">Not now</button>
-              <button type="button" autoFocus onClick={() => void claimTrial()} disabled={claiming} className="btn-primary min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" autoFocus data-trial-offer-initial-focus onClick={() => void claimTrial()} disabled={claiming} className="btn-primary min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-60">
                 {claiming ? <><Loader2 size={17} className="animate-spin" /> Activating trial…</> : "Claim free trial"}
               </button>
             </footer>

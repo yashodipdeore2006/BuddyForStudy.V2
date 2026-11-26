@@ -21,7 +21,7 @@ New automatically generated roadmaps use four to six balanced, contiguous phases
 The roadmap schema records whether a phase plan is generated, admin or legacy:
 
 - Automatically generated phase plans can be regenerated when their source curriculum changes or when an older generated plan falls below the new minimum phase count.
-- Admin-curated phase assignments are preserved.
+- Admin-curated phase assignments are preserved when their source curriculum fingerprint remains valid.
 - Legacy phase plans are not silently rewritten just because the grouping algorithm changes.
 
 ## Interaction model

@@ -667,7 +667,7 @@ async function getDiscoveryPricingPreviews(resources, level) {
   });
 }
 
-export async function listPublished({ page = 1, limit = 20, search, category, domain, level, sort = "best_match" }) {
+export async function listPublished({ page = 1, limit = 20, search, category, domain, level, sort = "best_match", includeDiscovery = true }) {
   const normalizedSort = ["best_match", "quality", "popular", "highest_rated", "newest", "title"].includes(sort)
     ? sort
     : "best_match";
@@ -714,25 +714,37 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
       localCourses = rankedStandaloneCourses.slice((page - 1) * limit, page * limit);
     }
 
-    let curation;
-    let youtubeError;
-    try {
-      curation = await curateNormalSearch(normalizedSearch, { category, level });
-      const curationDomain = domain || inferredSearchDomain;
-      if (curationDomain) {
-        curation.resources = filterLearningResourcesByInferredDomain(curation.resources || [], curationDomain);
+    let discovery;
+    if (includeDiscovery) {
+      let curation;
+      let youtubeError;
+      try {
+        curation = await curateNormalSearch(normalizedSearch, { category, level });
+        const curationDomain = domain || inferredSearchDomain;
+        if (curationDomain) {
+          curation.resources = filterLearningResourcesByInferredDomain(curation.resources || [], curationDomain);
+        }
+        curation.resources = await getDiscoveryPricingPreviews(
+          curation.resources || [],
+          curation?.meta?.intent?.level || level
+        );
+        youtubeError = String(curation?.meta?.youtubeError || "");
+      } catch (error) {
+        youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
+        console.error("Course Curation Decision Engine failed", { query: normalizedSearch, message: youtubeError });
+        curation = {
+          resources: [],
+          meta: { version: "course-curation-decision-engine-v1", resultsShown: 0, error: youtubeError }
+        };
       }
-      curation.resources = await getDiscoveryPricingPreviews(
-        curation.resources || [],
-        curation?.meta?.intent?.level || level
-      );
-      youtubeError = String(curation?.meta?.youtubeError || "");
-    } catch (error) {
-      youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
-      console.error("Course Curation Decision Engine failed", { query: normalizedSearch, message: youtubeError });
-      curation = {
-        resources: [],
-        meta: { version: "course-curation-decision-engine-v1", resultsShown: 0, error: youtubeError }
+      discovery = {
+        mode: "youtube_supplementary",
+        query: normalizedSearch,
+        courseRecommendations: [],
+        curatedResources: curation.resources || [],
+        curationMeta: curation.meta || null,
+        youtubeError,
+        hasLocalResults: localCourses.length > 0
       };
     }
 
@@ -745,15 +757,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
         total: hasLocalResults ? localTotal : 0,
         pages: hasLocalResults ? Math.ceil(localTotal / limit) : 0
       },
-      discovery: {
-        mode: "youtube_supplementary",
-        query: normalizedSearch,
-        courseRecommendations: [],
-        curatedResources: curation.resources || [],
-        curationMeta: curation.meta || null,
-        youtubeError,
-        hasLocalResults
-      }
+      ...(discovery ? { discovery } : {})
     };
   }
 

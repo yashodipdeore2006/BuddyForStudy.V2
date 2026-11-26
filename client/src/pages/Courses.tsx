@@ -182,7 +182,7 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
 }
 
 type CourseDomainOption = { id: string; label: string };
-type CatalogSort = "best_match" | "quality" | "popular" | "highest_rated" | "newest";
+type CatalogSort = "best_match" | "quality" | "popular" | "highest_rated" | "newest" | "title";
 type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: CatalogSort; page: number };
 
 function readCatalogUrlState(search: string): CatalogUrlState {
@@ -195,7 +195,7 @@ function readCatalogUrlState(search: string): CatalogUrlState {
     level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
     domain: (params.get("domain") || "").trim() || "all",
     category: (params.get("category") || "").trim() || "all",
-    sort: sort === "quality" || sort === "popular" || sort === "highest_rated" || sort === "newest"
+    sort: sort === "quality" || sort === "popular" || sort === "highest_rated" || sort === "newest" || sort === "title"
       ? sort
       : sort === "recent" ? "newest" : "best_match",
     page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1,
@@ -652,6 +652,8 @@ export default function Courses() {
     };
     const byBestMatch = (a: Course, b: Course) =>
       Number(b.ranking?.score || 0) - Number(a.ranking?.score || 0);
+    const byTitle = (a: Course, b: Course) =>
+      a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
     const byQuality = (a: Course, b: Course) =>
       Number(b.ranking?.qualityScore || 0) - Number(a.ranking?.qualityScore || 0)
       || byBestMatch(a, b);
@@ -663,7 +665,8 @@ export default function Courses() {
       || Number(b.ranking?.rating.count || 0) - Number(a.ranking?.rating.count || 0)
       || byQuality(a, b);
     const byNewest = (a: Course, b: Course) => timestamp(b.created_at) - timestamp(a.created_at) || byBestMatch(a, b);
-    const comparator = catalogSort === "quality" ? byQuality
+    const comparator = catalogSort === "title" ? byTitle
+      : catalogSort === "quality" ? byQuality
       : catalogSort === "popular" ? byPopularity
         : catalogSort === "highest_rated" ? byHighestRated
           : catalogSort === "newest" ? byNewest
@@ -1352,6 +1355,7 @@ export default function Courses() {
               <option value="popular">Most popular</option>
               <option value="highest_rated">Highest rated</option>
               <option value="newest">Newest</option>
+              <option value="title">Title A–Z</option>
             </select>
 
             {hasFilters && (

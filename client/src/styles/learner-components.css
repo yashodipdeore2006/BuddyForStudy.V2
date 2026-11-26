@@ -1025,7 +1025,7 @@
   .bfs-marketing-footer__legal nav { gap: 10px 14px; }
 }
 .bfs-public-page {
-  width: min(calc(100% - var(--s-6) * 2), var(--content-max, 1280px));
+  width: min(calc(100% - var(--s-6) - var(--s-6)), var(--content-max, 1280px));
   min-height: 62vh;
   margin-inline: auto;
   padding: var(--s-8) 0;
@@ -1261,7 +1261,7 @@
   .bfs-public-link--how-it-works { display: none; }
 }
 @media (max-width: 700px) {
-  .bfs-public-page { width: min(calc(100% - var(--s-4) * 2), var(--content-max, 1280px)); padding-block: var(--s-6); }
+  .bfs-public-page { width: min(calc(100% - var(--s-4) - var(--s-4)), var(--content-max, 1280px)); padding-block: var(--s-6); }
   .bfs-public-hero { padding: var(--s-5); }
   .bfs-public-hero--landing { gap: var(--s-5); padding: var(--s-5); }
   .bfs-public-hero h1 { font-size: clamp(2rem, 8vw, 2.8rem); }
@@ -1278,7 +1278,7 @@
   .bfs-public-hero__actions .bfs-public-button { width: 100%; }
 }
 @media (max-width: 420px) {
-  .bfs-public-page { width: min(calc(100% - var(--s-3) * 2), var(--content-max, 1280px)); }
+  .bfs-public-page { width: min(calc(100% - var(--s-3) - var(--s-3)), var(--content-max, 1280px)); }
   .bfs-public-hero { padding: var(--s-4); border-radius: var(--r-md); }
   .bfs-public-hero--landing { padding: var(--s-4); }
   .bfs-public-pillar,.bfs-contact-card,.bfs-public-step { padding: var(--s-4); }

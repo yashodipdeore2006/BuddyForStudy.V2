@@ -82,8 +82,8 @@ function LongFormCourseLink({
 
 export default function LongFormCourseCarousel() {
   const [courses, setCourses] = useState<LongFormCourseCard[]>([]);
-  const [hoveredCourseId, setHoveredCourseId] = useState<string | null>(null);
-  const [focusedCourseId, setFocusedCourseId] = useState<string | null>(null);
+  const [hoveredCardKey, setHoveredCardKey] = useState<string | null>(null);
+  const [focusedCardKey, setFocusedCardKey] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -113,7 +113,7 @@ export default function LongFormCourseCarousel() {
   // Four distinct courses provide enough track width to complete a seamless
   // loop inside the landing-page content frame. Smaller catalogues stay static.
   const isLooping = courses.length >= 4;
-  const activeCourseId = focusedCourseId ?? hoveredCourseId;
+  const activeCardKey = focusedCardKey ?? hoveredCardKey;
   const trackStyle = {
     "--bfs-long-form-duration": Math.max(30, courses.length * 5.5) + "s"
   } as CSSProperties;
@@ -158,11 +158,11 @@ export default function LongFormCourseCarousel() {
           const nextTarget = event.relatedTarget;
           if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
             setManualMode(false);
-            setFocusedCourseId(null);
-            setHoveredCourseId(null);
+            setFocusedCardKey(null);
+            setHoveredCardKey(null);
           }
         }}
-        onMouseLeave={() => setHoveredCourseId(null)}
+        onMouseLeave={() => setHoveredCardKey(null)}
       >
         <div className={"bfs-long-form-carousel__track " + (isLooping ? "is-looping" : "is-static")} style={trackStyle}>
           {groups.map((duplicate) => (
@@ -175,13 +175,13 @@ export default function LongFormCourseCarousel() {
                 <LongFormCourseLink
                   key={(duplicate ? "duplicate-" : "primary-") + course.id}
                   course={course}
-                  active={activeCourseId === course.id}
-                  dimmed={activeCourseId !== null && activeCourseId !== course.id}
+                  active={activeCardKey === ((duplicate ? "duplicate-" : "primary-") + course.id)}
+                  dimmed={activeCardKey !== null && activeCardKey !== ((duplicate ? "duplicate-" : "primary-") + course.id)}
                   duplicate={duplicate}
-                  onHover={() => setHoveredCourseId(course.id)}
-                  onLeave={() => setHoveredCourseId(null)}
-                  onFocus={() => setFocusedCourseId(course.id)}
-                  onBlur={() => setFocusedCourseId(null)}
+                  onHover={() => setHoveredCardKey((duplicate ? "duplicate-" : "primary-") + course.id)}
+                  onLeave={() => setHoveredCardKey(null)}
+                  onFocus={() => setFocusedCardKey((duplicate ? "duplicate-" : "primary-") + course.id)}
+                  onBlur={() => setFocusedCardKey(null)}
                 />
               ))}
             </div>

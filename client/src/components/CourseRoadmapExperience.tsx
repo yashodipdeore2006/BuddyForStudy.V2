@@ -234,7 +234,7 @@ export default function CourseRoadmapExperience({
       if (activeFilter === "completed" && node.status !== "completed") return false;
       if (activeFilter === "remaining" && node.status === "completed") return false;
       if (!query) return true;
-      const content = [node.title, node.moduleTitle, node.phaseTitle, ...node.subtopics].join(" ").toLowerCase();
+      const content = [node.title, node.description, node.moduleTitle, node.phaseTitle, ...node.subtopics].join(" ").toLowerCase();
       return content.includes(query);
     }).map((node) => node.id));
   }, [document.nodes, activeFilter, searchQuery]);

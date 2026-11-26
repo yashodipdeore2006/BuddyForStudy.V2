@@ -138,7 +138,7 @@ export default function Billing() {
       const nextTrial = trialData.trial || null;
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
-      setEffectivePlan(nextEffectivePlan);
+      setEffectivePlan(subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null);
       setTrial(nextTrial);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);

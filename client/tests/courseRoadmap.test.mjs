@@ -93,3 +93,21 @@ test("duration parsing supports ISO strings, clock values and human-readable lab
   assert.equal(parseRoadmapDurationSeconds("02:15:10"), 8110);
   assert.equal(parseRoadmapDurationSeconds("1h 20m"), 4800);
 });
+
+
+test("lessons without optional quiz or project topic fields remain valid roadmap nodes", () => {
+  const minimalCourse = {
+    ...course,
+    modules: [{ _id: "module-minimal", title: "Fundamentals", lessons: [
+      { _id: "lesson-minimal", title: "Introduction", type: "tutorial" }
+    ] }]
+  };
+  const minimalRoadmap = {
+    totalHours: 1,
+    stages: [{ id: "phase-minimal", order: 1, title: "Foundations", hours: 1, lessonIds: ["lesson-minimal"] }]
+  };
+  const result = buildCourseRoadmapDocument({ course: minimalCourse, roadmap: minimalRoadmap });
+  assert.equal(result.nodes.length, 1);
+  assert.deepEqual(result.nodes[0].subtopics, []);
+  assert.equal(result.nodes[0].type, "core");
+});

@@ -464,7 +464,7 @@ function courseContentCountsStage() {
           $map: {
             input: { $ifNull: ["$modules", []] },
             as: "module",
-            in: { $size: { $ifNull: ["$module.lessons", []] } }
+            in: { $size: { $ifNull: ["$$module.lessons", []] } }
           }
         }
       }

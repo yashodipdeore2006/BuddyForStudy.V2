@@ -234,7 +234,7 @@ export default function CourseRoadmapExperience({
   );
   const checkedForSelectedNode = selectedNode ? checkedTopics[selectedNode.id] || [] : [];
   const whyItMatters = selectedNode && selectedPhase
-    ? getWhyItMatters(selectedNode, selectedPhase, String(lessonDetail?.description || selectedNode.description || ""))
+    ? getWhyItMatters(selectedNode, selectedPhase, String(lessonDetail?.description || selectedNode.description || lessonDetail?.module?.description || ""))
     : [];
   const projectVideos = [
     ...(lessonDetail?.tutorial?.videos || []),

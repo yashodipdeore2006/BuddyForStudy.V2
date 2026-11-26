@@ -174,7 +174,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 20 | Redesign Trial Dashboard | Campaigns, claims, grants, status, and history are separated | DONE |
 | 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | DONE |
 | 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | DONE |
-| 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | NOT_STARTED |
+| 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | DONE |
 | 24 | Improve Finance & Governance navigation | Clear grouping, concise labels, descriptions, and permission consistency | NOT_STARTED |
 
 ### Phase 6 — Quality and release readiness
@@ -562,6 +562,32 @@ Existing payment, enrolment and plan entitlements are not rewritten by course-pr
 **Exact-SHA verification:** commit `d5b44d0cfeb4c64700af8cdb7f5936bc41f682c5`, CI run [45851874014](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45851874014):
 - Backend: **1,231 passed, 0 failed, 0 skipped**; backend lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
 - Frontend: lint, TypeScript, unit tests, deployment-config checks and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
+
+
+## Task 23 Subscription Plans dashboard — verified
+
+**Scope:** Organize subscription-plan administration into focused overview, catalogue, plan-editor, and creation workspaces, with clear separation of billing, feature entitlements, usage limits, catalogue presentation, and learner-facing review.
+
+Verified on `buddy-for-study-v2.2`:
+
+- `client/src/pages/admin/AdminPlans.tsx` provides dedicated Overview, Catalogue, Plan editor, and Create workspaces.
+- **Overview** reports total, active, inactive, zero-priced, and paid plan counts; shows public checkout availability separately from plan visibility; and exposes the configured default Free assignment and plan-management shortcuts.
+- **Catalogue** supports search and filters for availability, paid/free type, and billing interval.
+- **Plan editor** separates plan details and billing terms, feature access, usage limits, and availability/catalogue presentation (active visibility, popular presentation, and display order).
+- **Creation** is a validated four-step workflow: Basics, Price & billing, Features & limits, and Review. It previews learner-facing details, selected features, usage limits, visibility and presentation before a typed confirmation and reason-required create action.
+- The default Free assignment is explicit and limited to an active zero-priced plan. Replacing it requires selecting another eligible plan; the current default cannot be disabled or repriced until replacement.
+- Provider-linked billing terms (price, currency and interval) are protected from in-place edits when provider billing history exists. Disabling a plan removes it from new learner selection but does not revoke existing subscription entitlements.
+- Server validation enforces plan-name/slug/description bounds, non-negative price, three-letter currency, recurring billing intervals for new subscription plans, supported feature labels without duplicates, integer usage limits, trial-day and sort-order bounds, and active zero-priced default-Free requirements.
+
+**Regression coverage:** `client/tests/adminPlans.test.mjs` verifies the workspaces, overview and checkout separation, default-Free assignment rules, catalogue filters, independent editor save areas, four-step creation and typed confirmation, provider-term protections, and preservation of existing entitlements when plans are disabled. `server/test/subscriptionPlanAdminValidation.test.js` verifies server-side plan fields, feature/limit constraints, provider billing-term immutability, default-Free safeguards, and existing-subscription preservation.
+
+**Exact-SHA verification:** commit `ab0af061a46cdb419b6038183a9851e7b7d193fc`, CI run [45852598692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45852598692):
+- Backend: **1,231 passed, 0 failed, 0 skipped**; lint, production-config preflight, selector comparison, and JavaScript syntax checks passed.
+- Frontend: lint, TypeScript, unit tests, deployment-config checks, and production build passed.
 - Browser navigation/accessibility suite: **168 passed**.
 - Production release gate: passed.
 

@@ -3,6 +3,7 @@ import * as courseService from "../services/course.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { toPublicQuiz } from "../utils/quizSecurity.js";
 import { Enrollment } from "../models/Enrollment.js";
+import { Course } from "../models/Course.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { canAccessCourse, getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
@@ -68,14 +69,50 @@ export async function list(req, res, next) {
       { $group: { _id: "$course", count: { $sum: 1 } } }
     ]) : [];
     const countsByCourseId = new Map(enrollmentCounts.map((entry) => [String(entry._id), Number(entry.count) || 0]));
+    // Course catalogue aggregation deliberately excludes module documents. Fetch
+    // only the fields required for safe public card projections and verified
+    // YouTube runtime; quiz answers, project briefs and lesson content stay out.
+    const previewResourceCourses = courseIds.length ? await Course.find({ _id: { $in: courseIds } })
+      .select([
+        "modules._id", "modules.title", "modules.order",
+        "modules.lessons._id", "modules.lessons.title", "modules.lessons.type",
+        "modules.lessons.order", "modules.lessons.durationSeconds",
+        "modules.lessons.tutorial.videos.videoId", "modules.lessons.tutorial.videos.url",
+        "modules.lessons.tutorial.videos.title", "modules.lessons.tutorial.videos.channelTitle",
+        "modules.lessons.tutorial.videos.channelUrl", "modules.lessons.tutorial.videos.channel_url",
+        "modules.lessons.tutorial.videos.channelId", "modules.lessons.tutorial.videos.thumbnail",
+        "modules.lessons.tutorial.videos.durationSeconds", "modules.lessons.tutorial.videos.duration",
+        "modules.lessons.project.videos.videoId", "modules.lessons.project.videos.url",
+        "modules.lessons.project.videos.title", "modules.lessons.project.videos.channelTitle",
+        "modules.lessons.project.videos.channelUrl", "modules.lessons.project.videos.channel_url",
+        "modules.lessons.project.videos.channelId", "modules.lessons.project.videos.thumbnail",
+        "modules.lessons.project.videos.durationSeconds", "modules.lessons.project.videos.duration",
+        "generation.mode", "generation.sourceResourceType", "generation.query",
+        "generation.snapshot.modules.course.videoId", "generation.snapshot.modules.course.url",
+        "generation.snapshot.modules.course.title", "generation.snapshot.modules.course.channelTitle",
+        "generation.snapshot.modules.course.channelUrl", "generation.snapshot.modules.course.channel_url",
+        "generation.snapshot.modules.course.channelId", "generation.snapshot.modules.course.thumbnail",
+        "generation.snapshot.modules.course.durationSeconds", "generation.snapshot.modules.course.duration",
+        "generation.snapshot.modules.course.score", "generation.snapshot.modules.course.viewCount",
+        "generation.snapshot.modules.course.likeCount"
+      ].join(" "))
+      .lean() : [];
+    const previewResourcesByCourseId = new Map(previewResourceCourses.map((course) => [String(course._id), course]));
     const taxonomy = await courseService.getPublicCourseTaxonomy();
     return success(res, {
       ...result,
       taxonomy,
-      courses: courses.map((course) => toPublicCoursePreview({
-        ...course,
-        enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
-      }))
+      courses: courses.map((course) => {
+        const previewResources = previewResourcesByCourseId.get(String(course._id)) || {};
+        return toPublicCoursePreview({
+          ...course,
+          ...previewResources,
+          moduleCount: Number.isFinite(Number(course.moduleCount))
+            ? Number(course.moduleCount)
+            : Array.isArray(previewResources.modules) ? previewResources.modules.length : 0,
+          enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
+        });
+      })
     });
   } catch (e) { next(e); }
 }

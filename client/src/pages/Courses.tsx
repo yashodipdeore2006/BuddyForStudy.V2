@@ -4,6 +4,8 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } from '@/types';
 import CourseCard from '@/components/CourseCard';
+import BuildProgressPanel from '@/components/BuildProgressPanel';
+import type { BuildProgressNode } from '@/lib/buildProgress.js';
 import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
@@ -434,6 +436,7 @@ export default function Courses() {
   }, [location.pathname, location.search, location.state, navigate]);
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiBuildProgress, setAiBuildProgress] = useState<{ status: string; nodes: BuildProgressNode[] } | null>(null);
   const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -1110,6 +1113,7 @@ export default function Courses() {
     };
 
     setAiLoading(true);
+    setAiBuildProgress({ status: ASYNC_ROADMAP ? 'queued' : 'building', nodes: [] });
     aiLoadingRef.current = true;
     setAiError(null);
     try {
@@ -1119,21 +1123,23 @@ export default function Courses() {
           method: "POST", body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
         window.localStorage.setItem("bfs_async_roadmap_draft", draft.draftId);
-        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>("/api/ai/roadmap", {
+        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown; nodes?: BuildProgressNode[] }>("/api/ai/roadmap", {
           method: "POST", body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
+        setAiBuildProgress({ status: started.status || 'building', nodes: started.nodes || [] });
         setAiRoadmap({
           status: started.status || "building",
           query: topic,
           course: { title: topic + " learning roadmap", modules: started.modules || [] },
           draftId: draft.draftId
         });
-        let current = started;
+        let current: { draftId: string; status: string; errorMessage?: string; result?: AiRoadmap; nodes?: BuildProgressNode[] } = started;
         while (current.status !== "ready") {
           if (current.status === "failed") throw new Error(current.errorMessage || "Roadmap build failed. Please retry.");
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_${Date.now()}`);
+          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap; nodes?: BuildProgressNode[] }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_${Date.now()}`);
           current = polled;
+          setAiBuildProgress({ status: polled.status, nodes: polled.nodes || [] });
           if (polled.status === "failed") throw new Error(polled.errorMessage || "Roadmap build failed. Please retry.");
           if (polled.result) setAiRoadmap(polled.result);
           if (polled.status === "ready" && polled.result) data = polled.result;
@@ -1154,6 +1160,7 @@ export default function Courses() {
     } finally {
       aiLoadingRef.current = false;
       setAiLoading(false);
+      setAiBuildProgress(null);
     }
   };
 
@@ -1432,6 +1439,11 @@ export default function Courses() {
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
             </div>
 
+            {aiLoading ? (
+              <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-8 sm:px-5">
+                <BuildProgressPanel topic={aiTopic.trim()} status={aiBuildProgress?.status || (ASYNC_ROADMAP ? 'queued' : 'building')} nodes={aiBuildProgress?.nodes || []} />
+              </div>
+            ) : (
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3 sm:px-5">
               <div className="mx-auto w-full max-w-2xl space-y-5">
   <div>
@@ -1720,6 +1732,7 @@ export default function Courses() {
   {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
 </div>
             </div>
+            )}
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <button
                 type="button"

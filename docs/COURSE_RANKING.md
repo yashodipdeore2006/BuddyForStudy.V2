@@ -87,8 +87,25 @@ These labels describe the specific observable signals; they do not claim measure
 - Ties break on component relevance, creation timestamp, then stable course ID.
 - Rating inputs are the approved aggregates already used by the public catalogue.
 
+## Golden regression fixtures
+
+Task DISC-005 adds a fixed fixture set in `server/test/fixtures/courseDiscoveryRanking.fixtures.js` and focused tests in `server/test/courseDiscoveryRanking.fixtures.test.js`.
+
+| Regression | Expected invariant |
+|---|---|
+| Cross-domain search | A React/software-development intent excludes Data & AI records, including records whose legacy category conflicts with an explicit canonical domain |
+| Unknown legacy catalogue item | An unclassified legacy record remains discoverable rather than being guessed into another domain |
+| Ambiguous mixed intent | A query spanning React and Data Analytics does not force a single domain |
+| Low review count | A single five-star review is confidence-adjusted below an established 4.7-star rating with 150 reviews |
+| Structural quality | A well-described, outcomes-rich, structured curriculum outranks a sparse course in Highest quality, even when the sparse course has a larger raw rating sample |
+| Composite golden output | The fixed complete React fixture locks its catalogue-completeness, popularity, freshness, quality and composite values under a fixed clock |
+| Pagination | 37 candidates produce seven non-overlapping pages; their concatenation equals the full deterministic ordering, independent of input order |
+| Relevance versus popularity | A strong exact-topic result remains ahead of a weak cross-topic record with a very high enrolment count |
+
+Run these fixtures with `npm test` from `server/`. Any intentional scoring-policy change must review and update the fixtures alongside the policy version and documentation.
+
 ## Validation
 
-The unit suite covers policy version/weight integrity, relevance ordering, small-sample shrinkage, invalid-rating fallback, logarithmic popularity, bounded structural components and deterministic full-set ordering.
+The unit suite covers policy version/weight integrity, relevance ordering, small-sample shrinkage, invalid-rating fallback, logarithmic popularity, bounded structural components, all supported sort modes and deterministic full-set ordering. The DISC-005 fixture suite adds the cross-domain, confidence, quality and pagination golden regressions above.
 
-The numeric weights and thresholds are initial defaults. Task DISC-005 will add a broader golden relevance/ranking fixture set; further calibration should use human-labelled results rather than the ranker’s own score.
+The numeric weights and thresholds are initial defaults. Further calibration should use human-labelled results rather than the ranker’s own score.

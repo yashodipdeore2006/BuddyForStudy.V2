@@ -64,8 +64,8 @@ test("all course surfaces use a safe effective price and only show valid sale pr
 
 test("shared currency formatter preserves supported minor-unit precision and safely falls back", () => {
   const { formatCurrencyAmount } = coursePricingModule;
-  assert.match(formatCurrencyAmount(99.5, "INR"), /99\\.5/);
-  assert.match(formatCurrencyAmount(9.99, "USD"), /9\\.99/);
+  assert.ok(formatCurrencyAmount(99.5, "INR").includes("99.5"));
+  assert.ok(formatCurrencyAmount(9.99, "USD").includes("9.99"));
   assert.match(formatCurrencyAmount(125, "JPY"), /125/);
   assert.equal(formatCurrencyAmount(Number.NaN, "INR"), "Price unavailable");
   assert.equal(

@@ -3,7 +3,6 @@ import {
   BookOpen,
   CheckCircle2,
   Compass,
-  GraduationCap,
   Route,
   Sparkles,
   Target,

@@ -122,3 +122,22 @@ test("publishing a trial campaign requires explicit confirmation and preserves p
   assert.match(source, /makes this offer available to eligible learners during its configured campaign window/);
   assert.match(source, /Saving or publishing this campaign does not create a payment/);
 });
+
+
+test("admins can edit unclaimed draft or paused campaigns with a required audited change reason", () => {
+  assert.match(source, /function startEditingCampaign\(campaign: TrialCampaign\)/);
+  assert.match(source, /!\["draft", "paused"\]\.includes\(campaign\.status\) \|\| campaign\.claimedCount > 0/);
+  assert.match(source, /const endpoint = editing/);
+  assert.match(source, /method: editing \? "PUT" : "POST"/);
+  assert.match(source, /body\.reason = editReason\.trim\(\)/);
+  assert.match(source, /Administrator change reason \(required for audit\)/);
+  assert.match(source, /Save campaign changes/);
+  assert.match(source, /Cancel edit/);
+  assert.match(source, /campaign\.claimedCount === 0/);
+});
+
+test("the self-serve campaign audience cannot disable active paid/trial exclusion", () => {
+  assert.match(source, /checked=\{true\} disabled aria-describedby="campaign-active-subscription-policy"/);
+  assert.match(source, /mandatory safety rule/);
+  assert.match(source, /requireNoActiveSubscription: true/);
+});

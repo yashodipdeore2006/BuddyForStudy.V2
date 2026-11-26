@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Clock3, Code2, Layers3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
@@ -119,7 +119,7 @@ export default function LongFormCourseCarousel() {
   } as CSSProperties;
   const groups = isLooping ? [false, true] : [false];
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const step = Math.max(260, Math.round(viewport.clientWidth * 0.72));

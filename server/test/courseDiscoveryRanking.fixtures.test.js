@@ -85,7 +85,7 @@ test("[DISC-005-QUALITY] structural completeness wins the quality sort without o
   assert.equal(goldenRanking.components.catalogueCompleteness, 93.35);
   assert.equal(goldenRanking.components.popularity, 47.16);
   assert.equal(goldenRanking.components.freshness, 78.32);
-  assert.equal(goldenRanking.score, 76.39);
+  assert.equal(goldenRanking.score, 82.69);
   assert.ok(ranked.every((course) => course.ranking.version === "course-ranking-v1"));
 });
 

@@ -3597,7 +3597,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
   });
 

@@ -101,7 +101,7 @@ const journeyStageSchema = new mongoose.Schema({
   id: { type: String, required: true }, order: { type: Number, required: true }, title: { type: String, required: true, trim: true, maxlength: 100 },
   hours: { type: Number, default: 0, min: 0 }, lessonIds: { type: [String], default: [] }, skills: { type: [String], default: [] }, outcome: { type: String, default: "", maxlength: 1000 }, emoji: { type: String, default: "" }
 }, { _id: false });
-const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
+const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, source: { type: String, enum: ["generated", "admin", "legacy"], default: "legacy" }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
 
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },

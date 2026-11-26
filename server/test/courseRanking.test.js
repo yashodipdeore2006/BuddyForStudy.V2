@@ -102,6 +102,57 @@ test("catalogue completeness and curriculum coverage remain bounded", () => {
   }
 });
 
+test("all supported sort modes are deterministic and retain ranking explanations", () => {
+  const items = [
+    course({
+      _id: "popular",
+      title: "React popular course",
+      enrollmentCount: 1200,
+      ratingAverage: 4.1,
+      ratingCount: 40,
+      createdAt: "2026-02-01T00:00:00.000Z"
+    }),
+    course({
+      _id: "quality",
+      title: "React structured course",
+      enrollmentCount: 30,
+      ratingAverage: 3.7,
+      ratingCount: 25,
+      moduleCount: 7,
+      lessonCount: 30,
+      learningOutcomes: ["One", "Two", "Three", "Four", "Five"],
+      description: "A detailed course description with prerequisites, learning structure, practice and examples."
+    }),
+    course({
+      _id: "rated",
+      title: "React highly rated course",
+      enrollmentCount: 50,
+      ratingAverage: 4.9,
+      ratingCount: 300,
+      createdAt: "2026-03-01T00:00:00.000Z"
+    }),
+    course({
+      _id: "newest",
+      title: "React newest course",
+      enrollmentCount: 5,
+      ratingAverage: 3.5,
+      ratingCount: 0,
+      createdAt: "2026-11-20T00:00:00.000Z"
+    })
+  ];
+
+  assert.equal(rankCoursesForSearch(items, "React", { sort: "popular", now: NOW })[0]._id, "popular");
+  assert.equal(rankCoursesForSearch(items, "React", { sort: "quality", now: NOW })[0]._id, "quality");
+  assert.equal(rankCoursesForSearch(items, "React", { sort: "highest_rated", now: NOW })[0]._id, "rated");
+  assert.equal(rankCoursesForSearch(items, "React", { sort: "newest", now: NOW })[0]._id, "newest");
+  assert.ok(rankCoursesForSearch(items, "React", { sort: "best_match", now: NOW })[0].ranking.score >= 0);
+
+  const explained = calculateCourseRanking(course(), "React", { now: NOW });
+  assert.ok(explained.qualityScore >= 0 && explained.qualityScore <= 100);
+  assert.ok(explained.reasons.includes("Structured learning path"));
+  assert.ok(explained.reasonCodes.includes("structured_curriculum"));
+});
+
 test("search ranking sorts the full candidate set before pagination and uses deterministic tie-breakers", () => {
   const items = [
     course({ _id: "weak", title: "Java Course", createdAt: "2026-10-01T00:00:00.000Z" }),

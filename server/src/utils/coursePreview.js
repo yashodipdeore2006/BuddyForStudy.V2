@@ -19,6 +19,46 @@ function parseDurationSeconds(value) {
   return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
 }
 
+
+const YOUTUBE_VIDEO_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
+const YOUTUBE_HOSTS = new Set(["youtube.com", "m.youtube.com", "youtu.be", "youtube-nocookie.com"]);
+
+function getYouTubeVideoId(resource) {
+  const directId = String(resource?.videoId || "").trim();
+  if (YOUTUBE_VIDEO_ID_PATTERN.test(directId)) return directId;
+
+  const rawUrl = String(resource?.url || "").trim();
+  if (!rawUrl) return "";
+  try {
+    const url = new URL(rawUrl);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (!YOUTUBE_HOSTS.has(hostname)) return "";
+
+    const pathId = hostname === "youtu.be"
+      ? url.pathname.split("/").filter(Boolean)[0]
+      : url.pathname.match(/\/(?:embed|shorts|live)\/([a-zA-Z0-9_-]{11})(?:[/?]|$)/)?.[1];
+    const candidate = String(url.searchParams.get("v") || pathId || "").trim();
+    return YOUTUBE_VIDEO_ID_PATTERN.test(candidate) ? candidate : "";
+  } catch {
+    return "";
+  }
+}
+
+function addYouTubeVideoRuntime(videoDurations, resource) {
+  const videoId = getYouTubeVideoId(resource);
+  if (!videoId) return;
+
+  const declaredSeconds = Number(resource?.durationSeconds);
+  const durationSeconds = Math.round(declaredSeconds > 0
+    ? declaredSeconds
+    : parseDurationSeconds(resource?.duration));
+  if (durationSeconds <= 0) return;
+
+  // A video can be referenced by several lessons or by the generation snapshot.
+  // Keep one runtime per YouTube video ID and prefer the greatest verified value.
+  videoDurations.set(videoId, Math.max(videoDurations.get(videoId) || 0, durationSeconds));
+}
+
 export function toPublicCoursePreview(course) {
   const modules = course.modules || [];
   const videosById = new Map();
@@ -32,6 +72,25 @@ export function toPublicCoursePreview(course) {
   }
   const snapshotModules = Array.isArray(course.generation?.snapshot?.modules) ? course.generation.snapshot.modules : [];
   const selectedResources = snapshotModules.map((module) => module?.course).filter(Boolean);
+
+  // Expose only aggregate public metadata. Do not return the underlying YouTube
+  // resource records from this public projection.
+  const youtubeVideoDurations = new Map();
+  for (const module of modules) {
+    for (const lesson of module.lessons || []) {
+      for (const video of [
+        ...(lesson.tutorial?.videos || []),
+        ...(lesson.project?.videos || [])
+      ]) {
+        addYouTubeVideoRuntime(youtubeVideoDurations, video);
+      }
+    }
+  }
+  for (const resource of selectedResources) {
+    addYouTubeVideoRuntime(youtubeVideoDurations, resource);
+  }
+  const youtubeRuntimeSeconds = [...youtubeVideoDurations.values()]
+    .reduce((total, durationSeconds) => total + durationSeconds, 0);
   // Snapshot-selected YouTube resources may exist before their videos are expanded
   // into lesson payloads. Count these too so playlist cards never report 0 videos.
   const selectedVideoKeys = new Set(selectedResources
@@ -71,6 +130,8 @@ export function toPublicCoursePreview(course) {
     ...(creatorUrl.startsWith("https://www.youtube.com/") ? { creatorUrl } : {}),
     typeTag,
     videoCount,
+    youtubeVideoCount: youtubeVideoDurations.size,
+    youtubeRuntimeSeconds,
     ...(firstPreviewVideoId ? { previewVideoId: firstPreviewVideoId } : {}),
     ...(qualityScore !== null ? { qualityScore } : {}),
     ...(viewCount > 0 ? { viewCount } : {}),

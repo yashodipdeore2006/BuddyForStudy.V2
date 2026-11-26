@@ -7,7 +7,7 @@ import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, filterLearningResourcesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
 import { getCachedCourseTaxonomy, setCachedCourseTaxonomy, invalidateCourseTaxonomyCache } from "./courseTaxonomyCache.service.js";
-import { rankCoursesForSearch } from "../utils/courseRanking.js";
+import { addCourseRankingMetadata, rankCoursesForSearch } from "../utils/courseRanking.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -768,7 +768,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
     ]),
     Course.countDocuments(filter)
   ]);
-  const courses = rankCoursesForSearch(rawCourses, "", { sort: normalizedSort });
+  const courses = addCourseRankingMetadata(rawCourses, "", { sort: normalizedSort });
   return {
     courses,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }

@@ -240,7 +240,6 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
       percent: progressPercent,
       hoursRemaining: Math.round(hoursRemaining * 10) / 10,
       currentPhaseId: firstIncompletePhase?.id || null,
-      xp: completedCount * 50
     },
     phases: phaseProgress,
     nodes

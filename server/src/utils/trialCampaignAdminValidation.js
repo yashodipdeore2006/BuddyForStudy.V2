@@ -6,14 +6,14 @@ const dateTimeSchema = z.string().datetime({ offset: true }).transform((value) =
 const eligibilityCreateSchema = z.object({
   requireActiveAccount: z.boolean().default(true),
   requireVerifiedEmail: z.boolean().default(true),
-  requireNoActiveSubscription: z.boolean().default(true),
+  requireNoActiveSubscription: z.literal(true).default(true),
   requireNoPreviousTrial: z.boolean().default(true)
 }).strict();
 
 const eligibilityUpdateSchema = z.object({
   requireActiveAccount: z.boolean().optional(),
   requireVerifiedEmail: z.boolean().optional(),
-  requireNoActiveSubscription: z.boolean().optional(),
+  requireNoActiveSubscription: z.literal(true).optional(),
   requireNoPreviousTrial: z.boolean().optional()
 }).strict();
 

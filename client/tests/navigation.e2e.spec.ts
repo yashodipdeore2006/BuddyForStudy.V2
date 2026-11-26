@@ -1032,6 +1032,17 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && query.get("sort") === "best_match" && query.get("page") === "1")).toBe(true);
   });
 
+  test("[EXP-SORT-LEGACY-001] legacy sort URLs migrate to canonical Explore modes", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/explore?sort=recent");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("newest");
+    await expect(page).toHaveURL(/sort=newest/);
+
+    await page.goto(baseURL + "/explore?sort=title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
+    await expect(page).not.toHaveURL(/sort=/);
+  });
+
   test("[EXP-SORT-MODES-001] Explore exposes supported sorts and preserves sort in URL and API requests", async ({ page }) => {
     const catalogQueries: URLSearchParams[] = [];
     page.on("request", (request) => {

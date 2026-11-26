@@ -874,9 +874,9 @@ export async function updateCourse(courseId, input, context = {}) {
   };
   await course.save();
   await cacheDelete(`course:${courseId}`);
-  if (Object.hasOwn(input, "category") || Object.hasOwn(input, "domain") || Object.hasOwn(input, "isPublished")) {
-    await invalidatePublicCourseTaxonomyCache();
-  }
+  // Content edits may trigger the model's publication-readiness hook even when
+  // category/domain were not directly edited, so always refresh the public facets.
+  await invalidatePublicCourseTaxonomyCache();
   return course;
 }
 

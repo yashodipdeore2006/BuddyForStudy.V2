@@ -111,3 +111,25 @@ test("lessons without optional quiz or project topic fields remain valid roadmap
   assert.deepEqual(result.nodes[0].subtopics, []);
   assert.equal(result.nodes[0].type, "core");
 });
+
+
+test("checkpoint node metadata maps to the checkpoint visual type", () => {
+  const checkpointCourse = {
+    ...course,
+    modules: [{
+      _id: "module-checkpoint",
+      title: "Review",
+      lessons: [{
+        _id: "lesson-checkpoint",
+        title: "Architecture Review",
+        type: "tutorial",
+        nodeType: "checkpoint"
+      }]
+    }]
+  };
+  const checkpointRoadmap = {
+    stages: [{ id: "phase-review", order: 1, title: "Review", lessonIds: ["lesson-checkpoint"] }]
+  };
+  const result = buildCourseRoadmapDocument({ course: checkpointCourse, roadmap: checkpointRoadmap });
+  assert.equal(result.nodes[0].type, "checkpoint");
+});

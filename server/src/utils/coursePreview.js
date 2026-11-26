@@ -82,6 +82,8 @@ export function toPublicCoursePreview(course) {
     slug: course.slug,
     description: course.description,
     category: course.category,
+    domain: course.domain || null,
+    tags: Array.isArray(course.tags) ? course.tags : [],
     level: course.level,
     duration: course.duration,
     thumbnail: course.thumbnail,

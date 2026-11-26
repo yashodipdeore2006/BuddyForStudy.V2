@@ -141,6 +141,8 @@ export interface Course {
   slug: string;
   description: string;
   category: string;
+  domain?: string | null;
+  tags?: string[];
   level: CourseLevel;
   duration: string;
   thumbnail: string | null;

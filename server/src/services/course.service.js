@@ -5,6 +5,12 @@ import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
+
+const PUBLIC_COURSE_TAXONOMY_CACHE_KEY = "course-taxonomy:public:v1";
+const PUBLIC_COURSE_TAXONOMY_TTL_MS = 5 * 60 * 1000;
+let publicCourseTaxonomyCache = null;
+let publicCourseTaxonomyCacheAt = 0;
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -93,7 +99,8 @@ function buildDirectCourseSearchFilter(search) {
       { title: regex },
       { description: regex },
       { category: regex },
-      { learningOutcomes: regex }
+      { learningOutcomes: regex },
+      { tags: regex }
     ]
   };
 }
@@ -170,6 +177,8 @@ function standaloneCourseFromModule(parent, module) {
       ? String(module.description)
       : "Standalone " + title + " course extracted from the " + parentTitle + " curriculum.",
     category: parent.category || "Learning",
+    domain: parent.domain || null,
+    tags: parent.tags || [],
     level: parent.level || "Beginner",
     duration: "Self-paced",
     thumbnail: firstVideo?.thumbnail || parent.thumbnail || "",
@@ -208,18 +217,21 @@ function standaloneCourseFromModule(parent, module) {
   };
 }
 
-async function getStandaloneModuleCourses(search, { category, level } = {}) {
+async function getStandaloneModuleCourses(search, { category, domain, level, searchDomain } = {}) {
   const searchTokens = normalizeSearchTokens(search);
   if (!searchTokens.length) {
     return { courses: [], sourceCourseIds: [], standaloneIds: [] };
   }
 
+  const candidateConditions = [PUBLICATION_APPROVAL_FILTER];
+  const selectedDomainFilter = domain ? buildCourseDomainFilter(domain) : null;
+  if (selectedDomainFilter) candidateConditions.push(selectedDomainFilter);
   const candidateFilter = {
     isPublished: true,
     deletedAt: null,
     status: { $ne: "archived" },
     "generation.mode": { $ne: "module" },
-    $and: [PUBLICATION_APPROVAL_FILTER],
+    $and: candidateConditions,
     ...(category ? { category } : {}),
     ...(level ? { level } : {}),
     $or: [
@@ -235,11 +247,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
   };
 
   const parents = await Course.find(candidateFilter)
-    .select("title description category level duration thumbnail pricing enrollmentEnabled certificateEnabled modules")
+    .select("title description category domain tags level duration thumbnail pricing enrollmentEnabled certificateEnabled modules")
     .lean();
 
   const matches = [];
-  for (const parent of parents) {
+  for (const parent of filterCoursesByInferredDomain(parents, searchDomain)) {
     for (const module of parent.modules || []) {
       if (moduleMatchesSearch(module, searchTokens)) {
         matches.push({ parent, module });
@@ -265,8 +277,15 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
     };
 
     const existing = await Course.findOne(matchFilter).lean();
+    const inheritParentTaxonomy = (course) => ({
+      ...course,
+      domain: course.domain || parent.domain || null,
+      tags: Array.isArray(course.tags) && course.tags.length ? course.tags : (parent.tags || [])
+    });
     if (existing) {
-      if (existing.isPublished && !existing.deletedAt && existing.status !== "archived" && isApprovedForPublication(existing)) courses.push(existing);
+      if (existing.isPublished && !existing.deletedAt && existing.status !== "archived" && isApprovedForPublication(existing)) {
+        courses.push(inheritParentTaxonomy(existing));
+      }
       continue;
     }
 
@@ -283,11 +302,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created?.isPublished && !created.deletedAt && created.status !== "archived" && isApprovedForPublication(created)) courses.push(created);
+      if (created?.isPublished && !created.deletedAt && created.status !== "archived" && isApprovedForPublication(created)) courses.push(inheritParentTaxonomy(created));
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate?.isPublished && !duplicate.deletedAt && duplicate.status !== "archived" && isApprovedForPublication(duplicate)) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt && duplicate.status !== "archived" && isApprovedForPublication(duplicate)) courses.push(inheritParentTaxonomy(duplicate));
         else throw error;
       } else {
         throw error;
@@ -496,16 +515,19 @@ async function getDiscoveryPricingPreviews(resources, level) {
   });
 }
 
-export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
+export async function listPublished({ page = 1, limit = 20, search, category, domain, level, sort = "recent" }) {
   const filter = { isPublished: true, deletedAt: null, status: { $ne: "archived" }, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
   if (level) filter.level = level;
+  const selectedDomainFilter = domain ? buildCourseDomainFilter(domain) : null;
+  if (selectedDomainFilter) filter.$and.push(selectedDomainFilter);
 
   const normalizedSearch = String(search || "").trim();
 
   if (normalizedSearch) {
+    const inferredSearchDomain = inferCourseDomain(normalizedSearch);
     const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
-    const directCandidates = directFilter
+    const rawDirectCandidates = directFilter
       ? await Course.aggregate([
           { $match: { ...filter, ...directFilter } },
           courseContentCountsStage(),
@@ -516,6 +538,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
           { $sort: { createdAt: -1 } }
         ])
       : [];
+    const directCandidates = filterCoursesByInferredDomain(rawDirectCandidates, inferredSearchDomain);
 
     const nonModuleDirectCourses = directCandidates.filter(
       (course) => course.generation?.mode !== "module"
@@ -528,7 +551,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     if (!localCourses.length) {
       const standalone = await getStandaloneModuleCourses(normalizedSearch, {
         category,
-        level
+        domain,
+        level,
+        searchDomain: inferredSearchDomain
       });
 
       localCourses = standalone.courses.slice(
@@ -771,6 +796,61 @@ export async function getAny(courseId) {
   return Course.findById(courseId);
 }
 
+export async function invalidatePublicCourseTaxonomyCache() {
+  publicCourseTaxonomyCache = null;
+  publicCourseTaxonomyCacheAt = 0;
+  await cacheDelete(PUBLIC_COURSE_TAXONOMY_CACHE_KEY);
+}
+
+export async function getPublicCourseTaxonomy() {
+  if (
+    publicCourseTaxonomyCache &&
+    Date.now() - publicCourseTaxonomyCacheAt < PUBLIC_COURSE_TAXONOMY_TTL_MS
+  ) return publicCourseTaxonomyCache;
+
+  const cached = await cacheGet(PUBLIC_COURSE_TAXONOMY_CACHE_KEY);
+  if (cached?.domains && Array.isArray(cached.categories)) {
+    publicCourseTaxonomyCache = cached;
+    publicCourseTaxonomyCacheAt = Date.now();
+    return cached;
+  }
+
+  const categoryRows = await Course.aggregate([
+    {
+      $match: {
+        isPublished: true,
+        deletedAt: null,
+        status: { $ne: "archived" },
+        $and: [PUBLICATION_APPROVAL_FILTER]
+      }
+    },
+    { $group: { _id: { category: "$category", domain: "$domain" } } }
+  ]);
+  const categories = [...new Set(categoryRows
+    .map((row) => String(row?._id?.category || "").trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const categoriesByDomain = Object.fromEntries(COURSE_DOMAIN_IDS.map((domainId) => [domainId, []]));
+  categoriesByDomain.unclassified = [];
+  const seenCategoriesByDomain = new Set();
+  for (const row of categoryRows) {
+    const categoryValue = String(row?._id?.category || "").trim();
+    if (!categoryValue) continue;
+    const domainId = resolveCourseDomain(row?._id?.domain) || resolveCourseDomain(categoryValue);
+    const key = (domainId || "unclassified") + ":" + categoryValue.toLowerCase();
+    if (seenCategoriesByDomain.has(key)) continue;
+    seenCategoriesByDomain.add(key);
+    (domainId ? categoriesByDomain[domainId] : categoriesByDomain.unclassified).push(categoryValue);
+  }
+  for (const key of Object.keys(categoriesByDomain)) {
+    categoriesByDomain[key].sort((a, b) => a.localeCompare(b));
+  }
+  const taxonomy = { ...getCourseTaxonomy(), categories, categoriesByDomain };
+  publicCourseTaxonomyCache = taxonomy;
+  publicCourseTaxonomyCacheAt = Date.now();
+  void cacheSet(PUBLIC_COURSE_TAXONOMY_CACHE_KEY, taxonomy, 300);
+  return taxonomy;
+}
+
 export async function createCourse(input) {
   const slug = input.slug ? normalizeSlug(input.slug) : normalizeSlug(input.title);
   const generated = ["normal", "ai", "module", "discovery"].includes(input.generation?.mode);
@@ -804,6 +884,9 @@ export async function updateCourse(courseId, input, context = {}) {
   };
   await course.save();
   await cacheDelete(`course:${courseId}`);
+  if (Object.hasOwn(input, "category") || Object.hasOwn(input, "domain") || Object.hasOwn(input, "isPublished")) {
+    await invalidatePublicCourseTaxonomyCache();
+  }
   return course;
 }
 
@@ -821,6 +904,7 @@ export async function deleteCourse(courseId, context = {}) {
   };
   await course.save();
   await cacheDelete(`course:${courseId}`);
+  await invalidatePublicCourseTaxonomyCache();
   return course;
 }
 

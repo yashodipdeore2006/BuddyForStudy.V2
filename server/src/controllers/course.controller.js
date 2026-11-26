@@ -7,12 +7,15 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { canAccessCourse, getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
 import { recoverMissingTutorialResources } from "../services/courseResourceRecovery.service.js";
+import { isCourseDomainId } from "../utils/courseTaxonomy.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
   slug: z.string().trim().min(2).optional(),
   description: z.string().trim().min(2),
   category: z.string().trim().min(1),
+  domain: z.string().refine(isCourseDomainId, "Invalid course domain").nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   level: z.enum(["Beginner", "Intermediate", "Advanced"]),
   duration: z.union([z.string(), z.number()]),
   thumbnail: z.string().optional(),
@@ -33,6 +36,7 @@ const courseSchema = z.object({
 
 export async function list(req, res, next) {
   try {
+    if (req.query.domain && !isCourseDomainId(req.query.domain)) return failure(res, "Invalid course domain", 400);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
     const result = await courseService.listPublished({
@@ -40,6 +44,7 @@ export async function list(req, res, next) {
       limit,
       search: req.query.q,
       category: req.query.category,
+      domain: req.query.domain,
       level: req.query.level,
       sort: req.query.sort === "popular" ? "popular" : "recent"
     });
@@ -50,8 +55,10 @@ export async function list(req, res, next) {
       { $group: { _id: "$course", count: { $sum: 1 } } }
     ]) : [];
     const countsByCourseId = new Map(enrollmentCounts.map((entry) => [String(entry._id), Number(entry.count) || 0]));
+    const taxonomy = await courseService.getPublicCourseTaxonomy();
     return success(res, {
       ...result,
+      taxonomy,
       courses: courses.map((course) => toPublicCoursePreview({
         ...course,
         enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0

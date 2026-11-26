@@ -47,6 +47,8 @@ import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { recoverCourseMissingResources } from "../services/courseResourceRecovery.service.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
+import { invalidatePublicCourseTaxonomyCache } from "../services/course.service.js";
+import { getCourseTaxonomy, normalizeCourseTags } from "../utils/courseTaxonomy.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { parseSafeHttpUrl } from "../utils/safeHttpUrl.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
@@ -474,13 +476,19 @@ export async function courses(req, res, next) {
       ...(includeDeleted ? {} : { deletedAt: null }),
       ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
     };
-    const [courses, total] = await Promise.all([
+    const [courses, total, categoryValues] = await Promise.all([
       Course.find(filter)
-        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+        .select("title slug category domain tags level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
         .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      Course.countDocuments(filter)
+      Course.countDocuments(filter),
+      Course.distinct("category", includeDeleted ? {} : { deletedAt: null })
     ]);
-    return success(res, { courses, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+    const taxonomy = {
+      ...getCourseTaxonomy(),
+      categories: [...new Set(categoryValues.map((value) => String(value || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+    };
+    return success(res, { courses, taxonomy, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
@@ -694,6 +702,7 @@ export async function setCourseLifecycle(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course status changed to " + status };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.status.updated", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled }, reason);
     return success(res, { course }, "Course status updated");
   } catch (e) { next(e); }
@@ -714,6 +723,7 @@ export async function softDeleteCourse(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course soft-deleted" };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.soft_deleted", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt }, reason);
     return success(res, { course }, "Course moved to trash");
   } catch (e) { next(e); }
@@ -1175,6 +1185,7 @@ export async function publishCourse(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.published", "Course", course._id, before, { isPublished: true, visibility: course.visibility, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
     return success(res, { course, readiness }, "Course published");
   } catch (error) { next(error); }
@@ -1722,6 +1733,8 @@ export async function updateCourse(req, res, next) {
       title: item.title,
       descriptionLength: String(item.description || "").length,
       category: item.category,
+      domain: item.domain || null,
+      tagCount: Array.isArray(item.tags) ? item.tags.length : 0,
       level: item.level,
       duration: item.duration,
       hasThumbnail: Boolean(item.thumbnail),
@@ -1760,6 +1773,8 @@ export async function updateCourse(req, res, next) {
       course.description = value;
     }
     if (req.body.category !== undefined) course.category = String(req.body.category).trim();
+    if (req.body.domain !== undefined) course.domain = req.body.domain || null;
+    if (Array.isArray(req.body.tags)) course.tags = normalizeCourseTags(req.body.tags);
     if (req.body.level !== undefined && ["Beginner", "Intermediate", "Advanced"].includes(req.body.level)) course.level = req.body.level;
     if (req.body.duration !== undefined) course.duration = String(req.body.duration).trim();
     if (req.body.thumbnail !== undefined) course.thumbnail = String(req.body.thumbnail).trim();
@@ -1780,6 +1795,9 @@ export async function updateCourse(req, res, next) {
     await course.save();
     // Course catalogue caches must not retain stale publish state or metadata.
     await cacheDelete(`course:${course._id}`);
+    if (req.body.category !== undefined || req.body.domain !== undefined || req.body.isPublished !== undefined) {
+      await invalidatePublicCourseTaxonomyCache();
+    }
     const after = summarizeCourseForAudit(course);
     const publishTransition = before.isPublished !== after.isPublished;
     const action = publishTransition

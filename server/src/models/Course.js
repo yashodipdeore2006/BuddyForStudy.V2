@@ -5,6 +5,7 @@ import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { PricingRule } from "./PricingRule.js";
 import { calculateNextPricing, getCoursePricingValidationError } from "../utils/coursePricing.js";
 import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
+import { COURSE_DOMAIN_IDS } from "../utils/courseTaxonomy.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -106,6 +107,8 @@ const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   description: { type: String, required: true, trim: true }, category: { type: String, required: true, trim: true },
+  domain: { type: String, enum: COURSE_DOMAIN_IDS, default: null },
+  tags: { type: [{ type: String, trim: true, lowercase: true, maxlength: 40 }], default: [] },
   level: { type: String, enum: ["Beginner", "Intermediate", "Advanced"], required: true },
   duration: { type: String, required: true, trim: true }, thumbnail: { type: String, default: "" },
   learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] }, roadmap: { type: courseRoadmapSchema, default: () => ({ theme: "trail", stages: [] }) },
@@ -302,6 +305,7 @@ courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
   this.aiReviewNote = "";
 });
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
+courseSchema.index({ isPublished: 1, domain: 1, category: 1, level: 1 });
 courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   if (this.isNew || !this.isModified()) return;
   const previous = await this.constructor.findById(this._id).lean();

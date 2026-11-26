@@ -1,3 +1,5 @@
+import { isCourseDomainId } from "./courseTaxonomy.js";
+
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 
 export function validateCourseAdminPatch(body = {}) {
@@ -12,6 +14,18 @@ export function validateCourseAdminPatch(body = {}) {
   for (const [key, label] of textFields) {
     if (hasOwn(body, key) && (typeof body[key] !== "string" || !body[key].trim())) {
       errors.push({ field: key, message: `${label} cannot be empty` });
+    }
+  }
+
+  if (hasOwn(body, "domain") && body.domain !== null && body.domain !== "" && !isCourseDomainId(body.domain)) {
+    errors.push({ field: "domain", message: "Choose a supported course domain or leave it unclassified" });
+  }
+
+  if (hasOwn(body, "tags")) {
+    if (!Array.isArray(body.tags)) {
+      errors.push({ field: "tags", message: "Course tags must be an array of text values" });
+    } else if (body.tags.length > 20 || body.tags.some((tag) => typeof tag !== "string" || !tag.trim() || tag.trim().length > 40)) {
+      errors.push({ field: "tags", message: "Use up to 20 non-empty tags, each no longer than 40 characters" });
     }
   }
 

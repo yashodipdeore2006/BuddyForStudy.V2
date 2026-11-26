@@ -45,6 +45,8 @@ type RawCourse = {
   slug?: string;
   description?: string;
   category?: string;
+  domain?: string | null;
+  tags?: string[];
   level?: CourseLevel;
   duration?: string | number;
   thumbnail?: string | null;
@@ -178,7 +180,8 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
   return [...new Set(String(value || "").split(/[,|]/).map((item) => item.trim()).filter(Boolean))];
 }
 
-type CatalogUrlState = { query: string; level: CourseLevel | "all"; category: string; sort: "recent" | "popular" | "title"; page: number };
+type CourseDomainOption = { id: string; label: string };
+type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: "recent" | "popular" | "title"; page: number };
 
 function readCatalogUrlState(search: string): CatalogUrlState {
   const params = new URLSearchParams(search);
@@ -188,6 +191,7 @@ function readCatalogUrlState(search: string): CatalogUrlState {
   return {
     query: (params.get("q") || "").trim(),
     level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
+    domain: (params.get("domain") || "").trim() || "all",
     category: (params.get("category") || "").trim() || "all",
     sort: sort === "popular" || sort === "title" ? sort : "recent",
     page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1,
@@ -242,6 +246,8 @@ function mapCourse(raw: RawCourse): Course {
     slug: raw.slug || "",
     description: raw.description || "",
     category: raw.category || "Uncategorized",
+    domain: raw.domain || null,
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
     level: raw.level || "Beginner",
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,
@@ -285,6 +291,10 @@ export default function Courses() {
   const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
   const [catalogQuery, setCatalogQuery] = useState(initialCatalogState.query);
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>(initialCatalogState.level);
+  const [selectedDomain, setSelectedDomain] = useState<string>(initialCatalogState.domain);
+  const [courseDomains, setCourseDomains] = useState<CourseDomainOption[]>([]);
+  const [courseCategories, setCourseCategories] = useState<string[]>([]);
+  const [categoriesByDomain, setCategoriesByDomain] = useState<Record<string, string[]>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatalogState.category);
   const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">(initialCatalogState.sort);
   const [catalogPage, setCatalogPage] = useState(initialCatalogState.page);
@@ -379,6 +389,7 @@ export default function Courses() {
     };
     setOrDelete("q", next.query.trim(), "");
     setOrDelete("level", next.level, "all");
+    setOrDelete("domain", next.domain, "all");
     setOrDelete("category", next.category, "all");
     setOrDelete("sort", next.sort, "recent");
     setOrDelete("page", String(next.page), "1");
@@ -394,6 +405,7 @@ export default function Courses() {
     setCatalogQuery(next.query);
     setSearchQuery(next.query);
     setSelectedLevel(next.level);
+    setSelectedDomain(next.domain);
     setSelectedCategory(next.category);
     setCatalogSort(next.sort);
     setCatalogPage(next.page);
@@ -406,6 +418,7 @@ export default function Courses() {
     };
     canonicalSet("q", next.query, "");
     canonicalSet("level", next.level, "all");
+    canonicalSet("domain", next.domain, "all");
     canonicalSet("category", next.category, "all");
     canonicalSet("sort", next.sort, "recent");
     canonicalSet("page", String(next.page), "1");
@@ -514,12 +527,16 @@ export default function Courses() {
         do {
           const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort === "popular" ? "popular" : "recent" });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
+          if (selectedDomain !== "all") params.set("domain", selectedDomain);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, {
+          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number; taxonomy?: { domains?: CourseDomainOption[]; categories?: string[]; categoriesByDomain?: Record<string, string[]> } } = await apiFetch(`/api/courses?${params.toString()}`, {
             showFeatureUpgrade: Boolean(catalogQuery.trim()),
             ...(hasInitialSnapshot.current || navigationType === "POP" ? { cache: "no-store" as const } : {}),
           });
+          if (Array.isArray(response.taxonomy?.domains)) setCourseDomains(response.taxonomy.domains);
+          if (Array.isArray(response.taxonomy?.categories)) setCourseCategories(response.taxonomy.categories);
+          if (response.taxonomy?.categoriesByDomain && typeof response.taxonomy.categoriesByDomain === "object") setCategoriesByDomain(response.taxonomy.categoriesByDomain);
           batch = response.courses || response.items || [];
           if (response.discovery) searchDiscovery = response.discovery;
           allRows.push(...batch);
@@ -577,7 +594,7 @@ export default function Courses() {
     }
 
     fetchCourses();
-  }, [selectedLevel, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
+  }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
 
   useEffect(() => {
     let active = true;
@@ -611,9 +628,15 @@ export default function Courses() {
   }, [session]);
 
   const categories = useMemo(() => {
-    const cats = new Set(courses.map((c) => c.category).filter(Boolean));
+    if (selectedDomain === "all" && courseCategories.length) {
+      return [...courseCategories].sort((a, b) => a.localeCompare(b));
+    }
+    if (selectedDomain !== "all" && Array.isArray(categoriesByDomain[selectedDomain])) {
+      return [...(categoriesByDomain[selectedDomain] || [])].sort((a, b) => a.localeCompare(b));
+    }
+    const cats = new Set(courses.map((course) => course.category).filter(Boolean));
     return Array.from(cats).sort();
-  }, [courses]);
+  }, [categoriesByDomain, courseCategories, courses, selectedDomain]);
 
   const filteredCourses = useMemo(() => courses, [courses]);
   const sortedCourses = useMemo(() => {
@@ -665,12 +688,12 @@ export default function Courses() {
     </nav>
   ) : null;
 
-  const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
+  const hasFilters = selectedLevel !== 'all' || selectedDomain !== "all" || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 
   const clearFilters = () => {
     setAiRoadmap(null);
     setAiError(null);
-    updateCatalogUrl({ query: "", level: "all", category: "all", sort: "recent", page: 1 });
+    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "recent", page: 1 });
   };
 
   useEffect(() => {
@@ -1279,8 +1302,20 @@ export default function Courses() {
             </select>
 
             <select
+              value={selectedDomain}
+              onChange={(e) => updateCatalogUrl({ domain: e.target.value, category: "all", page: 1 })}
+              className="input-field h-10 w-full py-1 text-sm sm:w-auto"
+              aria-label="Filter by domain"
+            >
+              <option value="all">All Domains</option>
+              {courseDomains.map((domain) => (
+                <option key={domain.id} value={domain.id}>{domain.label}</option>
+              ))}
+            </select>
+
+            <select
               value={selectedCategory}
-              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })}
+              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by category"
             >

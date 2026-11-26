@@ -112,6 +112,7 @@ async function mockAppApi(page: Page, options: {
   checkoutOrderFailure?: boolean;
   billingPlans?: Array<Record<string, unknown>>;
   trialOffer?: Record<string, unknown>;
+  trialOfferDelayMs?: number;
   trialClaimResponse?: Record<string, unknown>;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
@@ -139,6 +140,9 @@ async function mockAppApi(page: Page, options: {
     const method = route.request().method();
 
     if (pathname === "/api/trials/offer" && method === "GET") {
+      if (options.trialOfferDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.trialOfferDelayMs));
+      }
       return json(route, trialClaimed
         ? { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["PREVIOUS_TRIAL"], reasons: [] } }
         : options.trialOffer || { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["NO_AVAILABLE_CAMPAIGN"], reasons: [] } });
@@ -266,6 +270,17 @@ async function mockAppApi(page: Page, options: {
     if (pathname === "/api/ai/practice-quiz" && route.request().method() === "POST" && options.practiceQuizFailure) {
       return json(route, { message: "Practice quiz generation is temporarily unavailable." }, 503);
     }
+    if (pathname === "/api/billing/me") {
+      return json(route, {
+        subscription: null,
+        effectivePlan: { id: "free-plan-fixture", name: "Free", isDefaultFree: true },
+        paymentsEnabled: false,
+      });
+    }
+    if (pathname === "/api/billing/payments") return json(route, { payments: [] });
+    if (pathname === "/api/billing/refunds") return json(route, { refunds: [] });
+    if (pathname === "/api/billing/issues") return json(route, { issues: [] });
+    if (pathname === "/api/billing/trial") return json(route, { trial: null });
     if (pathname === "/api/billing/plans") return json(route, { plans: options.billingPlans || [] });
     if (pathname === "/api/billing/entitlements") {
       return json(route, {
@@ -2983,6 +2998,100 @@ test.describe("self-serve trial offer", () => {
     await page.getByRole("button", { name: "Continue learning", exact: true }).click();
     await page.reload();
     await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  test("automatic trial popup is limited to the learner dashboard", async ({ page }) => {
+    const offerRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "GET" && new URL(request.url()).pathname === "/api/trials/offer") {
+        offerRequests.push(new URL(request.url()).pathname);
+      }
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+    expect(offerRequests).toHaveLength(0);
+
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toBeVisible();
+    expect(offerRequests.length).toBeGreaterThan(0);
+  });
+
+  test("trial dialog traps keyboard focus and restores the element that opened it", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      trialOffer: eligibleTrialOfferFixture,
+      trialOfferDelayMs: 600,
+    });
+    await page.goto(baseURL + "/home");
+    await page.evaluate(() => {
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.id = "trial-offer-focus-origin";
+      trigger.textContent = "Focus origin";
+      document.body.appendChild(trigger);
+      trigger.focus();
+    });
+    const trigger = page.locator("#trial-offer-focus-origin");
+    await expect(trigger).toBeFocused();
+
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    const claimButton = dialog.getByRole("button", { name: "Claim free trial", exact: true });
+    await expect(claimButton).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Not now", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(claimButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("button", { name: "Close trial offer" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
+  test("trial popup waits for another modal to close instead of covering it", async ({ page }) => {
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const blocker = document.createElement("div");
+        blocker.id = "existing-modal-blocker";
+        blocker.setAttribute("role", "dialog");
+        blocker.setAttribute("aria-modal", "true");
+        blocker.setAttribute("aria-label", "Existing modal");
+        document.body.appendChild(blocker);
+      });
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const trialDialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(page.getByRole("dialog", { name: "Existing modal" })).toBeAttached();
+    await expect(trialDialog).toHaveCount(0);
+    await page.waitForTimeout(1800);
+    await expect(trialDialog).toHaveCount(0);
+
+    await page.locator("#existing-modal-blocker").evaluate((element) => element.remove());
+    await expect(trialDialog).toBeVisible({ timeout: 5000 });
+  });
+
+  test("Billing allows a dismissed learner to reopen the same trial offer and refreshes after claim", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await page.goto(baseURL + "/billing");
+    await expect(page.getByRole("heading", { name: "Enjoy 14 days of Premium" })).toBeVisible();
+    const reopenButton = page.getByRole("button", { name: "View trial offer", exact: true });
+    await expect(reopenButton).toBeVisible();
+    await reopenButton.click();
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Claim free trial", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your trial is active" })).toBeVisible();
+    await expect(reopenButton).toHaveCount(0);
+  });
   });
 });
 

@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 const publicPages = [
+  { name: "Homepage", path: "/", title: "BuddyForStudy — Learn. Plan. Grow.", description: "Discover courses, explore structured learning paths, and track your learning progress with BuddyForStudy." },
   { name: "About", path: "/about", title: "About BuddyForStudy | A clearer way to learn", description: "course discovery, structured learning paths, and learner progress" },
   { name: "Contact", path: "/contact", title: "Contact BuddyForStudy | Support and help", description: "official support information and practical guidance" },
   { name: "Help Centre", path: "/faq", title: "BuddyForStudy Help Centre | Frequently asked questions", description: "getting started, accounts, courses, plans, payments, privacy" },

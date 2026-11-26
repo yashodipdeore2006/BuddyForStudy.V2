@@ -155,6 +155,35 @@ export interface Course {
   enrollmentCount?: number;
   ratingAverage?: number;
   ratingCount?: number;
+  ranking?: {
+    version: string;
+    score: number;
+    weights: {
+      relevance: number;
+      catalogueCompleteness: number;
+      curriculumCoverage: number;
+      confidenceAdjustedRating: number;
+      popularity: number;
+      freshness: number;
+    };
+    components: {
+      relevance: number;
+      catalogueCompleteness: number;
+      curriculumCoverage: number;
+      confidenceAdjustedRating: number;
+      popularity: number;
+      freshness: number;
+    };
+    rating: {
+      rawAverage: number | null;
+      count: number;
+      adjustedAverage: number;
+      confidence: number;
+      priorAverage: number;
+      priorStrength: number;
+    };
+    enrollmentCount: number;
+  };
   cardMetadata?: {
     creatorName?: string;
     creatorUrl?: string;

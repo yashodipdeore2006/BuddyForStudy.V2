@@ -488,6 +488,10 @@ export default function AdminTrialCampaigns() {
       />}
       {campaignError && !publishTarget && <div role="alert" className="mx-5 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:mx-6">{campaignError}</div>}
       {campaignMessage && <div role="status" className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-6">{campaignMessage}</div>}
+      {editingCampaignId && <div role="status" className="mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 sm:mx-6">
+        <span>Editing <strong>{campaigns.find(campaign => campaign._id === editingCampaignId)?.internalName || "campaign"}</strong>. Changes require an audit reason and will not publish it.</span>
+        <button type="button" className="btn-secondary" onClick={cancelCampaignEdit} disabled={campaignSaving}>Cancel edit</button>
+      </div>}
       <div className="p-5 sm:p-6">
         <nav aria-label="Campaign creation steps" className="mb-6 grid gap-2 sm:grid-cols-3">
           {[
@@ -576,11 +580,9 @@ export default function AdminTrialCampaigns() {
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireActiveAccount} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireActiveAccount: e.target.checked } }))} /><span>Require an active learner account</span></label>
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireVerifiedEmail} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireVerifiedEmail: e.target.checked } }))} /><span>Require a verified email address</span></label>
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={true} disabled aria-describedby="campaign-active-subscription-policy" /><span>Require no active subscription or trial <span className="font-normal text-slate-500">(mandatory safety rule)</span></span></label>
-                </div>
-                <p id="campaign-active-subscription-policy" className="mt-2 text-xs text-slate-500">Welcome campaigns cannot replace a learner’s current paid subscription or active trial.</p>
-                <div className="hidden">
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireNoPreviousTrial} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireNoPreviousTrial: e.target.checked } }))} /><span>Require no previous trial</span></label>
                 </div>
+                <p id="campaign-active-subscription-policy" className="mt-2 text-xs text-slate-500">Welcome campaigns cannot replace a learner’s current paid subscription or active trial.</p>
               </section>
               <section>
                 <h4 className="text-sm font-semibold text-slate-800">Optional paid conversion offer</h4>

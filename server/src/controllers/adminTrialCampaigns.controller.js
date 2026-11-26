@@ -248,7 +248,9 @@ export async function updateCampaign(req, res, next) {
     if (input.eligibility !== undefined) {
       updates.eligibility = {
         ...campaign.eligibility.toObject(),
-        ...input.eligibility
+        ...input.eligibility,
+        // Paid and active-trial entitlements are never replaced by a welcome campaign.
+        requireNoActiveSubscription: true
       };
     }
     const actor = actorId(req);

@@ -1,3 +1,8 @@
+.bfs-course-roadmap-page {
+  background: var(--bg);
+  color: var(--text);
+}
+
 .bfs-course-roadmap {
   --roadmap-primary: var(--accent);
   --roadmap-secondary: var(--bfs-ai, #8b5cf6);

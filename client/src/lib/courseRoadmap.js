@@ -211,10 +211,12 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
   });
 
   const totalHours = Math.max(0, Number(roadmap?.totalHours) || 0);
-  const nodeDurationSum = nodes.reduce((sum, node) => sum + node.durationSeconds, 0);
-  const hoursRemaining = nodes.length && nodeDurationSum > 0
-    ? nodes.filter((node) => node.status !== "completed").reduce((sum, node) => sum + node.durationSeconds, 0) / 3600
-    : phaseProgress.reduce((sum, phase) => sum + phase.estimatedHours * (1 - phase.completionPercent / 100), 0) || (totalCount ? totalHours * (1 - completedCount / totalCount) : 0);
+  const estimatedByPhase = phaseProgress.reduce(
+    (sum, phase) => sum + phase.estimatedHours * (1 - phase.completionPercent / 100),
+    0
+  );
+  const proportionalFallback = totalCount ? totalHours * (1 - completedCount / totalCount) : 0;
+  const hoursRemaining = Math.max(estimatedByPhase, proportionalFallback);
 
   const progressPercent = totalCount ? Math.round(completedCount / totalCount * 100) : 0;
   const firstIncompletePhase = phaseProgress.find((phase) => phase.status !== "completed");

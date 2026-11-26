@@ -2998,6 +2998,8 @@ test.describe("self-serve trial offer", () => {
     await page.getByRole("button", { name: "Continue learning", exact: true }).click();
     await page.reload();
     await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
+
   test("automatic trial popup is limited to the learner dashboard", async ({ page }) => {
     const offerRequests: string[] = [];
     page.on("request", (request) => {
@@ -3091,7 +3093,6 @@ test.describe("self-serve trial offer", () => {
     await dialog.getByRole("button", { name: "Claim free trial", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Your trial is active" })).toBeVisible();
     await expect(reopenButton).toHaveCount(0);
-  });
   });
 });
 

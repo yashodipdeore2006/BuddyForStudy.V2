@@ -103,7 +103,9 @@ export default function Billing() {
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [effectivePlan, setEffectivePlan] = useState<EffectivePlanSummary | null>(null);
-  const [trial, setTrial] = useState<TrialSummary | null>(null);\n  const [trialOffer, setTrialOffer] = useState<TrialOfferSummary | null>(null);\n  const [trialOfferMessage, setTrialOfferMessage] = useState("");
+  const [trial, setTrial] = useState<TrialSummary | null>(null);
+  const [trialOffer, setTrialOffer] = useState<TrialOfferSummary | null>(null);
+  const [trialOfferMessage, setTrialOfferMessage] = useState("");
   const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -159,6 +161,33 @@ export default function Billing() {
       setLoadError(error instanceof Error ? error.message : "Unable to load billing. Please try again.");
     } finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { void loadBilling(); }, [loadBilling]);
+  useEffect(() => {
+    const handleOfferUnavailable = () => {
+      setTrialOffer(null);
+      setTrialOfferMessage("This trial offer is no longer available. Your account was not changed.");
+    };
+    const handleOfferCheckFailed = () => {
+      setTrialOfferMessage("We couldn't check this trial offer. Please try again.");
+    };
+    const handleOfferOpened = () => setTrialOfferMessage("");
+    const handleTrialClaimed = () => {
+      setTrialOffer(null);
+      void loadBilling();
+    };
+    window.addEventListener("bfs:trial-offer-unavailable", handleOfferUnavailable);
+    window.addEventListener("bfs:trial-offer-check-failed", handleOfferCheckFailed);
+    window.addEventListener("bfs:trial-offer-opened", handleOfferOpened);
+    window.addEventListener("bfs:trial-claimed", handleTrialClaimed);
+    return () => {
+      window.removeEventListener("bfs:trial-offer-unavailable", handleOfferUnavailable);
+      window.removeEventListener("bfs:trial-offer-check-failed", handleOfferCheckFailed);
+      window.removeEventListener("bfs:trial-offer-opened", handleOfferOpened);
+      window.removeEventListener("bfs:trial-claimed", handleTrialClaimed);
+    };
+  }, [loadBilling]);
+
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);

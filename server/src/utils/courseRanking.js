@@ -250,7 +250,8 @@ export function rankCoursesForSearch(courses, query, options = {}) {
     String(left._id || left.id || "").localeCompare(String(right._id || right.id || ""));
   const byBestMatch = (left, right) =>
     right.ranking.score - left.ranking.score ||
-    right.ranking.components.relevance - left.ranking.components.relevance;
+    right.ranking.components.relevance - left.ranking.components.relevance ||
+    right.ranking.qualityScore - left.ranking.qualityScore;
   const byQuality = (left, right) =>
     right.ranking.qualityScore - left.ranking.qualityScore ||
     right.ranking.score - left.ranking.score;

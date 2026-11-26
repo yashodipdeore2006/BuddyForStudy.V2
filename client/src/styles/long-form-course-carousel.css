@@ -278,6 +278,28 @@
   .bfs-long-form-carousel__card.is-dimmed { opacity: 1; }
 }
 
+
+/* Touch-first tablets do not receive a hover-driven marquee or hover-only controls. */
+@media (hover: none), (pointer: coarse) {
+  .bfs-long-form-carousel__viewport {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-mask-image: none;
+    mask-image: none;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bfs-long-form-carousel__track {
+    animation: none !important;
+    transform: none !important;
+  }
+  .bfs-long-form-carousel__group[aria-hidden="true"] { display: none; }
+  .bfs-long-form-carousel__card:hover,
+  .bfs-long-form-carousel__card.is-active { transform: none; }
+  .bfs-long-form-carousel__card.is-dimmed { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bfs-long-form-carousel__viewport {
     overflow-x: auto;

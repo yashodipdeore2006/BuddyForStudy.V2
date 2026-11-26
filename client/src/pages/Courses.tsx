@@ -298,6 +298,7 @@ export default function Courses() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const initialSnapshot = readExploreSnapshot(location.key, location.pathname, location.search);
+  const hasRestorableSnapshot = Boolean(initialSnapshot && navigationType === "POP");
   const hasInitialSnapshot = useRef(Boolean(initialSnapshot));
   const [courses, setCourses] = useState<Course[]>(initialSnapshot?.courses || []);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
@@ -364,7 +365,7 @@ export default function Courses() {
     const pathname = location.pathname;
     const search = location.search;
     return () => {
-      if (loading) return;
+      if (loading || loadingMore) return;
       writeExploreSnapshot(entryKey, {
         version: 2,
         savedAt: Date.now(),
@@ -566,7 +567,7 @@ export default function Courses() {
   useEffect(() => {
     // A fresh history entry can reuse its short-lived Explore snapshot, including
     // its scroll position and next page. Back/forward-cache restores still revalidate.
-    if (initialSnapshot && navigationType === "POP" && catalogRetryKey === 0) {
+    if (hasRestorableSnapshot && catalogRetryKey === 0) {
       hasInitialSnapshot.current = false;
       setLoading(false);
       return;
@@ -577,7 +578,7 @@ export default function Courses() {
     loadingMoreRef.current = false;
     setLoadingMore(false);
     setLoadMoreError("");
-    setLoading(!hasInitialSnapshot.current);
+    setLoading(true);
     setCourses([]);
     setTotalCourseCount(0);
     setNextCatalogPage(1);
@@ -615,7 +616,7 @@ export default function Courses() {
         const batch = response.courses || response.items || [];
         setCourses(batch.map(mapCourse));
         setNextCatalogPage(2);
-        setHasMoreCourses(hasMoreCoursePages(1, response.pagination?.pages, batch.length, catalogPageSize));
+        setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(1, response.pagination?.pages, batch.length, catalogPageSize));
         const total = Number(response.pagination?.total);
         setTotalCourseCount(Number.isFinite(total) ? Math.max(0, total) : batch.length);
 
@@ -669,7 +670,7 @@ export default function Courses() {
       active = false;
       if (catalogGenerationRef.current === generation) catalogGenerationRef.current += 1;
     };
-  }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
+  }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey, navigationType, hasRestorableSnapshot]);
 
   const loadMoreCourses = useCallback(async () => {
     if (loadingMoreRef.current || loading || !hasMoreCourses || catalogError) return;
@@ -701,10 +702,7 @@ export default function Courses() {
       const mapped = batch.map(mapCourse);
       setCourses((current) => appendUniqueCourses(current, mapped));
       setNextCatalogPage(page + 1);
-      setHasMoreCourses(hasMoreCoursePages(page, response.pagination?.pages, batch.length, catalogPageSize));
-      if (Number.isFinite(Number(response.pagination?.total))) {
-        setTotalCourseCount(Math.max(0, Number(response.pagination?.total)));
-      }
+      setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(page, response.pagination?.pages, batch.length, catalogPageSize));
     } catch (error) {
       if (generation !== catalogGenerationRef.current) return;
       setLoadMoreError(error instanceof Error ? error.message : "Unable to load more courses.");

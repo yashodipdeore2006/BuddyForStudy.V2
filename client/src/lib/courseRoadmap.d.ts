@@ -62,7 +62,6 @@ export interface CourseRoadmapDocument {
     percent: number;
     hoursRemaining: number;
     currentPhaseId: string | null;
-    xp: number;
   };
   phases: CourseRoadmapPhase[];
   nodes: CourseRoadmapNode[];

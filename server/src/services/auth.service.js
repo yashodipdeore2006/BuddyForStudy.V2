@@ -4,6 +4,7 @@ import { User } from "../models/User.js";
 import { env } from "../config/env.js";
 import { signAccessToken } from "../utils/jwt.js";
 import { acceptLegalPolicies } from "./consent.service.js";
+import { getOrCreateFreePlanSubscription } from "./freePlanAssignment.service.js";
 
 const googleClient = new OAuth2Client(env.googleClientId);
 
@@ -181,13 +182,22 @@ export async function revokeAllSessions(userId) {
   return { revoked: true };
 }
 
-export async function verifyLogin({ email, otp }) {
-  const record = await otpService.verifyOtp({ email, purpose: "login_verification", code: otp });
-  const user = await User.findById(record.user);
+export async function verifyLogin({ email, otp }, dependencies = {}) {
+  const verifyOtp = dependencies.verifyOtp ?? otpService.verifyOtp;
+  const findUserById = dependencies.findUserById ?? ((userId) => User.findById(userId));
+  const ensureFreePlanSubscription = dependencies.ensureFreePlanSubscription ?? getOrCreateFreePlanSubscription;
+  const issueToken = dependencies.issueToken ?? signAccessToken;
+
+  const record = await verifyOtp({ email, purpose: "login_verification", code: otp });
+  const user = await findUserById(record.user);
   if (!user) throw authError("Account not found", 404);
   if (!user.isActive) throw authError("Account is inactive", 401);
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  // Only issue an authenticated learner session after the idempotent default
+  // Free assignment has been checked. Existing paid/trial subscriptions are
+  // preserved by the assignment service.
+  await ensureFreePlanSubscription(user._id);
+  return { user: publicUser(user), token: issueToken(user) };
 }
 
 export async function googleLoginWithDependencies(credential, consent = null, dependencies = {}) {
@@ -210,6 +220,7 @@ export async function googleLoginWithDependencies(credential, consent = null, de
   const saveUser = dependencies.saveUser ?? ((user) => user.save());
   const acceptConsent = dependencies.acceptConsent ?? acceptLegalPolicies;
   const findUserById = dependencies.findUserById ?? ((userId) => User.findById(userId));
+  const ensureFreePlanSubscription = dependencies.ensureFreePlanSubscription ?? getOrCreateFreePlanSubscription;
   const issueToken = dependencies.issueToken ?? signAccessToken;
 
   const email = payload.email.toLowerCase();
@@ -247,6 +258,9 @@ export async function googleLoginWithDependencies(credential, consent = null, de
     if (!user) throw authError("Account not found", 404);
   }
 
+  // Google has already verified the identity; assignment is idempotent for
+  // returning users and never replaces an existing paid or active trial plan.
+  await ensureFreePlanSubscription(user._id);
   return { user: publicUser(user), token: issueToken(user) };
 }
 
@@ -304,13 +318,22 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
 }
 
 
-export async function verifyEmail({ email, otp }) {
-  const record = await otpService.verifyOtp({ email, purpose: "email_verification", code: otp });
-  const user = await User.findById(record.user);
+export async function verifyEmail({ email, otp }, dependencies = {}) {
+  const verifyOtp = dependencies.verifyOtp ?? otpService.verifyOtp;
+  const findUserById = dependencies.findUserById ?? ((userId) => User.findById(userId));
+  const ensureFreePlanSubscription = dependencies.ensureFreePlanSubscription ?? getOrCreateFreePlanSubscription;
+  const issueToken = dependencies.issueToken ?? signAccessToken;
+
+  const record = await verifyOtp({ email, purpose: "email_verification", code: otp });
+  const user = await findUserById(record.user);
   if (!user) throw authError("Account not found", 404);
   user.emailVerified = true;
   await user.save();
-  return { user: publicUser(user), token: signAccessToken(user) };
+
+  // Local registration is eligible only after the email-verification and
+  // consent steps have completed; do not create a subscription for pending OTPs.
+  await ensureFreePlanSubscription(user._id);
+  return { user: publicUser(user), token: issueToken(user) };
 }
 
 export async function resendLoginOtp(email) {

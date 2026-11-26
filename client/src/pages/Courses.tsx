@@ -63,6 +63,7 @@ type RawCourse = {
   reviewStats?: { average?: number; count?: number };
   stats?: { average?: number; count?: number };
   cardMetadata?: Course["cardMetadata"];
+  ranking?: Course["ranking"];
   generation?: { mode?: string; sourceResourceType?: string | null; query?: string };
   moduleCount?: number;
   lessonCount?: number;
@@ -181,7 +182,8 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
 }
 
 type CourseDomainOption = { id: string; label: string };
-type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: "recent" | "popular" | "title"; page: number };
+type CatalogSort = "best_match" | "quality" | "popular" | "highest_rated" | "newest";
+type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: CatalogSort; page: number };
 
 function readCatalogUrlState(search: string): CatalogUrlState {
   const params = new URLSearchParams(search);
@@ -193,7 +195,9 @@ function readCatalogUrlState(search: string): CatalogUrlState {
     level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
     domain: (params.get("domain") || "").trim() || "all",
     category: (params.get("category") || "").trim() || "all",
-    sort: sort === "popular" || sort === "title" ? sort : "recent",
+    sort: sort === "quality" || sort === "popular" || sort === "highest_rated" || sort === "newest"
+      ? sort
+      : sort === "recent" ? "newest" : "best_match",
     page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1,
   };
 }
@@ -258,6 +262,7 @@ function mapCourse(raw: RawCourse): Course {
     enrollmentCount: raw.enrollmentCount ?? raw.enrollment_count,
     ratingAverage: Number(raw.ratingAverage ?? raw.rating_average ?? raw.reviewStats?.average ?? raw.stats?.average ?? 0),
     ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? raw.reviewStats?.count ?? raw.stats?.count ?? 0),
+    ranking: raw.ranking,
     cardMetadata: raw.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
     generation: raw.generation && typeof raw.generation === "object" ? {
       mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode || "") ? raw.generation.mode as NonNullable<Course["generation"]>["mode"] : undefined,
@@ -296,7 +301,7 @@ export default function Courses() {
   const [courseCategories, setCourseCategories] = useState<string[]>([]);
   const [categoriesByDomain, setCategoriesByDomain] = useState<Record<string, string[]>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatalogState.category);
-  const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">(initialCatalogState.sort);
+  const [catalogSort, setCatalogSort] = useState<CatalogSort>(initialCatalogState.sort);
   const [catalogPage, setCatalogPage] = useState(initialCatalogState.page);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
   const catalogPageSize = 12;
@@ -391,7 +396,7 @@ export default function Courses() {
     setOrDelete("level", next.level, "all");
     setOrDelete("domain", next.domain, "all");
     setOrDelete("category", next.category, "all");
-    setOrDelete("sort", next.sort, "recent");
+    setOrDelete("sort", next.sort, "best_match");
     setOrDelete("page", String(next.page), "1");
     const search = params.toString();
     const nextSearch = search ? `?${search}` : "";
@@ -525,7 +530,7 @@ export default function Courses() {
         let batch: RawCourse[] = [];
         let searchDiscovery: SearchDiscovery | null = null;
         do {
-          const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort === "popular" ? "popular" : "recent" });
+          const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedDomain !== "all") params.set("domain", selectedDomain);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
@@ -641,21 +646,29 @@ export default function Courses() {
   const filteredCourses = useMemo(() => courses, [courses]);
   const sortedCourses = useMemo(() => {
     const rows = [...filteredCourses];
-    if (catalogSort === "title") {
-      return rows.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
-    }
     const timestamp = (value: string | undefined) => {
       const parsed = new Date(value || "").getTime();
       return Number.isFinite(parsed) ? parsed : 0;
     };
-    if (catalogSort === "popular") {
-      return rows.sort((a, b) =>
-        Number(b.enrollment_count || 0) - Number(a.enrollment_count || 0)
-        || Number(b.ratingAverage || 0) - Number(a.ratingAverage || 0)
-        || timestamp(b.created_at) - timestamp(a.created_at)
-      );
-    }
-    return rows.sort((a, b) => timestamp(b.created_at) - timestamp(a.created_at));
+    const byBestMatch = (a: Course, b: Course) =>
+      Number(b.ranking?.score || 0) - Number(a.ranking?.score || 0);
+    const byQuality = (a: Course, b: Course) =>
+      Number(b.ranking?.qualityScore || 0) - Number(a.ranking?.qualityScore || 0)
+      || byBestMatch(a, b);
+    const byPopularity = (a: Course, b: Course) =>
+      Number(b.enrollment_count ?? b.ranking?.enrollmentCount ?? 0) - Number(a.enrollment_count ?? a.ranking?.enrollmentCount ?? 0)
+      || byQuality(a, b);
+    const byHighestRated = (a: Course, b: Course) =>
+      Number(b.ranking?.components.confidenceAdjustedRating || 0) - Number(a.ranking?.components.confidenceAdjustedRating || 0)
+      || Number(b.ranking?.rating.count || 0) - Number(a.ranking?.rating.count || 0)
+      || byQuality(a, b);
+    const byNewest = (a: Course, b: Course) => timestamp(b.created_at) - timestamp(a.created_at) || byBestMatch(a, b);
+    const comparator = catalogSort === "quality" ? byQuality
+      : catalogSort === "popular" ? byPopularity
+        : catalogSort === "highest_rated" ? byHighestRated
+          : catalogSort === "newest" ? byNewest
+            : byBestMatch;
+    return rows.sort((a, b) => comparator(a, b) || byNewest(a, b) || a.id.localeCompare(b.id));
   }, [filteredCourses, catalogSort]);
   const catalogPageCount = Math.max(1, Math.ceil(sortedCourses.length / catalogPageSize));
   const currentCatalogPage = Math.min(catalogPage, catalogPageCount);
@@ -693,7 +706,7 @@ export default function Courses() {
   const clearFilters = () => {
     setAiRoadmap(null);
     setAiError(null);
-    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "recent", page: 1 });
+    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "best_match", page: 1 });
   };
 
   useEffect(() => {
@@ -1330,12 +1343,14 @@ export default function Courses() {
             <select
               aria-label="Sort courses"
               value={catalogSort}
-              onChange={(e) => updateCatalogUrl({ sort: e.target.value as "recent" | "popular" | "title", page: 1 })}
+              onChange={(e) => updateCatalogUrl({ sort: e.target.value as CatalogSort, page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
             >
-              <option value="recent">Recently added</option>
+              <option value="best_match">Best match</option>
+              <option value="quality">Highest quality</option>
               <option value="popular">Most popular</option>
-              <option value="title">Title A–Z</option>
+              <option value="highest_rated">Highest rated</option>
+              <option value="newest">Newest</option>
             </select>
 
             {hasFilters && (

@@ -158,6 +158,7 @@ export interface Course {
   ranking?: {
     version: string;
     score: number;
+    qualityScore: number;
     weights: {
       relevance: number;
       catalogueCompleteness: number;
@@ -183,6 +184,8 @@ export interface Course {
       priorStrength: number;
     };
     enrollmentCount: number;
+    reasonCodes: string[];
+    reasons: string[];
   };
   cardMetadata?: {
     creatorName?: string;

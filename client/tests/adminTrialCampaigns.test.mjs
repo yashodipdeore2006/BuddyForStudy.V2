@@ -26,7 +26,8 @@ test("admin campaign workspace loads editable quick-trial presets and creates a 
   assert.match(source, /conversionPlanId:/);
 
   const creation = source.slice(source.indexOf("async function createSelfServeCampaign"), source.indexOf("async function runCampaignLifecycleAction"));
-  assert.match(creation, /adminFetch\("\/api\/admin\/trials\/campaigns"/);
+  assert.match(creation, /const endpoint = editing/);
+  assert.match(creation, /adminFetch\(endpoint,/);
   assert.match(creation, /method: "POST"/);
   assert.match(creation, /draft/i);
   assert.doesNotMatch(creation, /\/publish/);

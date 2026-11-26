@@ -19,7 +19,7 @@ vm.runInNewContext(js, {
 const {
   TRIAL_OFFER_DISMISSAL_COOLDOWN_MS, trialOfferDismissalStorageKey,
   getTrialOfferDismissalRemainingMs, isTrialOfferDismissed,
-  rememberTrialOfferDismissal, createTrialClaimIdempotencyKey,
+  rememberTrialOfferDismissal, createTrialClaimIdempotencyKey, canDisplayTrialOfferOnRoute,
 } = loadedModule.exports;
 function fakeStorage() {
   const values = new Map();
@@ -50,4 +50,20 @@ test("trial offer dismissal expires after the 24-hour cooldown", () => {
 });
 test("claim idempotency keys conform to the server's accepted key format", () => {
   assert.match(createTrialClaimIdempotencyKey(), /^[A-Za-z0-9][A-Za-z0-9._:-]{15,119}$/);
+});
+
+test("automatic trial offers are limited to learner dashboard routes", () => {
+  assert.equal(canDisplayTrialOfferOnRoute("/"), true);
+  assert.equal(canDisplayTrialOfferOnRoute("/home"), true);
+  assert.equal(canDisplayTrialOfferOnRoute("/explore"), false);
+  assert.equal(canDisplayTrialOfferOnRoute("/courses/course-1"), false);
+  assert.equal(canDisplayTrialOfferOnRoute("/pricing"), false);
+  assert.equal(canDisplayTrialOfferOnRoute("/billing"), false);
+});
+
+test("manual trial offer re-entry is limited to Billing", () => {
+  assert.equal(canDisplayTrialOfferOnRoute("/billing", "manual"), true);
+  assert.equal(canDisplayTrialOfferOnRoute("/home", "manual"), false);
+  assert.equal(canDisplayTrialOfferOnRoute("/explore", "manual"), false);
+  assert.equal(canDisplayTrialOfferOnRoute("/admin/billing", "manual"), false);
 });

@@ -49,3 +49,11 @@ test("campaign claim ledger validates status and campaign filters and bounds pag
   assert.match(source, /TrialCampaignClaim\.find\(filter\)/);
   assert.match(source, /TrialCampaignClaim\.countDocuments\(filter\)/);
 });
+
+
+test("campaign edits retain the mandatory subscription exclusion and audit the administrator reason", () => {
+  assert.match(source, /requireNoActiveSubscription: true/);
+  assert.match(source, /await auditCampaign\(req, "trial_campaign\.updated", updated, campaign, updated, input\.reason\)/);
+  assert.match(source, /claimedCount: 0/);
+  assert.match(source, /Only draft or paused campaigns can be edited/);
+});

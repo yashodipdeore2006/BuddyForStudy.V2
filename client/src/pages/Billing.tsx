@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import ErrorState from "@/components/ErrorState";
@@ -85,13 +85,25 @@ type EffectivePlanSummary = {
   isDefaultFree?: boolean;
 };
 
+type TrialOfferSummary = {
+  campaignId: string;
+  title: string;
+  description?: string;
+  durationDays: number;
+};
+
+type TrialOfferResponse = {
+  available?: boolean;
+  offer?: TrialOfferSummary | null;
+};
+
 export default function Billing() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [effectivePlan, setEffectivePlan] = useState<EffectivePlanSummary | null>(null);
-  const [trial, setTrial] = useState<TrialSummary | null>(null);
+  const [trial, setTrial] = useState<TrialSummary | null>(null);\n  const [trialOffer, setTrialOffer] = useState<TrialOfferSummary | null>(null);\n  const [trialOfferMessage, setTrialOfferMessage] = useState("");
   const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -108,7 +120,7 @@ export default function Billing() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [clockNow, setClockNow] = useState(() => Date.now());
 
-  async function loadBilling() {
+  const loadBilling = useCallback(async () => {
     setLoading(true);
     setLoadError("");
     try {
@@ -120,18 +132,33 @@ export default function Billing() {
         apiFetch("/api/billing/issues"),
         apiFetch("/api/billing/trial")
       ]);
+      const nextEffectivePlan = subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null;
+      const nextTrial = trialData.trial || null;
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
-      setEffectivePlan(subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null);
-      setTrial(trialData.trial || null);
+      setEffectivePlan(nextEffectivePlan);
+      setTrial(nextTrial);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
       setRefundMessage("");
+      setTrialOfferMessage("");
+      setTrialOffer(null);
+
+      // Offer discovery is optional. A campaign service failure must not hide
+      // billing history or turn a successful billing load into an error.
+      if (nextEffectivePlan?.isDefaultFree === true) {
+        try {
+          const offerData = await apiFetch<TrialOfferResponse>("/api/trials/offer", { cache: "no-store" });
+          const nextOffer = offerData.available === true ? offerData.offer : null;
+          setTrialOffer(nextOffer?.campaignId ? nextOffer : null);
+        } catch {
+          setTrialOfferMessage("Trial offers are temporarily unavailable. Your billing information is unaffected.");
+        }
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to load billing. Please try again.");
     } finally { setLoading(false); }
-  }
-  useEffect(() => { void loadBilling(); }, []);
+  }, []);
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
@@ -215,6 +242,21 @@ export default function Billing() {
       </div>
 
       {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
+      {trialOfferMessage && <div role="status" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{trialOfferMessage}</div>}
+      {trialOffer && currentPlanIsFree && !trialIsActive && <section aria-labelledby="trial-offer-reentry-heading" className="mt-6 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Available learner offer</p>
+          <h2 id="trial-offer-reentry-heading" className="mt-1 text-lg font-extrabold text-slate-950">{trialOffer.title}</h2>
+          <p className="mt-1 text-sm text-slate-700">{trialOffer.description || "Review the benefits and terms before deciding whether to claim this trial."}</p>
+          <p className="mt-2 text-xs font-semibold text-violet-800">{trialOffer.durationDays} days · No automatic payment</p>
+        </div>
+        <button type="button" onClick={() => {
+          setTrialOfferMessage("");
+          window.dispatchEvent(new Event("bfs:trial-offer-open"));
+        }} className="min-h-11 shrink-0 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700">
+          View trial offer
+        </button>
+      </section>}
 
       {trial && <section aria-labelledby="trial-billing-heading" className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">

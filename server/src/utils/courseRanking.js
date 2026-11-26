@@ -15,7 +15,7 @@ export const COURSE_RANKING_POLICY = Object.freeze({
     popularity: 5,
     freshness: 5
   }),
-  ratingPriorAverage: 4,
+  ratingPriorAverage: 3.5,
   ratingPriorStrength: 10,
   popularityReferenceEnrollments: 1000,
   freshnessDecayDays: 730

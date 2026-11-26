@@ -176,6 +176,7 @@ export interface Course {
       freshness: number;
     };
     rating: {
+      score: number;
       rawAverage: number | null;
       count: number;
       adjustedAverage: number;

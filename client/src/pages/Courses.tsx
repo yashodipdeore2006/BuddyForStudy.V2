@@ -1315,7 +1315,7 @@ export default function Courses() {
 
             <select
               value={selectedCategory}
-              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })
+              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by category"
             >

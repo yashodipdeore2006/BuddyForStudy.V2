@@ -132,10 +132,15 @@ function getDetailTopics(node: CourseRoadmapNode, detail: LessonDetail | null): 
     .split(/\r?\n|[•;]+/)
     .map((line) => line.replace(/^(?:[-*#]|\d+[.)])\s*/, "").trim())
     .filter((line) => line.length >= 4 && line.length <= 110 && !/^https?:\/\//i.test(line));
+  const descriptionTopics = String(detail?.description || "")
+    .split(/[.!?;\n]+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 8 && line.length <= 110);
   return uniqueTopicList([
     ...(detail?.quiz?.focusTopics || []),
     ...fromProject,
     ...tutorialLines,
+    ...descriptionTopics,
     node.description,
     ...(node.subtopics || [])
   ]);

@@ -145,7 +145,8 @@ test("the self-serve campaign audience cannot disable active paid/trial exclusio
 
 test("trial dashboard overview exposes campaign, recent-claim, grant and claim-status counts", () => {
   assert.match(source, /const claimCounts = claims\.reduce\(/);
-  assert.match(source, /\[\["Campaigns", campaigns\.length\], \["Published", campaigns\.filter\(c => c\.status === "published"\)\.length\]/);
+  assert.match(source, /\["Campaigns", campaigns\.length\]/);
+  assert.match(source, /\["Published", campaigns\.filter\(c => c\.status === "published"\)\.length\]/);
   assert.match(source, /\["Recent claims", claims\.length\]/);
   assert.match(source, /\["Active grants", activeGrantCount\]/);
   assert.match(source, /\["Trial history", historyGrantCount\]/);

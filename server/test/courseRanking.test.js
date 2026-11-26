@@ -145,6 +145,7 @@ test("all supported sort modes are deterministic and retain ranking explanations
   assert.equal(rankCoursesForSearch(items, "React", { sort: "quality", now: NOW })[0]._id, "quality");
   assert.equal(rankCoursesForSearch(items, "React", { sort: "highest_rated", now: NOW })[0]._id, "rated");
   assert.equal(rankCoursesForSearch(items, "React", { sort: "newest", now: NOW })[0]._id, "newest");
+  assert.equal(rankCoursesForSearch(items, "React", { sort: "title", now: NOW })[0]._id, "rated");
   assert.ok(rankCoursesForSearch(items, "React", { sort: "best_match", now: NOW })[0].ranking.score >= 0);
 
   const explained = calculateCourseRanking(course(), "React", { now: NOW });

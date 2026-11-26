@@ -42,7 +42,7 @@ Show learners meaningful, accessible feedback while BuddyForStudy generates a pe
 | Finalize progress UX and data rules | DONE |
 | Add progress derivation helper and tests | DONE |
 | Add accessible progress panel | DONE |
-| Wire async generation and polling | IN_PROGRESS |
-| Exclude quiz nodes from resource progress | NOT STARTED |
-| Restore progress after refresh | NOT STARTED |
-| Run frontend and backend verification | NOT STARTED |
+| Wire async generation and polling | DONE |
+| Exclude quiz nodes from resource progress | DONE |
+| Restore progress after refresh | DONE |
+| Run frontend and backend verification | IN_PROGRESS |

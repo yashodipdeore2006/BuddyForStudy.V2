@@ -127,3 +127,19 @@ test("campaign declares learner-discovery and admin-list compound indexes", () =
     index.keys.updatedAt === -1
   ));
 });
+
+
+test("campaign schema rejects attempts to include learners with active subscriptions or trials", async () => {
+  const campaign = validCampaign({
+    eligibility: {
+      requireActiveAccount: true,
+      requireVerifiedEmail: true,
+      requireNoActiveSubscription: false,
+      requireNoPreviousTrial: true
+    }
+  });
+  await assert.rejects(
+    campaign.validate(),
+    error => Boolean(error.errors["eligibility.requireNoActiveSubscription"])
+  );
+});

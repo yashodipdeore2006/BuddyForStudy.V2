@@ -10,6 +10,7 @@ import { AuditLog } from "../src/models/AuditLog.js";
 import { AuditOutbox } from "../src/models/AuditOutbox.js";
 import {
   createCampaign,
+  updateCampaign,
   publishCampaign,
   pauseCampaign,
   disableCampaign
@@ -120,6 +121,26 @@ test("campaign lifecycle actions persist audit events and failed audit writes en
   const campaignId = created.body.campaign._id;
   assert.ok(campaignId);
 
+  const updateReason = "Clarify the offer and audience after the policy review.";
+  const updated = await invoke(updateCampaign, request({ campaignId }, {
+    reason: updateReason,
+    offerTitle: "Updated campaign audit integration offer",
+    maxClaims: 12,
+    eligibility: { requireNoPreviousTrial: false }
+  }));
+  assert.equal(updated.body.campaign.offerTitle, "Updated campaign audit integration offer");
+  assert.equal(updated.body.campaign.maxClaims, 12);
+  assert.equal(updated.body.campaign.eligibility.requireNoActiveSubscription, true);
+  assert.equal(updated.body.campaign.eligibility.requireNoPreviousTrial, false);
+
+  const updateAudit = await AuditLog.findOne({
+    action: "trial_campaign.updated",
+    targetId: String(campaignId)
+  }).lean();
+  assert.equal(updateAudit.reason, updateReason);
+  assert.equal(updateAudit.before.offerTitle, "Campaign audit integration offer");
+  assert.equal(updateAudit.after.offerTitle, "Updated campaign audit integration offer");
+
   await invoke(publishCampaign, request({ campaignId }));
   const originalCreate = AuditLog.create;
   try {
@@ -152,6 +173,7 @@ test("campaign lifecycle actions persist audit events and failed audit writes en
     persisted.map((event) => event.action),
     [
       "trial_campaign.created",
+      "trial_campaign.updated",
       "trial_campaign.published",
       "trial_campaign.published",
       "trial_campaign.disabled"

@@ -327,6 +327,12 @@ function CourseCardContent({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
+        {variant !== "recommended" && (course.ranking?.reasons?.length || 0) > 0 && (
+          <p className="bfs-course-card__reason" title={"Course ranking: " + course.ranking!.reasons.join("; ")}>
+            <Sparkles size={14} aria-hidden="true" />
+            <span><strong>Why this course:</strong> {course.ranking!.reasons.slice(0, 2).join(" · ")}</span>
+          </p>
+        )}
         {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" aria-label={displayOutcome + " — View course details and learning outcomes for " + course.title}>{displayOutcome}</Link>}
         <Link
           to={routes.course(course.id) + "?tab=reviews#reviews"}

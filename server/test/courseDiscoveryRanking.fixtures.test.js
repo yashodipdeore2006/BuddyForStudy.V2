@@ -4,7 +4,7 @@ import {
   filterCoursesByInferredDomain,
   inferCourseDomain
 } from "../src/utils/courseTaxonomy.js";
-import { rankCoursesForSearch } from "../src/utils/courseRanking.js";
+import { calculateCourseRanking, rankCoursesForSearch } from "../src/utils/courseRanking.js";
 import {
   CROSS_DOMAIN_COURSES,
   DISCOVERY_FIXTURE_NOW,
@@ -64,7 +64,10 @@ test("[DISC-005-LOW-REVIEW] one perfect review cannot outrank established 4.7-st
   const lowSample = ranked.find((course) => course._id === "one-five-star-review");
   const established = ranked.find((course) => course._id === "established-4-7-rating");
   assert.equal(lowSample.ranking.rating.rawAverage, 5);
+  assert.equal(lowSample.ranking.rating.adjustedAverage, 3.64);
   assert.equal(lowSample.ranking.rating.confidence, 0.0909);
+  assert.equal(established.ranking.rating.adjustedAverage, 4.63);
+  assert.equal(established.ranking.rating.confidence, 0.9375);
   assert.ok(lowSample.ranking.rating.adjustedAverage < established.ranking.rating.adjustedAverage);
 });
 
@@ -77,6 +80,12 @@ test("[DISC-005-QUALITY] structural completeness wins the quality sort without o
   assert.equal(ranked[0]._id, "complete-structured-course");
   assert.ok(ranked[0].ranking.qualityScore > ranked[1].ranking.qualityScore);
   assert.equal(ranked[0].ranking.components.curriculumCoverage, 100);
+  assert.equal(ranked[0].ranking.qualityScore, 85.76);
+  const goldenRanking = calculateCourseRanking(QUALITY_ORDER_COURSES[0], "React", { now: DISCOVERY_FIXTURE_NOW });
+  assert.equal(goldenRanking.components.catalogueCompleteness, 93.35);
+  assert.equal(goldenRanking.components.popularity, 47.16);
+  assert.equal(goldenRanking.components.freshness, 78.32);
+  assert.equal(goldenRanking.score, 76.39);
   assert.ok(ranked.every((course) => course.ranking.version === "course-ranking-v1"));
 });
 

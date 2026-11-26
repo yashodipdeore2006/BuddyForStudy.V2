@@ -94,3 +94,36 @@ test("public course preview accepts supported YouTube URL forms and parses ISO d
   assert.equal(preview.cardMetadata.youtubeVideoCount, 2);
   assert.equal(preview.cardMetadata.youtubeRuntimeSeconds, 20 * 60 * 60);
 });
+
+
+test("public list projection preserves module count and exposes only the runtime aggregate", () => {
+  const preview = toPublicCoursePreview({
+    _id: "course-list-projection",
+    title: "Production Backend Engineering",
+    isPublished: true,
+    moduleCount: 6,
+    modules: [{
+      _id: "module-1",
+      title: "Backend",
+      order: 1,
+      lessons: [{
+        _id: "lesson-1",
+        title: "Build reliable APIs",
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          videos: [
+            { videoId: "abcdefghijk", durationSeconds: 12 * 60 * 60 },
+            { videoId: "lmnopqrstuv", durationSeconds: 8 * 60 * 60 }
+          ]
+        }
+      }]
+    }]
+  });
+
+  assert.equal(preview.moduleCount, 6);
+  assert.equal(preview.cardMetadata.youtubeRuntimeSeconds, 20 * 60 * 60);
+  assert.equal(preview.modules.length, 1);
+  assert.equal(preview.modules[0].lessons.length, 1);
+  assert.equal(JSON.stringify(preview).includes("abcdefghijk"), false);
+});

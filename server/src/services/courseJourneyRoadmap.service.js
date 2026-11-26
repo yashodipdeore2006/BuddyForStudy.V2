@@ -6,6 +6,7 @@ import { canAccessCourse } from "./subscriptionEntitlement.service.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
+import { getTargetJourneyPhaseCount, groupJourneyLessons } from "../utils/courseJourneyPhases.js";
 
 export function parseDurationSeconds(value) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
@@ -82,24 +83,13 @@ export function buildJourneyStages(modules = [], cachedStages = []) {
   const validCached = existing.length > 0 && existing.every((stage) => Array.isArray(stage.lessonIds) && stage.lessonIds.every((id) => lessonLookup.has(String(id)))) && existing.reduce((sum, stage) => sum + stage.lessonIds.length, 0) === totalLessons;
   if (validCached) return existing.map((stage, index) => ({ ...stage, id: String(stage.id || "stage-" + (index + 1)), order: index + 1, lessonIds: stage.lessonIds.map(String), hours: Number(stage.hours || stage.lessonIds.reduce((sum, id) => sum + (lessonLookup.get(String(id))?.seconds || 0), 0) / 3600) }));
   const withLessons = normalized.filter((module) => module.lessons.length);
-  let groups;
-  if (withLessons.length > 1) {
-    const targetCount = Math.min(7, withLessons.length, Math.max(3, Math.min(5, withLessons.length)));
-    groups = Array.from({ length: targetCount }, (_, index) => {
-      const start = Math.round(index * withLessons.length / targetCount);
-      const end = Math.round((index + 1) * withLessons.length / targetCount);
-      const items = withLessons.slice(start, end);
-      const lessons = items.flatMap((module) => module.lessons);
-      return {
-        title: items.length === 1 ? items[0].title : "Stage " + (index + 1),
-        sourceTitle: items.map((module) => module.title).join(" · "),
-        lessonIds: lessons.map((lesson) => lesson.id),
-        seconds: lessons.reduce((sum, lesson) => sum + lesson.seconds, 0)
-      };
-    });  } else {
-    const lessons = withLessons[0]?.lessons || [];
-    groups = splitLessonsByDuration(lessons, 5);
-  }
+  const orderedLessons = withLessons.flatMap((module) => module.lessons.map((lesson) => ({
+    ...lesson,
+    moduleId: module.id,
+    moduleTitle: module.title
+  })));
+  const targetCount = getTargetJourneyPhaseCount(totalLessons, withLessons.length);
+  const groups = groupJourneyLessons(orderedLessons, targetCount);
   return groups.map((group, index) => {
     const cached = existing.find((stage) => String(stage.id) === "stage-" + (index + 1) || stage.order === index + 1);
     return {
@@ -165,6 +155,7 @@ export async function regenerateCourseJourney(courseId, stages = null) {
   const generated = Array.isArray(stages) ? stages : await generateJourneyStageMetadata(course, baseStages);
   course.roadmap = {
     theme: course.roadmap?.theme || "trail",
+    source: Array.isArray(stages) ? "admin" : "generated",
     sourceFingerprint: fingerprintModules(course.modules || []),
     generatedAt: new Date(),
     stages: generated.map((stage, index) => ({
@@ -182,7 +173,18 @@ export async function getCourseJourney(courseId, userId = null) {
   const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null }).lean();
   if (!course) return null;
   let cached = course.roadmap?.stages || [];
-  if (!cached.length || course.roadmap?.sourceFingerprint !== fingerprintModules(course.modules || [])) {
+  const populatedModuleCount = (course.modules || []).filter((module) => (module.lessons || []).length > 0).length;
+  const totalLessonCount = (course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0);
+  const minimumGeneratedPhaseCount = Math.min(4, totalLessonCount);
+  const generatedRoadmapNeedsMorePhases =
+    course.roadmap?.source === "generated" &&
+    minimumGeneratedPhaseCount > 0 &&
+    cached.length < minimumGeneratedPhaseCount;
+  if (
+    !cached.length ||
+    course.roadmap?.sourceFingerprint !== fingerprintModules(course.modules || []) ||
+    generatedRoadmapNeedsMorePhases
+  ) {
     const stored = await regenerateCourseJourney(courseId);
     cached = stored?.stages || [];
   }

@@ -182,28 +182,94 @@ export function calculateCourseRanking(course, query, { now = new Date() } = {})
     (total, [key, weight]) => total + components[key] * weight,
     0
   ) / 100;
+  const qualityScore = (
+    components.catalogueCompleteness * 0.45 +
+    components.curriculumCoverage * 0.25 +
+    components.confidenceAdjustedRating * 0.30
+  );
+  const enrollmentCount = finiteCount(course?.enrollmentCount);
+  const reasons = [];
+  const reasonCodes = [];
+  if (components.relevance >= 75) {
+    reasons.push("Strong match for your search");
+    reasonCodes.push("strong_search_match");
+  } else if (components.relevance >= 45) {
+    reasons.push("Relevant to your search");
+    reasonCodes.push("search_relevance");
+  }
+  if (components.catalogueCompleteness >= 75) {
+    reasons.push("Detailed course information");
+    reasonCodes.push("detailed_catalogue");
+  }
+  if (components.curriculumCoverage >= 65) {
+    reasons.push("Structured learning path");
+    reasonCodes.push("structured_curriculum");
+  }
+  if (rating.details.count >= 5 && rating.details.adjustedAverage >= 4.2) {
+    reasons.push("Positive learner ratings");
+    reasonCodes.push("positive_learner_ratings");
+  }
+  if (enrollmentCount >= 100) {
+    reasons.push("Popular with learners");
+    reasonCodes.push("learner_popularity");
+  }
+  if (components.freshness >= 75) {
+    reasons.push("Recently added");
+    reasonCodes.push("recently_added");
+  }
 
   return {
     version: COURSE_RANKING_POLICY.version,
     score: round(score),
+    qualityScore: round(qualityScore),
     weights,
     components,
     rating: rating.details,
-    enrollmentCount: finiteCount(course?.enrollmentCount)
+    enrollmentCount,
+    reasonCodes,
+    reasons
   };
+}
+
+function compareDateDesc(left, right) {
+  const leftDate = new Date(left?.createdAt || 0).getTime();
+  const rightDate = new Date(right?.createdAt || 0).getTime();
+  return (Number.isFinite(rightDate) ? rightDate : 0) - (Number.isFinite(leftDate) ? leftDate : 0);
 }
 
 export function rankCoursesForSearch(courses, query, options = {}) {
   if (!Array.isArray(courses)) return [];
-  return courses
-    .map((course) => ({
-      ...course,
-      ranking: calculateCourseRanking(course, query, options)
-    }))
-    .sort((left, right) =>
-      right.ranking.score - left.ranking.score ||
-      right.ranking.components.relevance - left.ranking.components.relevance ||
-      new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime() ||
-      String(left._id || left.id || "").localeCompare(String(right._id || right.id || ""))
-    );
+  const sort = ["best_match", "quality", "popular", "highest_rated", "newest"].includes(options.sort)
+    ? options.sort
+    : "best_match";
+  const ranked = courses.map((course) => ({
+    ...course,
+    ranking: calculateCourseRanking(course, query, options)
+  }));
+  const byStableId = (left, right) =>
+    String(left._id || left.id || "").localeCompare(String(right._id || right.id || ""));
+  const byBestMatch = (left, right) =>
+    right.ranking.score - left.ranking.score ||
+    right.ranking.components.relevance - left.ranking.components.relevance;
+  const byQuality = (left, right) =>
+    right.ranking.qualityScore - left.ranking.qualityScore ||
+    right.ranking.score - left.ranking.score;
+  const byPopularity = (left, right) =>
+    right.ranking.enrollmentCount - left.ranking.enrollmentCount ||
+    right.ranking.qualityScore - left.ranking.qualityScore;
+  const byHighestRated = (left, right) =>
+    right.ranking.rating.score - left.ranking.rating.score ||
+    right.ranking.rating.count - left.ranking.rating.count ||
+    right.ranking.qualityScore - left.ranking.qualityScore;
+  const comparator = sort === "quality" ? byQuality
+    : sort === "popular" ? byPopularity
+      : sort === "highest_rated" ? byHighestRated
+        : sort === "newest" ? (left, right) => compareDateDesc(left, right) || byBestMatch(left, right)
+          : byBestMatch;
+
+  return ranked.sort((left, right) =>
+    comparator(left, right) ||
+    compareDateDesc(left, right) ||
+    byStableId(left, right)
+  );
 }

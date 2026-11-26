@@ -37,6 +37,19 @@ const courseSchema = z.object({
 export async function list(req, res, next) {
   try {
     if (req.query.domain && !isCourseDomainId(req.query.domain)) return failure(res, "Invalid course domain", 400);
+    const sortAliases = {
+      recent: "newest",
+      title: "best_match",
+      best_match: "best_match",
+      quality: "quality",
+      popular: "popular",
+      highest_rated: "highest_rated",
+      newest: "newest"
+    };
+    const requestedSort = String(req.query.sort || "best_match");
+    if (!Object.hasOwn(sortAliases, requestedSort)) {
+      return failure(res, "Invalid course sort. Choose best_match, quality, popular, highest_rated, or newest.", 400);
+    }
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
     const result = await courseService.listPublished({
@@ -46,7 +59,7 @@ export async function list(req, res, next) {
       category: req.query.category,
       domain: req.query.domain,
       level: req.query.level,
-      sort: req.query.sort === "popular" ? "popular" : "recent"
+      sort: sortAliases[requestedSort]
     });
     const courses = result.courses || [];
     const courseIds = courses.map((course) => course?._id).filter(Boolean);

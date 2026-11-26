@@ -161,16 +161,17 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
     orderedStages[orderedStages.length - 1].nodeIds.push(...unassigned);
   }
 
-  const flatIds = orderedStages.flatMap((phase) => phase.nodeIds);
+  const renderStages = orderedStages.filter((phase) => phase.nodeIds.length > 0);
+  const flatIds = renderStages.flatMap((phase) => phase.nodeIds);
   const validCompleted = new Set((Array.isArray(completedIds) ? completedIds : []).map(String));
   const totalCount = flatIds.length;
   const completedCount = enrolled ? flatIds.filter((id) => validCompleted.has(id)).length : 0;
   const currentNodeId = enrolled ? flatIds.find((id) => !validCompleted.has(id)) || null : null;
-  const finalPhaseId = orderedStages[orderedStages.length - 1]?.id || null;
+  const finalPhaseId = renderStages[renderStages.length - 1]?.id || null;
   const nodes = [];
   let previousNodeId = null;
 
-  for (const phase of orderedStages) {
+  for (const phase of renderStages) {
     const phaseLessons = phase.nodeIds.map((id) => lessonById.get(id)).filter(Boolean);
     const finalProjectId = [...phaseLessons].reverse().find((lesson) => lesson.type === "project")?.id || null;
 
@@ -203,7 +204,7 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
     }
   }
 
-  const phaseProgress = orderedStages.map((phase) => {
+  const phaseProgress = renderStages.map((phase) => {
     const phaseNodes = nodes.filter((node) => node.phaseId === phase.id);
     const done = phaseNodes.filter((node) => node.status === "completed").length;
     const percent = phaseNodes.length ? Math.round(done / phaseNodes.length * 100) : 0;

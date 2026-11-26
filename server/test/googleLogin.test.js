@@ -33,7 +33,7 @@ function makeExistingUser(overrides = {}) {
 }
 
 function defaultDependencies({ payload = verifiedPayload(), user = null } = {}) {
-  const state = { verifyOptions: null, lookup: null, created: null, saved: 0, tokenFor: null };
+  const state = { verifyOptions: null, lookup: null, created: null, saved: 0, tokenFor: null, freePlanAssignments: [] };
   const dependencies = {
     clientId: "test-web-client-id.apps.googleusercontent.com",
     verifyIdToken: async (options) => {
@@ -50,6 +50,9 @@ function defaultDependencies({ payload = verifiedPayload(), user = null } = {}) 
     },
     saveUser: async () => {
       state.saved += 1;
+    },
+    ensureFreePlanSubscription: async (userId) => {
+      state.freePlanAssignments.push(userId);
     },
     issueToken: (receivedUser) => {
       state.tokenFor = receivedUser;
@@ -88,6 +91,8 @@ test("Google sign-in verifies the configured audience and creates only a verifie
   assert.equal(result.user.role, "user");
   assert.equal(result.user.authProvider, "google");
   assert.equal(result.token, "synthetic-access-token");
+  assert.equal(state.freePlanAssignments.length, 1);
+  assert.equal(state.freePlanAssignments[0], state.tokenFor._id);
 });
 
 test("Google sign-in links a verified Google identity to an existing local account", async () => {
@@ -102,6 +107,7 @@ test("Google sign-in links a verified Google identity to an existing local accou
   assert.equal(existingUser.profileImage, "https://images.example.test/learner.png");
   assert.equal(result.user.authProvider, "local_google");
   assert.equal(result.token, "synthetic-access-token");
+  assert.deepEqual(state.freePlanAssignments, [existingUser._id]);
 });
 
 test("unverified Google email is rejected before account lookup or creation", async () => {
@@ -115,6 +121,7 @@ test("unverified Google email is rejected before account lookup or creation", as
   );
   assert.equal(state.lookup, null);
   assert.equal(state.created, null);
+  assert.deepEqual(state.freePlanAssignments, []);
 });
 
 test("inactive linked accounts cannot sign in through Google", async () => {
@@ -128,4 +135,5 @@ test("inactive linked accounts cannot sign in through Google", async () => {
   );
   assert.equal(state.saved, 0);
   assert.equal(state.tokenFor, null);
+  assert.deepEqual(state.freePlanAssignments, []);
 });

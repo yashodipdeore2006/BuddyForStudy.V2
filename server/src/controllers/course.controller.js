@@ -39,7 +39,7 @@ export async function list(req, res, next) {
     if (req.query.domain && !isCourseDomainId(req.query.domain)) return failure(res, "Invalid course domain", 400);
     const sortAliases = {
       recent: "newest",
-      title: "best_match",
+      title: "title",
       best_match: "best_match",
       quality: "quality",
       popular: "popular",
@@ -48,7 +48,7 @@ export async function list(req, res, next) {
     };
     const requestedSort = String(req.query.sort || "best_match");
     if (!Object.hasOwn(sortAliases, requestedSort)) {
-      return failure(res, "Invalid course sort. Choose best_match, quality, popular, highest_rated, or newest.", 400);
+      return failure(res, "Invalid course sort. Choose best_match, quality, popular, highest_rated, newest, or title.", 400);
     }
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);

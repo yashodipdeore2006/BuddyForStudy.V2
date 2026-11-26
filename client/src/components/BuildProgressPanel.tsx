@@ -46,7 +46,7 @@ export default function BuildProgressPanel({ topic, status, nodes }: Props) {
 
       <ol className="mt-6 grid grid-cols-3 gap-2" aria-label="Roadmap generation stages">
         {stages.map((stage, index) => {
-          const done = index < activeIndex || complete;
+          const done = !failed && (index < activeIndex || complete);
           const active = index === activeIndex && !complete && !failed;
           return (
             <li key={stage.id} className="min-w-0">
@@ -69,7 +69,7 @@ export default function BuildProgressPanel({ topic, status, nodes }: Props) {
           <span className="font-semibold text-slate-700">{progress.total > 0 ? "Learning resources processed" : "Preparing your learning path"}</span>
           {progress.total > 0 ? <span className="shrink-0 font-bold tabular-nums text-slate-900">{progress.completed} of {progress.total}</span> : <span className="text-slate-500">In progress</span>}
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Learning resources processed" aria-valuemin={0} aria-valuemax={progress.total || 1} aria-valuenow={progress.total > 0 ? progress.completed : 0}>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Learning resources processed" aria-valuemin={0} aria-valuemax={progress.total || 1} aria-valuenow={progress.total > 0 ? progress.completed : undefined}>
           {progress.total > 0
             ? <div className="h-full rounded-full bg-violet-600 transition-[width] duration-500 ease-out" style={{ width: String(progress.progressValue) + "%" }} />
             : <div className="h-full w-2/5 animate-pulse rounded-full bg-violet-600" />}

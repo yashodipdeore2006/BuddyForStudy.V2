@@ -72,7 +72,11 @@ export async function list(req, res, next) {
     // Course catalogue aggregation deliberately excludes module documents. Fetch
     // only the fields required for safe public card projections and verified
     // YouTube runtime; quiz answers, project briefs and lesson content stay out.
-    const previewResourceCourses = courseIds.length ? await Course.find({ _id: { $in: courseIds } })
+    const includeLongFormMetadata = String(req.query.includeLongFormMetadata || "").toLowerCase() === "true";
+    // Course catalogue aggregation deliberately excludes module documents. When
+    // the landing showcase opts in, fetch only the fields needed for its safe
+    // public preview and verified YouTube runtime; never return raw resources.
+    const previewResourceCourses = includeLongFormMetadata && courseIds.length ? await Course.find({ _id: { $in: courseIds } })
       .select([
         "modules._id", "modules.title", "modules.order",
         "modules.lessons._id", "modules.lessons.title", "modules.lessons.type",
@@ -106,7 +110,7 @@ export async function list(req, res, next) {
         const previewResources = previewResourcesByCourseId.get(String(course._id)) || {};
         return toPublicCoursePreview({
           ...course,
-          ...previewResources,
+          ...(includeLongFormMetadata ? previewResources : {}),
           moduleCount: Number.isFinite(Number(course.moduleCount))
             ? Number(course.moduleCount)
             : Array.isArray(previewResources.modules) ? previewResources.modules.length : 0,

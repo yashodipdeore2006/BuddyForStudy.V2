@@ -211,7 +211,7 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
     return { ...phase, nodeIds: phaseNodes.map((node) => node.id), completedCount: done, nodeCount: phaseNodes.length, completionPercent: percent, status: percent === 100 && phaseNodes.length ? "completed" : percent > 0 ? "in_progress" : "remaining" };
   });
 
-  const totalHours = Math.max(0, Number(roadmap?.totalHours) || 0);
+  const totalHours = Math.max(0, Number(roadmap?.totalHours) || parseRoadmapDurationSeconds(course?.duration) / 3600);
   const estimatedByPhase = phaseProgress.reduce(
     (sum, phase) => sum + phase.estimatedHours * (1 - phase.completionPercent / 100),
     0

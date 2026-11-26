@@ -39,7 +39,6 @@ function isTechnologyCourse(course) {
 }
 
 function getDomainTag(course) {
-  const title = normalizeText(course?.title);
   const signals = normalizeText(getCourseTopicText(course));
   const domainId = normalizeText(course?.domain).replace(/\s/g, "-");
 

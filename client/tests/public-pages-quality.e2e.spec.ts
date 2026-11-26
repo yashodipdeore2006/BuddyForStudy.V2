@@ -31,13 +31,15 @@ test.beforeEach(async ({ page }) => {
 
 for (const route of publicPages) {
   test(route.name + " serves route-specific crawler metadata", async ({ page }) => {
-    const response = await page.request.get(baseURL + route.path + "/index.html");
+    const routeIndexPath = route.path === "/" ? "/index.html" : route.path + "/index.html";
+    const canonicalUrl = "https://buddyforstudy.example" + route.path;
+    const response = await page.request.get(baseURL + routeIndexPath);
     expect(response.ok()).toBeTruthy();
     const html = await response.text();
     expect(html).toContain("<title>" + route.title + "</title>");
     expect(html.toLowerCase()).toContain(route.description.toLowerCase());
-    expect(html).toContain('rel="canonical" href="https://buddyforstudy.example' + route.path + '"');
-    expect(html).toContain('property="og:url" content="https://buddyforstudy.example' + route.path + '"');
+    expect(html).toContain('rel="canonical" href="' + canonicalUrl + '"');
+    expect(html).toContain('property="og:url" content="' + canonicalUrl + '"');
     expect(html).toContain('name="twitter:card" content="summary"');
     expect(html).toContain('name="robots" content="index,follow,max-image-preview:large"');
 

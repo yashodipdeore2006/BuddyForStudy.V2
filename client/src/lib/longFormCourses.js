@@ -84,10 +84,14 @@ export function toLongFormCourseCard(course) {
   const id = String(course._id ?? course.id ?? "").trim();
   const title = String(course.title ?? "").trim();
   const modules = Array.isArray(course.modules) ? course.modules : [];
+  const reportedModuleCount = Number(course.moduleCount);
+  const moduleCount = Number.isInteger(reportedModuleCount) && reportedModuleCount >= 0
+    ? reportedModuleCount
+    : modules.length;
   const metadata = course.cardMetadata && typeof course.cardMetadata === "object" ? course.cardMetadata : {};
   const runtimeSeconds = Number(metadata.youtubeRuntimeSeconds);
 
-  if (!id || !title || modules.length === 0) return null;
+  if (!id || !title || moduleCount === 0) return null;
   if (!Number.isFinite(runtimeSeconds) || runtimeSeconds < MINIMUM_YOUTUBE_RUNTIME_SECONDS) return null;
   if (!isTechnologyCourse(course)) return null;
 
@@ -97,7 +101,7 @@ export function toLongFormCourseCard(course) {
     domainTag: getDomainTag(course),
     durationSeconds: Math.round(runtimeSeconds),
     durationLabel: formatCourseRuntime(runtimeSeconds),
-    moduleCount: modules.length,
+    moduleCount,
     thumbnailUrl: getSafeThumbnail(course.thumbnail)
   };
 }

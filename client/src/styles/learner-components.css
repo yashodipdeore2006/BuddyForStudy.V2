@@ -639,8 +639,8 @@
   z-index: 3;
   display: inline-flex;
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: var(--control-h);
+  height: var(--control-h);
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
@@ -654,7 +654,7 @@
 .bfs-course-card__social-proof { gap: 5px 8px; font-size: 10px; line-height: 1.25; }
 .bfs-course-card__reason { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 10px; line-height: 1.3; }
 .bfs-course-card__action-row { flex: 0 0 auto; align-items: center; margin-top: auto; gap: 7px; padding: 0 11px 10px; min-height: 54px; }
-.bfs-course-action--outline { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; flex-shrink: 0; white-space: nowrap; }
+.bfs-course-action--outline { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-h); flex-shrink: 0; white-space: nowrap; }
 .bfs-course-card__price { font-size: 14px; line-height: 1.15; }
 .bfs-course-card__price del { font-size: 10px; }
 .bfs-course-card__save { width: 32px; height: 32px; }
@@ -678,7 +678,7 @@
 .bfs-course-card__fallback-icon { z-index: 0; }
 .bfs-course-card__action-row { min-width: 0; gap: 8px; }
 .bfs-course-card__price { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.bfs-course-card__action-row .bfs-course-action { width: auto; min-width: 88px; min-height: 36px; padding: 8px 10px; }
+.bfs-course-card__action-row .bfs-course-action { width: auto; min-width: 88px; min-height: var(--control-h); padding: 8px 10px; }
 @media (max-width: 640px) {
   .bfs-course-results-grid { grid-auto-rows: 1fr; }
   .bfs-course-card__media { aspect-ratio: 16 / 7.6; }
@@ -894,8 +894,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   border: 1px solid rgba(255, 255, 255, .24);
   border-radius: 50%;
@@ -1031,7 +1031,7 @@
   padding: var(--s-8) 0;
   color: var(--text);
 }
-.bfs-public-page--landing { padding-block: clamp(32px, 5vw, 72px); }
+.bfs-public-page--landing { padding-block: var(--s-8); }
 .bfs-public-hero {
   max-width: 850px;
   padding: var(--s-7);
@@ -1045,10 +1045,10 @@
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
   align-items: center;
-  gap: clamp(24px, 4vw, 56px);
+  gap: var(--s-5);
   max-width: none;
-  padding: clamp(28px, 4.5vw, 64px);
-  border-radius: 28px;
+  padding: var(--s-7);
+  border-radius: var(--r-lg);
 }
 .bfs-public-hero__copy { min-width: 0; max-width: 680px; }
 .bfs-public-eyebrow {
@@ -1067,7 +1067,7 @@
   max-width: 760px;
   margin: var(--s-5) 0 var(--s-3);
   color: var(--text);
-  font-size: clamp(2.25rem, 4.6vw, 3.7rem);
+  font-size: clamp(var(--fs-2xl), 4.6vw, var(--fs-3xl));
   line-height: 1.08;
   letter-spacing: -.045em;
 }
@@ -1087,7 +1087,7 @@
 }
 .bfs-public-button {
   display: inline-flex;
-  min-height: 48px;
+  min-height: var(--control-h-lg);
   align-items: center;
   justify-content: center;
   gap: var(--s-2);
@@ -1123,9 +1123,9 @@
 .bfs-public-note a { color: var(--accent); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .bfs-learning-preview {
   min-width: 0;
-  padding: clamp(18px, 2.5vw, 28px);
+  padding: var(--s-5);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: var(--r-lg);
   background: var(--surface-2);
   box-shadow: var(--shadow-md);
 }
@@ -1168,8 +1168,8 @@
 }
 .bfs-learning-preview__step-number {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-h);
+  height: var(--control-h);
   place-items: center;
   border-radius: var(--r-sm);
   background: var(--accent-soft);
@@ -1193,7 +1193,7 @@
 .bfs-learning-preview__footer img { width: 28px; height: 28px; object-fit: contain; }
 .bfs-public-content-section { padding: var(--s-8) 0; }
 .bfs-public-section-heading { max-width: 680px; margin-bottom: var(--s-5); }
-.bfs-public-section-heading h2 { margin: var(--s-2) 0; color: var(--text); font-size: clamp(1.7rem, 3vw, 2.4rem); line-height: 1.15; letter-spacing: -.03em; }
+.bfs-public-section-heading h2 { margin: var(--s-2) 0; color: var(--text); font-size: clamp(var(--fs-2xl), 3vw, var(--fs-3xl)); line-height: 1.15; letter-spacing: -.03em; }
 .bfs-public-section-heading p { margin: 0; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-md); }
 .bfs-public-pillar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
 .bfs-public-pillar,.bfs-contact-card {
@@ -1206,8 +1206,8 @@
 }
 .bfs-public-pillar__icon {
   display: inline-flex;
-  width: 48px;
-  height: 48px;
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
   align-items: center;
   justify-content: center;
   border-radius: var(--r-md);
@@ -1239,7 +1239,7 @@
   background: var(--surface);
   color: var(--text);
 }
-.bfs-public-cta h2 { margin: 0 0 var(--s-2); color: var(--text); font-size: clamp(1.35rem, 2.5vw, 1.8rem); line-height: 1.2; }
+.bfs-public-cta h2 { margin: 0 0 var(--s-2); color: var(--text); font-size: clamp(var(--fs-xl), 2.5vw, var(--fs-2xl)); line-height: 1.2; }
 .bfs-public-cta p { max-width: 720px; margin: 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.7; }
 .bfs-public-cta__actions { display: flex; flex-shrink: 0; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
 .bfs-public-cta__link { color: var(--accent); font-size: var(--fs-sm); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
@@ -1264,7 +1264,7 @@
   .bfs-public-page { width: min(calc(100% - var(--s-4) - var(--s-4)), var(--content-max, 1280px)); padding-block: var(--s-6); }
   .bfs-public-hero { padding: var(--s-5); }
   .bfs-public-hero--landing { gap: var(--s-5); padding: var(--s-5); }
-  .bfs-public-hero h1 { font-size: clamp(2rem, 8vw, 2.8rem); }
+  .bfs-public-hero h1 { font-size: clamp(var(--fs-2xl), 8vw, var(--fs-3xl)); }
   .bfs-public-pillar-grid,.bfs-public-steps-grid,.bfs-contact-grid { grid-template-columns: minmax(0, 1fr); }
   .bfs-public-cta { align-items: flex-start; flex-direction: column; padding: var(--s-5); }
   .bfs-public-cta__actions { align-items: flex-start; }

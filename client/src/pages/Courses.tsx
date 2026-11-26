@@ -13,6 +13,7 @@ import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
 import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 import { getRoadmapDurationSummary } from "@/lib/roadmapDuration.js";
+import { appendUniqueCourses, hasMoreCoursePages } from "@/lib/courseCatalogPagination.js";
 
 // The progressive intake is opt-in for local/staged testing and must match server INTENT_V2.
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
@@ -185,13 +186,12 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
 
 type CourseDomainOption = { id: string; label: string };
 type CatalogSort = "best_match" | "quality" | "popular" | "highest_rated" | "newest" | "title";
-type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: CatalogSort; page: number };
+type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: CatalogSort };
 
 function readCatalogUrlState(search: string): CatalogUrlState {
   const params = new URLSearchParams(search);
   const level = params.get("level");
   const sort = params.get("sort");
-  const requestedPage = Number(params.get("page") || 1);
   return {
     query: (params.get("q") || "").trim(),
     level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
@@ -200,22 +200,35 @@ function readCatalogUrlState(search: string): CatalogUrlState {
     sort: sort === "quality" || sort === "popular" || sort === "highest_rated" || sort === "newest" || sort === "title"
       ? sort
       : sort === "recent" ? "newest" : "best_match",
-    page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1,
   };
 }
 
 
 type ExploreSnapshot = {
-  version: 1;
+  version: 2;
   savedAt: number;
   pathname: string;
   search: string;
   scrollY: number;
   courses: Course[];
+  nextPage: number;
+  hasMoreCourses: boolean;
+  totalCourseCount: number;
   youtubeDiscovery: SearchDiscovery | null;
 };
+type CourseCatalogResponse = {
+  courses?: RawCourse[];
+  items?: RawCourse[];
+  discovery?: SearchDiscovery;
+  pagination?: { page?: number; limit?: number; total?: number; pages?: number };
+  taxonomy?: {
+    domains?: CourseDomainOption[];
+    categories?: string[];
+    categoriesByDomain?: Record<string, string[]>;
+  };
+};
 const EXPLORE_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
-const EXPLORE_SNAPSHOT_PREFIX = "bfs-explore-snapshot:v1:";
+const EXPLORE_SNAPSHOT_PREFIX = "bfs-explore-snapshot:v2:";
 function exploreSnapshotKey(entryKey: string, search: string): string {
   return EXPLORE_SNAPSHOT_PREFIX + encodeURIComponent(entryKey || "default") + ":" + encodeURIComponent(search || "");
 }
@@ -224,7 +237,7 @@ function readExploreSnapshot(entryKey: string, pathname: string, search: string)
     const raw = window.sessionStorage.getItem(exploreSnapshotKey(entryKey, search));
     if (!raw) return null;
     const value = JSON.parse(raw) as ExploreSnapshot;
-    if (value.version !== 1 || value.pathname !== pathname || value.search !== search || !Array.isArray(value.courses) || !Number.isFinite(value.savedAt) || Date.now() - value.savedAt > EXPLORE_SNAPSHOT_TTL_MS) return null;
+    if (value.version !== 2 || value.pathname !== pathname || value.search !== search || !Array.isArray(value.courses) || !Number.isFinite(value.savedAt) || Date.now() - value.savedAt > EXPLORE_SNAPSHOT_TTL_MS || !Number.isInteger(value.nextPage) || value.nextPage < 1 || typeof value.hasMoreCourses !== "boolean") return null;
     return value;
   } catch { return null; }
 }
@@ -294,6 +307,15 @@ export default function Courses() {
   const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(initialSnapshot?.youtubeDiscovery || null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
+  const [nextCatalogPage, setNextCatalogPage] = useState(initialSnapshot?.nextPage ?? 1);
+  const [hasMoreCourses, setHasMoreCourses] = useState(initialSnapshot?.hasMoreCourses ?? true);
+  const [totalCourseCount, setTotalCourseCount] = useState(initialSnapshot?.totalCourseCount ?? initialSnapshot?.courses.length ?? 0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const catalogSentinelRef = useRef<HTMLDivElement>(null);
+  const catalogGenerationRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const catalogPageSize = 24;
   const initialCatalogState = readCatalogUrlState(location.search);
   const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
   const [catalogQuery, setCatalogQuery] = useState(initialCatalogState.query);
@@ -304,9 +326,7 @@ export default function Courses() {
   const [categoriesByDomain, setCategoriesByDomain] = useState<Record<string, string[]>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatalogState.category);
   const [catalogSort, setCatalogSort] = useState<CatalogSort>(initialCatalogState.sort);
-  const [catalogPage, setCatalogPage] = useState(initialCatalogState.page);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
-  const catalogPageSize = 12;
 
   useEffect(() => {
     if (!initialSnapshot || navigationType !== "POP") return;
@@ -346,16 +366,19 @@ export default function Courses() {
     return () => {
       if (loading) return;
       writeExploreSnapshot(entryKey, {
-        version: 1,
+        version: 2,
         savedAt: Date.now(),
         pathname,
         search,
         scrollY: Math.max(0, window.scrollY || 0),
         courses,
+        nextPage: nextCatalogPage,
+        hasMoreCourses,
+        totalCourseCount,
         youtubeDiscovery,
       });
     };
-  }, [courses, loading, location.key, location.pathname, location.search, youtubeDiscovery]);
+  }, [courses, loading, loadingMore, nextCatalogPage, hasMoreCourses, totalCourseCount, location.key, location.pathname, location.search, youtubeDiscovery]);
 
   // React effect cleanup is not guaranteed during a full document reload. Persist
   // the latest complete Explore view on pagehide and when the tab becomes hidden.
@@ -364,13 +387,17 @@ export default function Courses() {
     if (loading || location.pathname !== "/explore") return;
 
     const persistSnapshot = () => {
+      if (loadingMore) return;
       writeExploreSnapshot(location.key, {
-        version: 1,
+        version: 2,
         savedAt: Date.now(),
         pathname: location.pathname,
         search: location.search,
         scrollY: Math.max(0, window.scrollY || 0),
         courses,
+        nextPage: nextCatalogPage,
+        hasMoreCourses,
+        totalCourseCount,
         youtubeDiscovery,
       });
     };
@@ -384,7 +411,7 @@ export default function Courses() {
       window.removeEventListener("pagehide", persistSnapshot);
       document.removeEventListener("visibilitychange", persistWhenHidden);
     };
-  }, [courses, loading, location.key, location.pathname, location.search, youtubeDiscovery]);
+  }, [courses, loading, loadingMore, nextCatalogPage, hasMoreCourses, totalCourseCount, location.key, location.pathname, location.search, youtubeDiscovery]);
 
   const updateCatalogUrl = useCallback((updates: Partial<CatalogUrlState>, options: { replace?: boolean } = {}) => {
     const params = new URLSearchParams(location.search);
@@ -399,7 +426,7 @@ export default function Courses() {
     setOrDelete("domain", next.domain, "all");
     setOrDelete("category", next.category, "all");
     setOrDelete("sort", next.sort, "best_match");
-    setOrDelete("page", String(next.page), "1");
+    params.delete("page");
     const search = params.toString();
     const nextSearch = search ? `?${search}` : "";
     if (nextSearch !== location.search) {
@@ -415,7 +442,6 @@ export default function Courses() {
     setSelectedDomain(next.domain);
     setSelectedCategory(next.category);
     setCatalogSort(next.sort);
-    setCatalogPage(next.page);
 
     const params = new URLSearchParams(location.search);
     const canonical = new URLSearchParams(params);
@@ -428,7 +454,7 @@ export default function Courses() {
     canonicalSet("domain", next.domain, "all");
     canonicalSet("category", next.category, "all");
     canonicalSet("sort", next.sort, "best_match");
-    canonicalSet("page", String(next.page), "1");
+    canonical.delete("page");
     if (canonical.toString() !== params.toString()) {
       const search = canonical.toString();
       navigate({ pathname: location.pathname, search: search ? `?${search}` : "" }, { replace: true, state: location.state });
@@ -538,43 +564,63 @@ export default function Courses() {
   }, [session]);
 
   useEffect(() => {
-    async function fetchCourses() {
-      setLoading(!hasInitialSnapshot.current);
-      const allRows: RawCourse[] = [];
+    // A fresh history entry can reuse its short-lived Explore snapshot, including
+    // its scroll position and next page. Back/forward-cache restores still revalidate.
+    if (initialSnapshot && navigationType === "POP" && catalogRetryKey === 0) {
+      hasInitialSnapshot.current = false;
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    const generation = ++catalogGenerationRef.current;
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+    setLoadMoreError("");
+    setLoading(!hasInitialSnapshot.current);
+    setCourses([]);
+    setTotalCourseCount(0);
+    setNextCatalogPage(1);
+    setHasMoreCourses(true);
+
+    async function fetchFirstCoursePage() {
       try {
         setCatalogError("");
         setYoutubeDiscovery(null);
         setYoutubePlaylistsLoading(false);
         setYoutubePlaylistError("");
-        let page = 1;
-        let batch: RawCourse[] = [];
-        let searchDiscovery: SearchDiscovery | null = null;
-        do {
-          const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort });
-          if (selectedLevel !== 'all') params.set('level', selectedLevel);
-          if (selectedDomain !== "all") params.set("domain", selectedDomain);
-          if (selectedCategory !== 'all') params.set('category', selectedCategory);
-          if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number; taxonomy?: { domains?: CourseDomainOption[]; categories?: string[]; categoriesByDomain?: Record<string, string[]> } } = await apiFetch(`/api/courses?${params.toString()}`, {
-            showFeatureUpgrade: Boolean(catalogQuery.trim()),
-            ...(hasInitialSnapshot.current || navigationType === "POP" ? { cache: "no-store" as const } : {}),
-          });
-          if (Array.isArray(response.taxonomy?.domains)) setCourseDomains(response.taxonomy.domains);
-          if (Array.isArray(response.taxonomy?.categories)) setCourseCategories(response.taxonomy.categories);
-          if (response.taxonomy?.categoriesByDomain && typeof response.taxonomy.categoriesByDomain === "object") setCategoriesByDomain(response.taxonomy.categoriesByDomain);
-          batch = response.courses || response.items || [];
-          if (response.discovery) searchDiscovery = response.discovery;
-          allRows.push(...batch);
-          page += 1;
-        } while (batch.length === 50 && page <= 200);
-        setCourses(allRows.map(mapCourse));
-        hasInitialSnapshot.current = false;
 
-        if (
-          searchDiscovery?.mode === 'youtube_fallback' ||
-          searchDiscovery?.mode === 'youtube_supplementary'
-        ) {
-          const discovery = searchDiscovery;
+        const params = new URLSearchParams({
+          page: "1",
+          limit: String(catalogPageSize),
+          sort: catalogSort
+        });
+        if (selectedLevel !== "all") params.set("level", selectedLevel);
+        if (selectedDomain !== "all") params.set("domain", selectedDomain);
+        if (selectedCategory !== "all") params.set("category", selectedCategory);
+        if (catalogQuery.trim()) params.set("q", catalogQuery.trim());
+
+        const response = await apiFetch<CourseCatalogResponse>("/api/courses?" + params.toString(), {
+          showFeatureUpgrade: Boolean(catalogQuery.trim()),
+          ...(hasInitialSnapshot.current || navigationType === "POP" ? { cache: "no-store" as const } : {})
+        });
+        if (!active || generation !== catalogGenerationRef.current) return;
+
+        if (Array.isArray(response.taxonomy?.domains)) setCourseDomains(response.taxonomy.domains);
+        if (Array.isArray(response.taxonomy?.categories)) setCourseCategories(response.taxonomy.categories);
+        if (response.taxonomy?.categoriesByDomain && typeof response.taxonomy.categoriesByDomain === "object") {
+          setCategoriesByDomain(response.taxonomy.categoriesByDomain);
+        }
+
+        const batch = response.courses || response.items || [];
+        setCourses(batch.map(mapCourse));
+        setNextCatalogPage(2);
+        setHasMoreCourses(hasMoreCoursePages(1, response.pagination?.pages, batch.length, catalogPageSize));
+        const total = Number(response.pagination?.total);
+        setTotalCourseCount(Number.isFinite(total) ? Math.max(0, total) : batch.length);
+
+        if (response.discovery) {
+          const discovery = response.discovery;
           setYoutubeDiscovery(discovery);
           setYoutubePlaylistError(String(discovery.youtubeError || ""));
 
@@ -586,40 +632,115 @@ export default function Courses() {
             setYoutubePlaylistsLoading(true);
             try {
               const playlistData = await apiFetch(
-                `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
+                "/api/discovery/search?q=" + encodeURIComponent(discovery.query),
                 { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
               );
+              if (!active || generation !== catalogGenerationRef.current) return;
               setYoutubeDiscovery({
                 ...discovery,
-                playlists: playlistData.playlists || [],
+                playlists: playlistData.playlists || []
               });
             } catch (playlistError) {
+              if (!active || generation !== catalogGenerationRef.current) return;
               setYoutubePlaylistError(
                 playlistError instanceof Error
                   ? playlistError.message
                   : "Unable to load YouTube playlists"
               );
             } finally {
-              setYoutubePlaylistsLoading(false);
+              if (active && generation === catalogGenerationRef.current) setYoutubePlaylistsLoading(false);
             }
           }
-        } else {
-          setYoutubeDiscovery(null);
-          setYoutubePlaylistsLoading(false);
-          setYoutubePlaylistError("");
         }
       } catch (error) {
-        // Preserve any complete pages already fetched when a later catalogue page fails.
-        if (allRows.length > 0) setCourses(allRows.map(mapCourse));
+        if (!active || generation !== catalogGenerationRef.current) return;
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
+        setHasMoreCourses(false);
       } finally {
-        hasInitialSnapshot.current = false;
-        setLoading(false);
+        if (active && generation === catalogGenerationRef.current) {
+          hasInitialSnapshot.current = false;
+          setLoading(false);
+        }
       }
     }
 
-    fetchCourses();
+    void fetchFirstCoursePage();
+    return () => {
+      active = false;
+      if (catalogGenerationRef.current === generation) catalogGenerationRef.current += 1;
+    };
   }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
+
+  const loadMoreCourses = useCallback(async () => {
+    if (loadingMoreRef.current || loading || !hasMoreCourses || catalogError) return;
+    const generation = catalogGenerationRef.current;
+    const page = nextCatalogPage;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(catalogPageSize),
+        sort: catalogSort,
+        includeDiscovery: "false"
+      });
+      if (selectedLevel !== "all") params.set("level", selectedLevel);
+      if (selectedDomain !== "all") params.set("domain", selectedDomain);
+      if (selectedCategory !== "all") params.set("category", selectedCategory);
+      if (catalogQuery.trim()) params.set("q", catalogQuery.trim());
+
+      const response = await apiFetch<CourseCatalogResponse>("/api/courses?" + params.toString(), {
+        showFeatureUpgrade: Boolean(catalogQuery.trim()),
+        cache: "no-store"
+      });
+      if (generation !== catalogGenerationRef.current) return;
+
+      const batch = response.courses || response.items || [];
+      const mapped = batch.map(mapCourse);
+      setCourses((current) => appendUniqueCourses(current, mapped));
+      setNextCatalogPage(page + 1);
+      setHasMoreCourses(hasMoreCoursePages(page, response.pagination?.pages, batch.length, catalogPageSize));
+      if (Number.isFinite(Number(response.pagination?.total))) {
+        setTotalCourseCount(Math.max(0, Number(response.pagination?.total)));
+      }
+    } catch (error) {
+      if (generation !== catalogGenerationRef.current) return;
+      setLoadMoreError(error instanceof Error ? error.message : "Unable to load more courses.");
+    } finally {
+      if (generation === catalogGenerationRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [
+    loading,
+    hasMoreCourses,
+    catalogError,
+    nextCatalogPage,
+    catalogSort,
+    selectedLevel,
+    selectedDomain,
+    selectedCategory,
+    catalogQuery
+  ]);
+
+  useEffect(() => {
+    const sentinel = catalogSentinelRef.current;
+    if (!sentinel || loading || loadingMore || !hasMoreCourses || catalogError || loadMoreError) return;
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMoreCourses();
+    }, {
+      root: null,
+      rootMargin: "700px 0px",
+      threshold: 0
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, loadingMore, hasMoreCourses, catalogError, loadMoreError, loadMoreCourses]);
 
   useEffect(() => {
     let active = true;
@@ -693,43 +814,14 @@ export default function Courses() {
             : byBestMatch;
     return rows.sort((a, b) => comparator(a, b) || byNewest(a, b) || a.id.localeCompare(b.id));
   }, [filteredCourses, catalogSort]);
-  const catalogPageCount = Math.max(1, Math.ceil(sortedCourses.length / catalogPageSize));
-  const currentCatalogPage = Math.min(catalogPage, catalogPageCount);
-  const visibleCourses = sortedCourses.slice(
-    (currentCatalogPage - 1) * catalogPageSize,
-    currentCatalogPage * catalogPageSize
-  );
-  const catalogPagination = sortedCourses.length > catalogPageSize ? (
-    <nav aria-label="Course pagination" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-      <p className="text-sm text-slate-500">
-        Showing {(currentCatalogPage - 1) * catalogPageSize + 1}–{Math.min(currentCatalogPage * catalogPageSize, sortedCourses.length)} of {sortedCourses.length} courses
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Previous course page"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => updateCatalogUrl({ page: Math.max(1, currentCatalogPage - 1) })}
-          disabled={currentCatalogPage <= 1}
-        >Previous</button>
-        <span aria-live="polite" className="min-w-24 text-center text-sm font-semibold text-slate-700">Page {currentCatalogPage} of {catalogPageCount}</span>
-        <button
-          type="button"
-          aria-label="Next course page"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => updateCatalogUrl({ page: Math.min(catalogPageCount, currentCatalogPage + 1) })}
-          disabled={currentCatalogPage >= catalogPageCount}
-        >Next</button>
-      </div>
-    </nav>
-  ) : null;
+
 
   const hasFilters = selectedLevel !== 'all' || selectedDomain !== "all" || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 
   const clearFilters = () => {
     setAiRoadmap(null);
     setAiError(null);
-    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "best_match", page: 1 });
+    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "best_match" });
   };
 
   useEffect(() => {
@@ -1237,7 +1329,7 @@ export default function Courses() {
     const query = searchQuery.trim();
     setAiRoadmap(null);
     setAiError(null);
-    updateCatalogUrl({ query, page: 1 });
+    updateCatalogUrl({ query });
   };
 
   const roadmapDuration = aiRoadmap ? getRoadmapDurationSummary({
@@ -1329,7 +1421,7 @@ export default function Courses() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedLevel}
-              onChange={(e) => updateCatalogUrl({ level: e.target.value as CourseLevel | 'all', page: 1 })}
+              onChange={(e) => updateCatalogUrl({ level: e.target.value as CourseLevel | 'all' })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by level"
             >
@@ -1343,7 +1435,7 @@ export default function Courses() {
 
             <select
               value={selectedDomain}
-              onChange={(e) => updateCatalogUrl({ domain: e.target.value, category: "all", page: 1 })}
+              onChange={(e) => updateCatalogUrl({ domain: e.target.value, category: "all" })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by domain"
             >
@@ -1355,7 +1447,7 @@ export default function Courses() {
 
             <select
               value={selectedCategory}
-              onChange={(e) => updateCatalogUrl({ category: e.target.value, page: 1 })}
+              onChange={(e) => updateCatalogUrl({ category: e.target.value })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by category"
             >
@@ -1371,7 +1463,7 @@ export default function Courses() {
               aria-label="Sort courses"
               title="Quality ranking uses catalogue completeness, curriculum structure and confidence-adjusted approved reviews."
               value={catalogSort}
-              onChange={(e) => updateCatalogUrl({ sort: e.target.value as CatalogSort, page: 1 })}
+              onChange={(e) => updateCatalogUrl({ sort: e.target.value as CatalogSort })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
             >
               <option value="best_match">Best match</option>
@@ -2047,7 +2139,7 @@ export default function Courses() {
                 Courses for “{catalogQuery}”
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                {filteredCourses.length} course{filteredCourses.length === 1 ? '' : 's'} match your current filters.
+                {totalCourseCount} course{totalCourseCount === 1 ? "" : "s"} match your current filters.
               </p>
             </div>
           </div>
@@ -2058,15 +2150,23 @@ export default function Courses() {
             </div>
           ) : (
             <div className="mt-5 rounded-2xl">
-              {visibleCourses.length > 0 && (
+              {sortedCourses.length > 0 && (
                 <div className="bfs-course-results-grid grid gap-4">
-                  {visibleCourses.map((course) => (
+                  {sortedCourses.map((course) => (
                     <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />
                   ))}
                 </div>
               )}
-
-              {catalogPagination}
+              <div ref={catalogSentinelRef} className="mt-6 flex min-h-14 items-center justify-center" aria-live="polite">
+                {loadingMore && <p role="status" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading more courses…</p>}
+                {loadMoreError && (
+                  <div role="alert" className="flex flex-wrap items-center justify-center gap-3 text-sm text-red-700">
+                    <span>{loadMoreError}</span>
+                    <button type="button" onClick={() => void loadMoreCourses()} className="font-bold underline underline-offset-2">Retry</button>
+                  </div>
+                )}
+                {!hasMoreCourses && sortedCourses.length > 0 && <p className="text-xs font-medium text-slate-400">You’ve reached the end of the course catalogue.</p>}
+              </div>
 
               {youtubeDiscovery && (
                 <YouTubeSearchFallback
@@ -2099,7 +2199,7 @@ export default function Courses() {
             <div>
               <p className="bfs-eyebrow">Explore the catalog</p>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">All available courses</h2>
-              <p className="mt-1 text-sm text-slate-500">{filteredCourses.length} published course{filteredCourses.length === 1 ? '' : 's'} available. Browse the full catalog, not only popular courses.</p>
+              <p className="mt-1 text-sm text-slate-500">{totalCourseCount} published course{totalCourseCount === 1 ? "" : "s"} available. Browse the full catalog, not only popular courses.</p>
             </div>
           </div>
           {loading ? (
@@ -2111,9 +2211,18 @@ export default function Courses() {
           )) : (
             <>
               <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {visibleCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
+                {sortedCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
               </div>
-              {catalogPagination}
+              <div ref={catalogSentinelRef} className="mt-6 flex min-h-14 items-center justify-center" aria-live="polite">
+                {loadingMore && <p role="status" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading more courses…</p>}
+                {loadMoreError && (
+                  <div role="alert" className="flex flex-wrap items-center justify-center gap-3 text-sm text-red-700">
+                    <span>{loadMoreError}</span>
+                    <button type="button" onClick={() => void loadMoreCourses()} className="font-bold underline underline-offset-2">Retry</button>
+                  </div>
+                )}
+                {!hasMoreCourses && sortedCourses.length > 0 && <p className="text-xs font-medium text-slate-400">You’ve reached the end of the course catalogue.</p>}
+              </div>
             </>
           )}
         </section>

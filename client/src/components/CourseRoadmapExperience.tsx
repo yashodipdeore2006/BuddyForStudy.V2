@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import type { CourseRoadmapDocument, CourseRoadmapNode, CourseRoadmapPhase, RoadmapFilter } from "@/lib/courseRoadmap";
+import "@/styles/course-roadmap.css";
 
 type Props = {
   courseId: string;

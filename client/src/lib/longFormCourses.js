@@ -1,4 +1,5 @@
 const MINIMUM_YOUTUBE_RUNTIME_SECONDS = 20 * 60 * 60;
+const MAX_SHOWCASE_COURSES = 10;
 
 const TECHNICAL_DOMAIN_IDS = new Set([
   "software-development",
@@ -110,6 +111,7 @@ export function selectLongFormCourses(courses) {
     if (!card || seen.has(card.id)) continue;
     seen.add(card.id);
     result.push(card);
+    if (result.length >= MAX_SHOWCASE_COURSES) break;
   }
   return result;
 }

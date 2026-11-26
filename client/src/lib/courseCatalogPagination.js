@@ -9,8 +9,9 @@ export function hasMoreCoursePages(page, pages, batchLength, pageSize) {
   const size = Number(pageSize);
 
   if (!Number.isInteger(currentPage) || currentPage < 1) return false;
+  if (!Number.isFinite(received) || received <= 0) return false;
   if (Number.isFinite(totalPages) && totalPages >= 0) return currentPage < totalPages;
-  return Number.isFinite(received) && Number.isFinite(size) && size > 0 && received >= size;
+  return Number.isFinite(size) && size > 0 && received >= size;
 }
 
 export function appendUniqueCourses(current, next) {

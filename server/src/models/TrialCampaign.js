@@ -5,7 +5,14 @@ const { Schema } = mongoose;
 const campaignEligibilitySchema = new Schema({
   requireActiveAccount: { type: Boolean, default: true },
   requireVerifiedEmail: { type: Boolean, default: true },
-  requireNoActiveSubscription: { type: Boolean, default: true },
+  requireNoActiveSubscription: {
+    type: Boolean,
+    default: true,
+    validate: {
+      validator: value => value === true,
+      message: "Trial campaigns must exclude learners with an active subscription or trial"
+    }
+  },
   requireNoPreviousTrial: { type: Boolean, default: true }
 }, { _id: false, strict: "throw" });
 

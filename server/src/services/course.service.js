@@ -500,7 +500,7 @@ function courseRankingSortStages(sort, now = new Date()) {
     ]
   };
   const ratingScore = {
-    $multiply: [{ $divide: [{ $subtract: [adjustedRating, 1] }, 4] }, 100]
+    $round: [{ $multiply: [{ $divide: [{ $subtract: [adjustedRating, 1] }, 4] }, 100] }, 2]
   };
   const ageDays = {
     $max: [0, {
@@ -511,15 +511,17 @@ function courseRankingSortStages(sort, now = new Date()) {
     }]
   };
   const popularityScore = {
-    $min: [100, {
-      $multiply: [
-        { $divide: [{ $ln: { $add: ["$enrollmentCount", 1] } }, Math.log(1001)] },
-        100
-      ]
-    }]
+    $round: [{
+      $min: [100, {
+        $multiply: [
+          { $divide: [{ $ln: { $add: ["$enrollmentCount", 1] } }, Math.log(1001)] },
+          100
+        ]
+      }]
+    }, 2]
   };
   const completeness = {
-    $add: [
+    $round: [{ $add: [
       { $cond: [{ $gt: [titleLength, 0] }, 5, 0] },
       { $multiply: [15, boundedRatioExpression(descriptionLength, 300)] },
       { $cond: [{ $gt: [categoryLength, 0] }, 5, 0] },
@@ -529,37 +531,39 @@ function courseRankingSortStages(sort, now = new Date()) {
       { $multiply: [20, boundedRatioExpression(outcomeCount, 5)] },
       { $multiply: [15, boundedRatioExpression("$moduleCount", 4)] },
       { $multiply: [25, boundedRatioExpression("$lessonCount", 16)] }
-    ]
+    ] }, 2]
   };
   const curriculumCoverage = {
-    $add: [
+    $round: [{ $add: [
       { $multiply: [35, boundedRatioExpression(outcomeCount, 5)] },
       { $multiply: [25, boundedRatioExpression("$moduleCount", 5)] },
       { $multiply: [40, boundedRatioExpression("$lessonCount", 20)] }
-    ]
+    ] }, 2]
   };
   const freshnessScore = {
-    $multiply: [100, {
-      $exp: {
-        $divide: [{ $multiply: [-1, ageDays] }, 730]
-      }
-    }]
+    $round: [{
+      $multiply: [100, {
+        $exp: {
+          $divide: [{ $multiply: [-1, ageDays] }, 730]
+        }
+      }]
+    }, 2]
   };
   const qualityScore = {
-    $add: [
+    $round: [{ $add: [
       { $multiply: [completeness, 0.45] },
       { $multiply: [curriculumCoverage, 0.25] },
       { $multiply: [ratingScore, 0.30] }
-    ]
+    ] }, 2]
   };
   const rankingScore = {
-    $add: [
+    $round: [{ $add: [
       { $multiply: [completeness, 0.25] },
       { $multiply: [curriculumCoverage, 0.15] },
       { $multiply: [ratingScore, 0.15] },
       { $multiply: [popularityScore, 0.05] },
       { $multiply: [freshnessScore, 0.05] }
-    ]
+    ] }, 2]
   };
 
   let primarySort;

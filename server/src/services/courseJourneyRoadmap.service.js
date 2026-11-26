@@ -1,4 +1,5 @@
 import { Course } from "../models/Course.js";
+import { invalidateCourseTaxonomyCache } from "./courseTaxonomyCache.service.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { canAccessCourse } from "./subscriptionEntitlement.service.js";
@@ -173,6 +174,7 @@ export async function regenerateCourseJourney(courseId, stages = null) {
     }))
   };
   await course.save();
+  await invalidateCourseTaxonomyCache();
   return course.roadmap;
 }
 

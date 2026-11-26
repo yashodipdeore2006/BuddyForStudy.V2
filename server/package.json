@@ -15,6 +15,7 @@
     "set-admin-role": "node src/scripts/setAdminRole.js",
     "test:notification-channels": "node src/scripts/testNotificationChannels.js",
     "strip-youtube-stats": "node src/scripts/stripYouTubeStats.js",
+    "taxonomy:backfill": "node src/scripts/backfillCourseDomains.js",
     "validate:production-config": "node src/scripts/validateProductionConfig.js"
   },
   "dependencies": {

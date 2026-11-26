@@ -6,7 +6,7 @@ const DOMAIN_DEFINITIONS = [
       "software development", "software engineering", "programming", "programming languages",
       "web development", "frontend development", "backend development", "full stack development",
       "mobile app development", "app development", "android development", "ios development",
-      "computer science", "react", "react js", "react native", "node js", "nodejs", "backend",
+      "computer science", "information technology", "it software", "it and software", "react", "react js", "react native", "node js", "nodejs", "backend",
       "javascript", "typescript", "python programming", "java programming", "sql programming", "c++",
       "database management", "html", "css", "html css", "mern stack", "mean stack"
     ]
@@ -15,7 +15,7 @@ const DOMAIN_DEFINITIONS = [
     id: "data-ai",
     label: "Data, Analytics & AI",
     aliases: [
-      "data science", "data analytics", "data analysis", "business analytics",
+      "data science", "data science and ai", "data science & ai", "data analytics", "data analytics and ai", "data analysis", "business analytics",
       "artificial intelligence", "ai", "machine learning", "deep learning", "generative ai", "data management",
       "large language models", "llm", "big data", "power bi", "tableau", "data engineering",
       "statistics", "data visualization"
@@ -170,6 +170,11 @@ const DOMAIN_DEFINITIONS = [
       "personal development", "career development", "leadership", "time management",
       "soft skills", "interpersonal skills", "critical thinking"
     ]
+  },
+  {
+    id: "other-learning",
+    label: "Other Learning Topics",
+    aliases: []
   }
 ];
 
@@ -245,13 +250,32 @@ export function filterCoursesByInferredDomain(courses, expectedDomain) {
   return courses.filter((course) => courseMatchesInferredDomain(course, expectedDomain));
 }
 
+export function filterLearningResourcesByInferredDomain(resources, expectedDomain) {
+  if (!Array.isArray(resources)) return [];
+  const expected = resolveCourseDomain(expectedDomain);
+  if (!expected) return resources;
+  return resources.filter((resource) => {
+    const explicit = resolveCourseDomain(resource?.domain) || resolveCourseDomain(resource?.category);
+    const inferred = explicit || inferCourseDomain([
+      resource?.title,
+      resource?.description,
+      ...(Array.isArray(resource?.tags) ? resource.tags : [])
+    ].filter(Boolean).join(" "));
+    return !inferred || inferred === expected;
+  });
+}
+
 export function buildCourseDomainFilter(value) {
   const domainId = resolveCourseDomain(value);
   const domain = DOMAIN_DEFINITIONS.find((candidate) => candidate.id === domainId);
   if (!domain) return null;
-  const aliases = [...new Set([domain.id, domain.label, ...domain.aliases])].map((alias) =>
-    new RegExp(`^${escapeRegex(alias)}$`, "i")
-  );
+  const aliases = [...new Set([domain.id, domain.label, ...domain.aliases])].map((alias) => {
+    const flexibleAlias = normalizeTaxonomyText(alias)
+      .split(" ")
+      .map(escapeRegex)
+      .join("[\\s\\W_]*");
+    return new RegExp("^" + flexibleAlias + "$", "i");
+  });
   return {
     $or: [
       { domain: domain.id },

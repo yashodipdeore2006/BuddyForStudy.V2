@@ -2,35 +2,57 @@
 
 ## Taxonomy model
 
-BuddyForStudy keeps three distinct concepts:
+BuddyForStudy separates three classification layers:
 
-1. **Domain** — a controlled, stable top-level identifier such as `software-development`, `data-ai`, or `health-wellness`.
-2. **Category** — the existing course category value. It remains intact for compatibility and acts as the subject/subcategory label.
-3. **Tags** — optional, searchable cross-cutting keywords (maximum 20 per course, 40 characters per tag).
+1. **Domain** is the controlled top-level learning area. It uses a stable ID such as `software-development`, `data-ai`, or `health-wellness`.
+2. **Category** is the existing subject/subcategory label. It remains unchanged for compatibility with existing course records and URLs.
+3. **Tags** are optional cross-cutting descriptors (for example, `react`, `beginner-project`, or `interview-preparation`). Up to 20 tags are stored per course, with a 40-character limit per tag.
 
-Domain IDs are persisted, not display labels. The registry in `server/src/utils/courseTaxonomy.js` owns the allowed IDs, labels, legacy aliases, and query-intent aliases.
+The canonical registry, aliases, and query intent rules live in `server/src/utils/courseTaxonomy.js`. Persist domain IDs, not display labels. Treat IDs as stable API data; add new IDs rather than renaming existing ones.
 
-## Legacy-data strategy
+## Search and filtering behavior
 
-- The `domain` field is optional and defaults to `null`; existing course records do not require a disruptive bulk migration.
-- Known legacy category values are resolved through exact aliases for filters and search.
-- Unknown legacy categories remain discoverable in unfiltered catalog and search results. The system does not guess a domain for them.
-- Admins can assign a canonical domain. The existing category is retained and suggested from the values already present in the catalog.
-- Tags are normalized to lowercase, whitespace-normalized, deduplicated, and bounded on admin updates.
+- The server validates explicit domain filters against the registry.
+- Search infers a domain only when the query has one unambiguous domain signal. Cross-domain and generic terms (for example, Python or SQL alone) do not trigger a domain filter.
+- When an inferred or explicit domain is applied, courses with a known conflicting domain/category are excluded.
+- Unknown legacy categories remain discoverable until an administrator classifies them. The system does not guess their domain from descriptions, outcomes, or generated text.
+- Supplementary YouTube resources are filtered by the same conservative domain inference. Resources without a reliable domain signal are retained rather than dropped on a guess.
+- Category facets come from the complete published catalogue, grouped by domain, rather than from whichever search results happen to be loaded in the browser.
 
-## Search behavior
+## Existing-course backfill
 
-- An explicit domain filter is validated against the registry.
-- Search intent is mapped to a domain only when the query has one unambiguous domain.
-- When a query spans multiple domains or has no reliable domain signal, no inferred domain filter is applied.
-- For an unambiguous query, courses with a known, conflicting domain/category are excluded. Unclassified legacy records remain visible until an admin classifies them.
-- Search continues to match title, description, category, learning outcomes, and tags. Domain filtering is an additional relevance guard, not a replacement for text matching.
+A deterministic backfill script is available. It only fills a missing/null `domain` when the existing `category` resolves through a registered alias. It does not change category names, titles, descriptions, publication state, pricing, tags, or course content. Unmatched categories remain unclassified.
 
-## Operations and compatibility
+The script is **dry-run by default**. From the repository root:
 
-- Public and admin catalog APIs expose the canonical domain options. The public API also supplies live category facets grouped by resolved domain.
-- The category/domain facet cache is bounded to five minutes and invalidated by admin classification changes and publication lifecycle changes.
-- Existing category values, course URLs, course IDs, publication controls, and course pricing are not rewritten by this change.
-- New domain/tag fields are returned in public course previews and the admin course editor.
+```bash
+npm --prefix server run taxonomy:backfill
+```
 
-When adding a domain, update the registry and its alias-focused tests. Prefer adding aliases to an existing domain over creating a near-duplicate domain. Keep aliases specific; ambiguous intent should resolve to no inferred domain.
+Inspect the `unmatchedCategories` summary and the proposed `byDomain` counts. A bounded preview is supported:
+
+```bash
+npm --prefix server run taxonomy:backfill -- --limit 500
+```
+
+Only after reviewing the preview, apply the recognized mappings:
+
+```bash
+npm --prefix server run taxonomy:backfill -- --apply
+```
+
+A bounded apply can be run with `npm --prefix server run taxonomy:backfill -- --apply --limit 500`. The operation is idempotent: it updates only records that still have a null/missing domain. Re-running it will not overwrite an administrator's explicit classification. Unknown categories remain unchanged and can be assigned through Admin → Courses.
+
+## Cache and compatibility
+
+The public taxonomy/category facets use a five-minute shared cache with a process-local fallback. Course classification changes and admin publication lifecycle mutations invalidate the cache; the migration invalidates the shared cache after applying changes. Process-local cache entries age out within five minutes.
+
+The course category field, course IDs, URLs, pricing, enrollment, and publication controls remain compatible. Domain and tags are additive metadata, returned by public course previews and editable in the admin course editor.
+
+## Extending the registry
+
+When adding a domain:
+- Add an immutable ID, display label, and aliases to `courseTaxonomy.js`.
+- Keep aliases specific; do not add ambiguous terms such as a programming language or database query language as a domain signal on its own.
+- Add tests for alias normalization, cross-domain ambiguity, and legacy filter matching.
+- Preserve unknown values as unclassified until there is enough evidence for a deterministic mapping.

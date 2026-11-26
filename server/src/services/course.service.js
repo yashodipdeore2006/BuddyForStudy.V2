@@ -5,12 +5,8 @@ import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
-import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
-
-const PUBLIC_COURSE_TAXONOMY_CACHE_KEY = "course-taxonomy:public:v1";
-const PUBLIC_COURSE_TAXONOMY_TTL_MS = 5 * 60 * 1000;
-let publicCourseTaxonomyCache = null;
-let publicCourseTaxonomyCacheAt = 0;
+import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, filterLearningResourcesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
+import { getCachedCourseTaxonomy, setCachedCourseTaxonomy, invalidateCourseTaxonomyCache } from "./courseTaxonomyCache.service.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -567,6 +563,13 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
 
     try {
       curation = await curateNormalSearch(normalizedSearch, { category, level });
+      const curationDomain = domain || inferredSearchDomain;
+      if (curationDomain) {
+        curation.resources = filterLearningResourcesByInferredDomain(
+          curation.resources || [],
+          curationDomain
+        );
+      }
       curation.resources = await getDiscoveryPricingPreviews(
         curation.resources || [],
         curation?.meta?.intent?.level || level
@@ -797,23 +800,12 @@ export async function getAny(courseId) {
 }
 
 export async function invalidatePublicCourseTaxonomyCache() {
-  publicCourseTaxonomyCache = null;
-  publicCourseTaxonomyCacheAt = 0;
-  await cacheDelete(PUBLIC_COURSE_TAXONOMY_CACHE_KEY);
+  await invalidateCourseTaxonomyCache();
 }
 
 export async function getPublicCourseTaxonomy() {
-  if (
-    publicCourseTaxonomyCache &&
-    Date.now() - publicCourseTaxonomyCacheAt < PUBLIC_COURSE_TAXONOMY_TTL_MS
-  ) return publicCourseTaxonomyCache;
-
-  const cached = await cacheGet(PUBLIC_COURSE_TAXONOMY_CACHE_KEY);
-  if (cached?.domains && Array.isArray(cached.categories)) {
-    publicCourseTaxonomyCache = cached;
-    publicCourseTaxonomyCacheAt = Date.now();
-    return cached;
-  }
+  const cached = await getCachedCourseTaxonomy();
+  if (cached?.domains && Array.isArray(cached.categories)) return cached;
 
   const categoryRows = await Course.aggregate([
     {
@@ -845,9 +837,7 @@ export async function getPublicCourseTaxonomy() {
     categoriesByDomain[key].sort((a, b) => a.localeCompare(b));
   }
   const taxonomy = { ...getCourseTaxonomy(), categories, categoriesByDomain };
-  publicCourseTaxonomyCache = taxonomy;
-  publicCourseTaxonomyCacheAt = Date.now();
-  void cacheSet(PUBLIC_COURSE_TAXONOMY_CACHE_KEY, taxonomy, 300);
+  await setCachedCourseTaxonomy(taxonomy);
   return taxonomy;
 }
 

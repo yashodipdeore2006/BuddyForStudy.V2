@@ -4,6 +4,7 @@ import {
   buildCourseDomainFilter,
   courseMatchesInferredDomain,
   filterCoursesByInferredDomain,
+  filterLearningResourcesByInferredDomain,
   getCourseTaxonomy,
   inferCourseDomain,
   isCourseDomainId,
@@ -16,13 +17,18 @@ test("course taxonomy exposes stable domain IDs and labels", () => {
   assert.equal(taxonomy.version, 1);
   assert.ok(taxonomy.domains.some((domain) => domain.id === "software-development"));
   assert.ok(taxonomy.domains.some((domain) => domain.id === "data-ai"));
+  assert.ok(taxonomy.domains.some((domain) => domain.id === "other-learning"));
   assert.equal(isCourseDomainId("software-development"), true);
   assert.equal(isCourseDomainId("unregistered-domain"), false);
 });
 
 test("legacy category aliases resolve to canonical domains", () => {
   assert.equal(resolveCourseDomain("Web Development"), "software-development");
+  assert.equal(resolveCourseDomain("IT & Software"), "software-development");
   assert.equal(resolveCourseDomain("Data Analytics"), "data-ai");
+  assert.equal(resolveCourseDomain("Data Science & AI"), "data-ai");
+  assert.equal(resolveCourseDomain("Health & Wellness"), "health-wellness");
+  assert.equal(resolveCourseDomain("Teaching"), "education-teaching");
   assert.equal(resolveCourseDomain("Cyber Security"), "cybersecurity");
   assert.equal(resolveCourseDomain("Mechanical Engineering"), "engineering-technology");
   assert.equal(resolveCourseDomain("Mathematics"), "science-mathematics");
@@ -60,10 +66,28 @@ test("inferred domain filtering excludes known cross-domain records but preserve
   );
 });
 
+test("supplementary resources are filtered by domain without guessing unknown topics", () => {
+  const resources = [
+    { title: "React Complete Tutorial", description: "Build reusable UI components" },
+    { title: "Data Analytics with Python", description: "Explore datasets and dashboards" },
+    { title: "A broad learning skills lecture" }
+  ];
+  const filtered = filterLearningResourcesByInferredDomain(resources, "software-development");
+  assert.deepEqual(filtered.map((resource) => resource.title), [
+    "React Complete Tutorial",
+    "A broad learning skills lecture"
+  ]);
+});
+
 test("explicit domain filter includes canonical records and recognized legacy categories", () => {
   const filter = buildCourseDomainFilter("software-development");
   assert.ok(filter.$or.some((condition) => condition.domain === "software-development"));
   assert.ok(filter.$or.some((condition) => condition.$and));
+  const aliases = filter.$or[1].$and[1].category.$in;
+  assert.ok(aliases.some((pattern) => pattern.test("IT & Software")));
+  assert.ok(aliases.some((pattern) => pattern.test("Web-Development")));
+  const dataAliases = buildCourseDomainFilter("data-ai").$or[1].$and[1].category.$in;
+  assert.ok(dataAliases.some((pattern) => pattern.test("Data Science & AI")));
   assert.equal(buildCourseDomainFilter("invalid-domain"), null);
 });
 

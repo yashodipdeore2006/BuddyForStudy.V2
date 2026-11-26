@@ -49,6 +49,7 @@ import { recoverCourseMissingResources } from "../services/courseResourceRecover
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { invalidatePublicCourseTaxonomyCache } from "../services/course.service.js";
 import { getCourseTaxonomy, normalizeCourseTags } from "../utils/courseTaxonomy.js";
+import { invalidateCourseTaxonomyCache } from "../services/courseTaxonomyCache.service.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { parseSafeHttpUrl } from "../utils/safeHttpUrl.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
@@ -539,6 +540,7 @@ export async function rollbackCourseRevision(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "rollback", reason, summary: "Rolled back to revision " + revision.revisionNumber };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.revision.rolled_back", "Course", course._id, { revisionNumber: "current" }, { restoredRevisionId: String(revision._id), restoredRevisionNumber: revision.revisionNumber, isPublished: false }, reason);
     return success(res, { course, restoredRevision: revision.revisionNumber }, "Course restored as a draft. Re-check readiness before publishing.");
   } catch (e) { next(e); }
@@ -610,6 +612,7 @@ export async function reviewAiCourse(req, res, next) {
     };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
 
     if (publishedByApproval) {
       await audit(req, "course.published", "Course", course._id,
@@ -702,6 +705,7 @@ export async function setCourseLifecycle(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course status changed to " + status };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.status.updated", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled }, reason);
     return success(res, { course }, "Course status updated");
@@ -723,6 +727,7 @@ export async function softDeleteCourse(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course soft-deleted" };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.soft_deleted", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt }, reason);
     return success(res, { course }, "Course moved to trash");
@@ -743,6 +748,7 @@ export async function restoreCourse(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course restored from trash as draft" };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.restored", "Course", course._id, before, { deletedAt: null, status: course.status, isPublished: false }, reason);
     return success(res, { course }, "Course restored as a draft");
   } catch (e) { next(e); }
@@ -1185,6 +1191,7 @@ export async function publishCourse(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.published", "Course", course._id, before, { isPublished: true, visibility: course.visibility, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
     return success(res, { course, readiness }, "Course published");
@@ -1274,6 +1281,7 @@ export async function addCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.created", "Course", course._id, null, {
       moduleId: String(module._id), title: module.title, order: module.order
     });
@@ -1305,6 +1313,7 @@ export async function updateCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.updated", "Course", course._id, before, summarizeModuleForAudit(module), req.body.reason || "");
     return success(res, { course, module }, "Module updated");
   } catch (e) { next(e); }
@@ -1327,6 +1336,7 @@ export async function deleteCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.deleted", "Course", course._id, {
       moduleId: String(removed._id), title: removed.title
     }, null, reason);
@@ -1381,6 +1391,7 @@ export async function addCourseVideo(req, res, next) {
       course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
       await cacheDelete(`course:${course._id}`);
+      await invalidateCourseTaxonomyCache();
       await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
         moduleId: String(module._id), playlistId, count: imported.length
       }, req.body.reason || "");
@@ -1419,6 +1430,7 @@ export async function addCourseVideo(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.video.added", "Course", course._id, null, {
       moduleId: String(module._id), lessonId: String(lesson._id), videoId
     }, req.body.reason || "");
@@ -1476,6 +1488,7 @@ export async function addCourseLesson(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.lesson.created", "Course", course._id, null, {
       moduleId: String(module._id), lessonId: String(lesson._id), title, type
     });
@@ -1502,6 +1515,7 @@ export async function deleteCourseLesson(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.lesson.deleted", "Course", course._id, {
       moduleId: String(module._id), lessonId: String(removed._id), title: removed.title, type: removed.type
     }, null, reason);
@@ -1529,6 +1543,7 @@ export async function addModuleResource(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     let resourceHost = "";
     try { resourceHost = new URL(resourceUrl).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* URL validation is handled by the resource endpoint. */ }
     await audit(req, "course.module.resource.added", "Course", course._id, null, {
@@ -1562,6 +1577,7 @@ export async function deleteModuleResource(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
       moduleId: String(module._id),
       resourceId: String(removed._id),
@@ -1691,6 +1707,7 @@ export async function updateCourseTutorial(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
 
     const playlistMode = Boolean(playlistId);
     await audit(
@@ -1795,6 +1812,7 @@ export async function updateCourse(req, res, next) {
     await course.save();
     // Course catalogue caches must not retain stale publish state or metadata.
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     if (req.body.category !== undefined || req.body.domain !== undefined || req.body.isPublished !== undefined) {
       await invalidatePublicCourseTaxonomyCache();
     }

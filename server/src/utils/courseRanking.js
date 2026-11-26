@@ -247,7 +247,7 @@ export function addCourseRankingMetadata(courses, query = "", options = {}) {
 
 export function rankCoursesForSearch(courses, query, options = {}) {
   if (!Array.isArray(courses)) return [];
-  const sort = ["best_match", "quality", "popular", "highest_rated", "newest"].includes(options.sort)
+  const sort = ["best_match", "quality", "popular", "highest_rated", "newest", "title"].includes(options.sort)
     ? options.sort
     : "best_match";
   const ranked = addCourseRankingMetadata(courses, query, options);
@@ -263,12 +263,15 @@ export function rankCoursesForSearch(courses, query, options = {}) {
   const byPopularity = (left, right) =>
     right.ranking.enrollmentCount - left.ranking.enrollmentCount ||
     right.ranking.qualityScore - left.ranking.qualityScore;
+  const byTitle = (left, right) =>
+    String(left.title || "").localeCompare(String(right.title || ""), undefined, { sensitivity: "base" });
   const byHighestRated = (left, right) =>
     right.ranking.rating.score - left.ranking.rating.score ||
     right.ranking.rating.count - left.ranking.rating.count ||
     right.ranking.qualityScore - left.ranking.qualityScore;
-  const comparator = sort === "quality" ? byQuality
-    : sort === "popular" ? byPopularity
+  const comparator = sort === "title" ? byTitle
+    : sort === "quality" ? byQuality
+      : sort === "popular" ? byPopularity
       : sort === "highest_rated" ? byHighestRated
         : sort === "newest" ? (left, right) => compareDateDesc(left, right) || byBestMatch(left, right)
           : byBestMatch;

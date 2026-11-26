@@ -570,7 +570,7 @@ function courseRankingSortStages(sort, now = new Date()) {
   if (sort === "quality") primarySort = { _qualityScore: -1, _rankingScore: -1 };
   else if (sort === "popular") primarySort = { enrollmentCount: -1, _qualityScore: -1 };
   else if (sort === "highest_rated") primarySort = { _ratingScore: -1, _validRatingCount: -1, _qualityScore: -1 };
-  else if (sort === "newest") primarySort = { createdAt: -1, _rankingScore: -1 };
+  else if (sort === "newest") primarySort = { createdAt: -1, _rankingScore: -1, _qualityScore: -1 };
   else primarySort = { _rankingScore: -1, _qualityScore: -1 };
 
   return [

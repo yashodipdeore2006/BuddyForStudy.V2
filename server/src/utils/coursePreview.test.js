@@ -110,6 +110,7 @@ test("public list projection preserves module count and strips raw module video 
         _id: "lesson-1",
         title: "Build reliable APIs",
         type: "tutorial",
+        nodeType: "checkpoint",
         order: 1,
         tutorial: {
           videos: [
@@ -125,6 +126,7 @@ test("public list projection preserves module count and strips raw module video 
   assert.equal(preview.cardMetadata.youtubeRuntimeSeconds, 20 * 60 * 60);
   assert.equal(preview.modules.length, 1);
   assert.equal(preview.modules[0].lessons.length, 1);
+  assert.equal(preview.modules[0].lessons[0].nodeType, "checkpoint");
   assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "tutorial"), false);
   assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "project"), false);
 });

@@ -133,3 +133,17 @@ test("checkpoint node metadata maps to the checkpoint visual type", () => {
   const result = buildCourseRoadmapDocument({ course: checkpointCourse, roadmap: checkpointRoadmap });
   assert.equal(result.nodes[0].type, "checkpoint");
 });
+
+
+test("module-derived fallback roadmap reads declared course duration", () => {
+  const fallbackCourse = {
+    ...course,
+    duration: "42h",
+    modules: [{ _id: "module-only", title: "All lessons", lessons: [
+      { _id: "lesson-only", title: "Course overview", type: "tutorial" }
+    ] }]
+  };
+  const result = buildCourseRoadmapDocument({ course: fallbackCourse, roadmap: { stages: [], totalHours: 0 } });
+  assert.equal(result.courseMeta.totalHours, 42);
+  assert.equal(result.progress.hoursRemaining, 42);
+});

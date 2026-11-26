@@ -7,6 +7,7 @@ import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, filterLearningResourcesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
 import { getCachedCourseTaxonomy, setCachedCourseTaxonomy, invalidateCourseTaxonomyCache } from "./courseTaxonomyCache.service.js";
+import { rankCoursesForSearch } from "../utils/courseRanking.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -30,6 +31,31 @@ const COURSE_RATING_FIELDS_STAGE = {
   $addFields: {
     ratingAverage: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.average", 0] }, 0] },
     ratingCount: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.count", 0] }, 0] }
+  }
+};
+const COURSE_ENROLLMENT_LOOKUP_STAGE = {
+  $lookup: {
+    from: "enrollments",
+    let: { courseId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$course", "$courseId"] },
+              { $in: ["$status", ["active", "completed"]] }
+            ]
+          }
+        }
+      },
+      { $count: "count" }
+    ],
+    as: "enrollmentStats"
+  }
+};
+const COURSE_ENROLLMENT_FIELDS_STAGE = {
+  $addFields: {
+    enrollmentCount: { $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0] }
   }
 };
 const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
@@ -527,7 +553,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
       ? await Course.aggregate([
           { $match: { ...filter, ...directFilter } },
           courseContentCountsStage(),
-          { $project: { modules: 0 } },
+          COURSE_ENROLLMENT_LOOKUP_STAGE,
+          COURSE_ENROLLMENT_FIELDS_STAGE,
+          { $project: { modules: 0, enrollmentStats: 0 } },
           COURSE_RATING_LOOKUP_STAGE,
           COURSE_RATING_FIELDS_STAGE,
           { $project: { courseRatingStats: 0 } },
@@ -539,7 +567,10 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
     const nonModuleDirectCourses = directCandidates.filter(
       (course) => course.generation?.mode !== "module"
     );
-    let localCourses = nonModuleDirectCourses.slice(
+    // Rank the complete filtered candidate set before slicing so pagination
+    // never changes the ordering policy or hides a stronger later candidate.
+    const rankedDirectCourses = rankCoursesForSearch(nonModuleDirectCourses, normalizedSearch);
+    let localCourses = rankedDirectCourses.slice(
       (page - 1) * limit,
       page * limit
     );
@@ -552,7 +583,8 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
         searchDomain: inferredSearchDomain
       });
 
-      localCourses = standalone.courses.slice(
+      const rankedStandaloneCourses = rankCoursesForSearch(standalone.courses, normalizedSearch);
+      localCourses = rankedStandaloneCourses.slice(
         (page - 1) * limit,
         page * limit
       );
@@ -591,7 +623,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, do
       };
     }
 
-    const localTotal = nonModuleDirectCourses.length || localCourses.length;
+    const localTotal = rankedDirectCourses.length || localCourses.length;
     const hasLocalResults = localCourses.length > 0;
 
     return {

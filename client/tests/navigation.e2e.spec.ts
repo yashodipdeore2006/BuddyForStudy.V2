@@ -3331,7 +3331,7 @@ test.describe("authenticated enrollment intent resumption", () => {
     const resume = await mockEnrollmentResumeAuth(page);
     await page.goto(baseURL + "/courses/course-fixture");
     await page.getByRole("radio", { name: /Buy individual course/ }).check();
-    await page.getByRole("button", { name: "Sign in to buy", exact: true }).click();
+    await page.getByRole("main").getByRole("button", { name: "Sign in to buy", exact: true }).last().click();
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
     await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");

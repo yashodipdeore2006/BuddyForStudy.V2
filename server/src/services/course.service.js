@@ -567,7 +567,8 @@ function courseRankingSortStages(sort, now = new Date()) {
   };
 
   let primarySort;
-  if (sort === "quality") primarySort = { _qualityScore: -1, _rankingScore: -1 };
+  if (sort === "title") primarySort = { title: 1 };
+  else if (sort === "quality") primarySort = { _qualityScore: -1, _rankingScore: -1 };
   else if (sort === "popular") primarySort = { enrollmentCount: -1, _qualityScore: -1 };
   else if (sort === "highest_rated") primarySort = { _ratingScore: -1, _validRatingCount: -1, _qualityScore: -1 };
   else if (sort === "newest") primarySort = { createdAt: -1, _rankingScore: -1, _qualityScore: -1 };
@@ -667,7 +668,7 @@ async function getDiscoveryPricingPreviews(resources, level) {
 }
 
 export async function listPublished({ page = 1, limit = 20, search, category, domain, level, sort = "best_match" }) {
-  const normalizedSort = ["best_match", "quality", "popular", "highest_rated", "newest"].includes(sort)
+  const normalizedSort = ["best_match", "quality", "popular", "highest_rated", "newest", "title"].includes(sort)
     ? sort
     : "best_match";
   const filter = { isPublished: true, deletedAt: null, status: { $ne: "archived" }, $and: [PUBLICATION_APPROVAL_FILTER] };

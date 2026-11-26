@@ -194,6 +194,11 @@ function getStatusLabel(status: CourseRoadmapNode["status"]): string {
   return status === "completed" ? "Completed" : status === "in_progress" ? "In progress" : "Not started";
 }
 
+function getNodeCardTitle(title: string): string {
+  const words = String(title || "").trim().split(/\s+/).filter(Boolean);
+  return words.length > 5 ? words.slice(0, 5).join(" ") + "…" : words.join(" ");
+}
+
 export default function CourseRoadmapExperience({
   courseId,
   document,
@@ -499,7 +504,7 @@ export default function CourseRoadmapExperience({
                             {getStatusLabel(node.status)}
                           </span>
                         </span>
-                        <span className="bfs-roadmap-node__title">{node.title}</span>
+                        <span className="bfs-roadmap-node__title" title={node.title}>{getNodeCardTitle(node.title)}</span>
                         <span className="bfs-roadmap-node__meta">
                           <span>{node.moduleTitle}</span>
                           <span><Clock3 size={13} />{formatHours(node.estimatedHours)}</span>

@@ -49,6 +49,8 @@ test("all course surfaces use a safe effective price and only show valid sale pr
   assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), false);
   assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0, compareAtPrice: 50 }), null);
   assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20, compareAtPrice: 50 }), 50);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20, compareAtPrice: 10 }), 35);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: false, salePrice: 20, compareAtPrice: 50 }), null);
 
   const card = fs.readFileSync(path.join(root, "src/components/CourseCard.tsx"), "utf8");
   const myLearning = fs.readFileSync(path.join(root, "src/pages/MyCourses.tsx"), "utf8");
@@ -57,6 +59,20 @@ test("all course surfaces use a safe effective price and only show valid sale pr
   assert.match(myLearning, /getEffectiveCoursePrice\(course\.pricing\)/);
   assert.match(details, /getEffectiveCoursePrice\(course\.pricing\)/);
   assert.match(details, /Checkout has been blocked to prevent a mismatched charge/);
+});
+
+
+test("shared currency formatter preserves supported minor-unit precision and safely falls back", () => {
+  const { formatCurrencyAmount } = coursePricingModule;
+  assert.match(formatCurrencyAmount(99.5, "INR"), /99\\.5/);
+  assert.match(formatCurrencyAmount(9.99, "USD"), /9\\.99/);
+  assert.match(formatCurrencyAmount(125, "JPY"), /125/);
+  assert.equal(formatCurrencyAmount(Number.NaN, "INR"), "Price unavailable");
+  assert.equal(
+    formatCurrencyAmount(12.34, "not-a-currency"),
+    formatCurrencyAmount(12.34, "INR"),
+    "unsupported currency codes must use the documented INR fallback"
+  );
 });
 
 test("course navigation stays in the same tab while external links open a new tab", () => {

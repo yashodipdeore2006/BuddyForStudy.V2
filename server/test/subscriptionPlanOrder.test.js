@@ -21,7 +21,7 @@ test("public billing plans preserve admin sortOrder across different currencies 
       billingInterval: "quarterly",
       sortOrder: 3,
       createdAt: new Date("2026-01-03T00:00:00.000Z"),
-      features: ["Quarterly access"]
+      features: ["Build with AI"]
     },
     {
       _id: "plan-first",
@@ -32,7 +32,7 @@ test("public billing plans preserve admin sortOrder across different currencies 
       billingInterval: "yearly",
       sortOrder: 1,
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      features: ["Annual access"]
+      features: ["Access published courses"]
     },
     {
       _id: "plan-second",
@@ -43,7 +43,18 @@ test("public billing plans preserve admin sortOrder across different currencies 
       billingInterval: "monthly",
       sortOrder: 2,
       createdAt: new Date("2026-01-02T00:00:00.000Z"),
-      features: ["Monthly global access"]
+      features: ["Normal course search"]
+    },
+    {
+      _id: "plan-fourth",
+      name: "Configured Fourth",
+      slug: "configured-fourth",
+      price: 14.5,
+      currency: "CAD",
+      billingInterval: "monthly",
+      sortOrder: 3,
+      createdAt: new Date("2026-01-04T00:00:00.000Z"),
+      features: ["Personalized learning roadmaps"]
     }
   ];
 
@@ -87,10 +98,19 @@ test("public billing plans preserve admin sortOrder across different currencies 
     assert.deepEqual(body.plans.map((plan) => plan.name), [
       "Configured First",
       "Configured Second",
-      "Configured Third"
+      "Configured Third",
+      "Configured Fourth"
     ]);
-    assert.deepEqual(body.plans.map((plan) => plan.currency), ["INR", "USD", "JPY"]);
-    assert.deepEqual(body.plans.map((plan) => plan.billingInterval), ["yearly", "monthly", "quarterly"]);
+    assert.deepEqual(body.plans.map((plan) => plan.sortOrder), [1, 2, 3, 3]);
+    assert.deepEqual(body.plans.map((plan) => plan.currency), ["INR", "USD", "JPY", "CAD"]);
+    assert.deepEqual(body.plans.map((plan) => plan.price), [499, 9.99, 125, 14.5]);
+    assert.deepEqual(body.plans.map((plan) => plan.billingInterval), ["yearly", "monthly", "quarterly", "monthly"]);
+    assert.deepEqual(body.plans.map((plan) => plan.features), [
+      ["Access published courses"],
+      ["Normal course search"],
+      ["Build with AI"],
+      ["Personalized learning roadmaps"]
+    ]);
   } finally {
     SubscriptionPlan.find = originalFind;
     env.paymentsEnabled = originalPaymentsEnabled;

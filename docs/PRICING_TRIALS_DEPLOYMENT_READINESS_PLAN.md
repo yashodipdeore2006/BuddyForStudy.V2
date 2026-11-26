@@ -171,7 +171,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 20 | Redesign Trial Dashboard | Campaigns, claims, grants, status, and history are separated | IN_PROGRESS |
+| 20 | Redesign Trial Dashboard | Campaigns, claims, grants, status, and history are separated | DONE |
 | 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | NOT_STARTED |
 | 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | NOT_STARTED |
 | 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | NOT_STARTED |
@@ -498,13 +498,21 @@ Changes prepared on `buddy-for-study-v2.2`:
 **Verification:** exact-SHA backend lint and full backend tests, frontend lint/typecheck/unit tests/production build, Playwright browser navigation smoke tests, and the Production release gate all passed on implementation candidate `8d3bdca9a7a2bb843d4d7eeb7d2603a163827e1a` (run [44878605895](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/44878605895)). The learner Billing API and UI are verified for this repository candidate. No staging or production deployment has been performed.
 
 
-## Task 20 implementation candidate — in progress
+## Task 20 implementation — verified
 
 - Added a dedicated `GET /api/admin/trials/claims` ledger endpoint, protected by `trials.manage`, with bounded pagination, validated claim-status filtering, optional campaign filtering, and populated learner/campaign/plan/linked-grant context.
 - Added dashboard navigation anchors for Overview, Campaigns, Claims, Grants, and History.
 - Added an operations overview with campaign, published campaign, recent claim, active grant, and historical grant counts, plus a claim-status breakdown.
 - Added a dedicated claims ledger with a status filter. Claim attempts are displayed separately from TrialGrant entitlements.
 - Separated the manual grant workflow and the historical grant ledger into distinct dashboard sections. Existing preview, explicit confirmation, revocation, campaign lifecycle, and no-autopay protections remain in place.
+
+**Exact-SHA verification:** commit `e46ab9c48b2e56a703bb50c7ed4927daa1ca7bc3`, CI run [45850778809](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45850778809):
+- Backend: **1,231 passed, 0 failed, 0 skipped**; lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
+- Frontend: lint, TypeScript, unit tests, deployment-config tests and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
 
 **Status:** implementation candidate committed for exact-SHA CI and release-gate verification. No staging or production deployment has been performed.
 

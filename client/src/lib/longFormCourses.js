@@ -8,7 +8,7 @@ const TECHNICAL_DOMAIN_IDS = new Set([
   "engineering-technology"
 ]);
 
-const TECHNICAL_TOPIC_PATTERN = /(?:\bprogramming\b|\bsoftware\b|\bcomputer science\b|\boperating systems?\b|\bdbms\b|\bcomputer networks?\b|\bdata structures?\b|\balgorithms?\b|\bdsa\b|\bfull[\s-]?stack\b|\bmern\b|\bmean stack\b|\bfrontend\b|\bfront[\s-]?end\b|\bbackend\b|\bback[\s-]?end\b|\breact\b|\bnext\.?js\b|\bnode\.?js\b|\bjavascript\b|\btypescript\b|\bpython\b|\bjava\b|\bc\+\+\b|\bsql\b|\bpostgres(?:ql)?\b|\bmysql\b|\bmongodb\b|\bdatabase\b|\bartificial intelligence\b|\bmachine learning\b|\bdeep learning\b|\bgenerative ai\b|\bai agents?\b|\bagentic\b|\brag\b|\bllm\b|\bgpt\b|\bsystem design\b|\bcloud computing\b|\bdevops\b|\bdocker\b|\bkubernetes\b|\baws\b|\bazure\b|\bcyber[\s-]?security\b|\bpenetration testing\b|\bmobile app development\b)/i;
+const TECHNICAL_TOPIC_PATTERN = /(?:\bprogramming\b|\bweb development\b|\bsoftware\b|\bcomputer science\b|\boperating systems?\b|\bdbms\b|\bcomputer networks?\b|\bdata structures?\b|\balgorithms?\b|\bdsa\b|\bfull[\s-]?stack\b|\bmern\b|\bmean stack\b|\bfrontend\b|\bfront[\s-]?end\b|\bbackend\b|\bback[\s-]?end\b|\breact\b|\bnext\.?js\b|\bnode\.?js\b|\bjavascript\b|\btypescript\b|\bpython\b|\bjava\b|c\+\+|\bsql\b|\bpostgres(?:ql)?\b|\bmysql\b|\bmongodb\b|\bdatabase\b|\bartificial intelligence\b|\bmachine learning\b|\bdeep learning\b|\bai\b|\bgenerative ai\b|\bai agents?\b|\bagentic\b|\brag\b|\bllm\b|\bgpt\b|\bsystem design\b|\bcloud computing\b|\bdevops\b|\bdocker\b|\bkubernetes\b|\baws\b|\bazure\b|\bcyber[\s-]?security\b|\bpenetration testing\b|\bmobile app development\b)/i;
 
 const DOMAIN_LABELS = {
   "software-development": "Software Engineering",
@@ -53,12 +53,12 @@ function getDomainTag(course) {
   if (/\b(cyber security|cybersecurity|ethical hacking|penetration testing)\b/.test(signals)) return "Cybersecurity";
   if (/\b(cloud|devops|docker|kubernetes|aws|azure)\b/.test(signals)) return "Cloud & DevOps";
   if (/\b(database|sql|postgresql|mysql|mongodb)\b/.test(signals)) return "Databases";
-  if (/\b(artificial intelligence|machine learning|deep learning|generative ai|llm|gpt)\b/.test(signals)) return "AI & ML";
+  if (/\b(ai|artificial intelligence|machine learning|deep learning|generative ai|llm|gpt)\b/.test(signals)) return "AI & ML";
 
   const domainLabel = DOMAIN_LABELS[domainId];
   if (domainLabel) return domainLabel;
   const category = String(course?.category || "").trim();
-  return category ? category.slice(0, 28) : (title ? "Technology" : "Technology");
+  return category ? category.slice(0, 28) : "Technology";
 }
 
 function getSafeThumbnail(value) {

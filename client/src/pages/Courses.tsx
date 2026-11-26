@@ -500,20 +500,37 @@ export default function Courses() {
     let cancelled = false;
     let timer: number | undefined;
     const resumeBuild = async () => {
+      setAiOpen(true);
+      setAiLoading(true);
+      aiLoadingRef.current = true;
+      setAiBuildProgress({ status: 'queued', nodes: [] });
       try {
         while (!cancelled) {
-          const status = await apiFetch<{ status: string; result?: AiRoadmap; errorMessage?: string }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
+          const status = await apiFetch<{ status: string; result?: AiRoadmap; errorMessage?: string; nodes?: BuildProgressNode[] }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
           if (cancelled) return;
-          if (status.result) setAiRoadmap(status.result);
+          setAiBuildProgress({ status: status.status, nodes: status.nodes || [] });
+          if (status.result) {
+            setAiRoadmap(status.result);
+            if (status.result.query) setAiTopic(status.result.query);
+          }
           if (status.status === 'ready' || status.status === 'failed') {
             window.localStorage.removeItem('bfs_async_roadmap_draft');
             if (status.status === 'failed') setAiError(status.errorMessage || 'The roadmap build failed. Please try again.');
+            else setAiOpen(false);
+            aiLoadingRef.current = false;
+            setAiLoading(false);
+            setAiBuildProgress(null);
             return;
           }
           await new Promise<void>((resolve) => { timer = window.setTimeout(resolve, 1200); });
         }
       } catch {
-        if (!cancelled) setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+        if (!cancelled) {
+          setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+          aiLoadingRef.current = false;
+          setAiLoading(false);
+          setAiBuildProgress(null);
+        }
       }
     };
     void resumeBuild();

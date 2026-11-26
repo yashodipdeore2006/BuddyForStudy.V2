@@ -336,7 +336,9 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="bfs-public-actions">
-                <Link to={routes.explore()} className="bfs-public-link">Explore</Link>
+                <Link to={routes.explore()} className="bfs-public-link bfs-public-link--explore">Explore</Link>
+                <Link to={routes.landing() + "#how-it-works"} className="bfs-public-link bfs-public-link--how-it-works">How it works</Link>
+                <Link to={routes.pricing()} className="bfs-public-link bfs-public-link--pricing">Pricing</Link>
                 <Link to={routes.login()} className="bfs-public-link">Sign in</Link>
                 <Link to={routes.register()} className="bfs-user-primary-button">Get started</Link>
               </div>

@@ -75,14 +75,14 @@ export default function TrialCampaignOfferPrompt() {
   }, [claiming, claimed, userId, offer]);
 
   const closePromptRef = useRef<() => void>(() => {});
+  const previousFocusedElementRef = useRef<HTMLElement | null>(null);
   closePromptRef.current = closePrompt;
 
   useEffect(() => {
     if (!visible) return;
     const previousOverflow = document.body.style.overflow;
-    const previousFocusedElement = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
+    const previousFocusedElement = previousFocusedElementRef.current
+      || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const dialog = document.getElementById("trial-campaign-offer-dialog");
     document.body.style.overflow = "hidden";
 
@@ -128,6 +128,7 @@ export default function TrialCampaignOfferPrompt() {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
       if (previousFocusedElement?.isConnected) previousFocusedElement.focus();
+      previousFocusedElementRef.current = null;
     };
   }, [visible]);
 
@@ -170,6 +171,10 @@ export default function TrialCampaignOfferPrompt() {
         // interaction closes or the user navigates away.
         retryTimer = window.setTimeout(() => revealWhenAvailable(manual), 1500);
         return;
+      }
+      if (!visible) {
+        const activeElement = document.activeElement;
+        previousFocusedElementRef.current = activeElement instanceof HTMLElement ? activeElement : null;
       }
       setVisible(true);
       if (manual) window.dispatchEvent(new Event("bfs:trial-offer-opened"));

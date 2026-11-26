@@ -48,3 +48,16 @@ export function createTrialClaimIdempotencyKey(): string {
   }
   return "trial-" + Date.now() + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
 }
+export type TrialOfferDisplaySource = "automatic" | "manual";
+
+/**
+ * Automatic offers belong on the learner dashboard. Billing is an explicit,
+ * user-initiated re-entry surface and may bypass the dismissal cooldown.
+ */
+export function canDisplayTrialOfferOnRoute(
+  pathname: string,
+  source: TrialOfferDisplaySource = "automatic"
+): boolean {
+  if (source === "manual") return pathname === "/billing";
+  return pathname === "/" || pathname === "/home";
+}

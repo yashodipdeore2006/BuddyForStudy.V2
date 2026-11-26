@@ -3597,7 +3597,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
   });
 
@@ -3622,9 +3622,9 @@ test.describe("Explore canonical URL state", () => {
     await expect(page).toHaveURL(/category=Development/);
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
 
-    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("highest_rated");
     await expect(page).toHaveURL(/sort=highest_rated/);
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
 
     await page.getByRole("button", { name: "Next course page" }).click();
     await expect(page).toHaveURL(/page=2/);
@@ -3633,14 +3633,14 @@ test.describe("Explore canonical URL state", () => {
     await page.goBack();
     await expect(page).not.toHaveURL(/page=2/);
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
 
     await page.goBack();
-    await expect(page).not.toHaveURL(/sort=title/);
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+    await expect(page).not.toHaveURL(/sort=highest_rated/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
 
     await page.goBack();
@@ -3658,7 +3658,7 @@ test.describe("Explore canonical URL state", () => {
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("recent");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
 
     await page.goForward();
     await expect(page).toHaveURL(/q=Linux/);
@@ -3670,8 +3670,8 @@ test.describe("Explore canonical URL state", () => {
     await expect(page).toHaveURL(/category=Development/);
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
     await page.goForward();
-    await expect(page).toHaveURL(/sort=title/);
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page).toHaveURL(/sort=highest_rated/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
     await page.goForward();
     await expect(page).toHaveURL(/page=2/);
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();

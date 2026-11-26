@@ -7,6 +7,7 @@ test("server page count is authoritative when available", () => {
   assert.equal(hasMoreCoursePages(7, 8, 24, 24), true);
   assert.equal(hasMoreCoursePages(8, 8, 24, 24), false);
   assert.equal(hasMoreCoursePages(1, 0, 0, 24), false);
+  assert.equal(hasMoreCoursePages(1, 8, 0, 24), false);
 });
 
 test("page size is the fallback when the API omits pagination metadata", () => {

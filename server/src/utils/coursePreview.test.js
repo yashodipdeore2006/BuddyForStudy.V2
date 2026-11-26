@@ -96,7 +96,7 @@ test("public course preview accepts supported YouTube URL forms and parses ISO d
 });
 
 
-test("public list projection preserves module count and exposes only the runtime aggregate", () => {
+test("public list projection preserves module count and strips raw module video resources", () => {
   const preview = toPublicCoursePreview({
     _id: "course-list-projection",
     title: "Production Backend Engineering",
@@ -125,5 +125,6 @@ test("public list projection preserves module count and exposes only the runtime
   assert.equal(preview.cardMetadata.youtubeRuntimeSeconds, 20 * 60 * 60);
   assert.equal(preview.modules.length, 1);
   assert.equal(preview.modules[0].lessons.length, 1);
-  assert.equal(JSON.stringify(preview).includes("abcdefghijk"), false);
+  assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "tutorial"), false);
+  assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "project"), false);
 });

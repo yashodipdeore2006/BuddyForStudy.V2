@@ -99,7 +99,7 @@ Task DISC-005 adds a fixed fixture set in `server/test/fixtures/courseDiscoveryR
 | Ambiguous mixed intent | A query spanning React and Data Analytics does not force a single domain |
 | Low review count | A single five-star review is confidence-adjusted below an established 4.7-star rating with 150 reviews |
 | Structural quality | A well-described, outcomes-rich, structured curriculum outranks a sparse course in Highest quality, even when the sparse course has a larger raw rating sample |
-| Composite golden output | The fixed complete React fixture locks its catalogue-completeness, popularity, freshness, quality and composite values under a fixed clock |
+| Composite golden output | The fixed complete React fixture verifies high catalogue completeness, full curriculum coverage, formula-consistent quality/composite scores, and fixed popularity/freshness values under a fixed clock |
 | Pagination | 37 candidates produce seven non-overlapping pages; their concatenation equals the full deterministic ordering, independent of input order |
 | Relevance versus popularity | A strong exact-topic result remains ahead of a weak cross-topic record with a very high enrolment count |
 

@@ -58,7 +58,7 @@ test("confidence-adjusted ratings shrink small samples toward the neutral prior"
 
   assert.ok(oneReview.details.adjustedAverage < 5);
   assert.ok(established.details.adjustedAverage > oneReview.details.adjustedAverage);
-  assert.equal(noReviews.details.adjustedAverage, COURSE_RANKING_POLICY.ratingPriorAverage);
+  assert.equal(noReviews.details.adjustedAverage, 3.5);
   assert.equal(noReviews.details.confidence, 0);
   assert.equal(oneReview.details.priorStrength, 10);
 });

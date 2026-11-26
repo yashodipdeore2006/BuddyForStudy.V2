@@ -63,6 +63,20 @@ test("confidence-adjusted ratings shrink small samples toward the neutral prior"
   assert.equal(oneReview.details.priorStrength, 10);
 });
 
+test("invalid rating aggregates fall back to the prior without confidence", () => {
+  for (const invalid of [
+    { ratingAverage: 0, ratingCount: 40 },
+    { ratingAverage: 6, ratingCount: 40 },
+    { ratingAverage: "not-a-number", ratingCount: 40 },
+    { ratingAverage: 4.5, ratingCount: -4 }
+  ]) {
+    const result = calculateConfidenceAdjustedRating(invalid);
+    assert.equal(result.details.adjustedAverage, COURSE_RANKING_POLICY.ratingPriorAverage);
+    assert.equal(result.details.count, 0);
+    assert.equal(result.details.confidence, 0);
+  }
+});
+
 test("popularity grows logarithmically with diminishing returns", () => {
   const earlyGrowth = scorePopularity(20) - scorePopularity(10);
   const laterGrowth = scorePopularity(110) - scorePopularity(100);

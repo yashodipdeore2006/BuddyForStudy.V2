@@ -61,10 +61,11 @@ The public catalogue accepts five server-validated sort values:
 | `popular` | Most popular | Active/completed enrolments descending, then structural quality |
 | `highest_rated` | Highest rated | Confidence-adjusted approved rating, then review count and structural quality |
 | `newest` | Newest | Creation timestamp descending, then composite ranking |
+| `title` | Title A–Z | Alphabetical title ordering; retained for compatibility with existing Explore URLs |
 
 For all five modes, catalogue publication and the explicit/inferred domain boundary are applied before ranking. Selecting Highest quality, Most popular, Highest rated or Newest never broadens the query candidate set or reintroduces a known cross-domain course.
 
-Legacy `recent` URLs map to `newest`; legacy `title` URLs map to `best_match`. New UI state uses only the five canonical values. Explore stores the selected value in its URL so refresh and browser history restore it.
+Legacy `recent` URLs map to `newest`. The existing `title` sort remains a supported canonical mode, preserving alphabetical behavior for saved links and browser history. Explore stores the selected value in its URL so refresh and browser history restore it.
 
 ### Learner-facing ranking reasons
 

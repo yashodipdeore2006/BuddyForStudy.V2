@@ -269,10 +269,10 @@ export default function CourseRoadmapExperience({
     setLessonDetail(null);
     setDetailLoading(true);
     setDetailError("");
-    apiFetch<{ item?: LessonDetail }>(
+    apiFetch<{ item?: LessonDetail; module?: LessonDetail["module"] }>(
       "/api/courses/" + encodeURIComponent(courseId) + "/learn/" + encodeURIComponent(selectedNodeId)
     ).then((response) => {
-      if (active) setLessonDetail(response.item || null);
+      if (active) setLessonDetail(response.item ? { ...response.item, module: response.module } : null);
     }).catch((error) => {
       if (active) setDetailError(error instanceof Error ? error.message : "Full lesson details are unavailable.");
     }).finally(() => {

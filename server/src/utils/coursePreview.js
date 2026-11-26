@@ -98,6 +98,7 @@ export function toPublicCoursePreview(course) {
     // Keep published review aggregates in the public course-card projection.
     ...(course.ratingAverage !== undefined ? { ratingAverage: Number(course.ratingAverage) || 0 } : {}),
     ...(course.ratingCount !== undefined ? { ratingCount: Number(course.ratingCount) || 0 } : {}),
+    ...(course.ranking && typeof course.ranking === "object" ? { ranking: course.ranking } : {}),
     createdAt: course.createdAt,
     updatedAt: course.updatedAt,
     generation: course.generation ? {

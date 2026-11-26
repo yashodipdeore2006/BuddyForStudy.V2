@@ -237,15 +237,20 @@ function compareDateDesc(left, right) {
   return (Number.isFinite(rightDate) ? rightDate : 0) - (Number.isFinite(leftDate) ? leftDate : 0);
 }
 
+export function addCourseRankingMetadata(courses, query = "", options = {}) {
+  if (!Array.isArray(courses)) return [];
+  return courses.map((course) => ({
+    ...course,
+    ranking: calculateCourseRanking(course, query, options)
+  }));
+}
+
 export function rankCoursesForSearch(courses, query, options = {}) {
   if (!Array.isArray(courses)) return [];
   const sort = ["best_match", "quality", "popular", "highest_rated", "newest"].includes(options.sort)
     ? options.sort
     : "best_match";
-  const ranked = courses.map((course) => ({
-    ...course,
-    ranking: calculateCourseRanking(course, query, options)
-  }));
+  const ranked = addCourseRankingMetadata(courses, query, options);
   const byStableId = (left, right) =>
     String(left._id || left.id || "").localeCompare(String(right._id || right.id || ""));
   const byBestMatch = (left, right) =>

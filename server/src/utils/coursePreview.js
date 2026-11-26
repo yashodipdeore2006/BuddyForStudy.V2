@@ -181,6 +181,7 @@ export function toPublicCoursePreview(course) {
           _id: lesson._id,
           title: lesson.title,
           type: lesson.type,
+          nodeType: lesson.nodeType,
           order: lesson.order,
           ...(durationSeconds > 0 ? { durationSeconds } : {})
         };

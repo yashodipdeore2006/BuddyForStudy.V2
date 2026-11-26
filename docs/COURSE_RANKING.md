@@ -50,6 +50,35 @@ The catalogue-completeness and curriculum-coverage components measure observable
 
 The public course preview may expose the policy version, total score, component scores, weights, and rating confidence details. Learner-facing reason labels and additional sort modes are handled separately under Task DISC-004.
 
+## Supported sorting modes
+
+The public catalogue accepts five server-validated sort values:
+
+| URL/API value | Learner label | Ordering |
+|---|---|---|
+| `best_match` | Best match | Composite ranking score; when a search query exists, query relevance remains a component of that score |
+| `quality` | Highest quality | Structural catalogue completeness (45%), curriculum coverage (25%), confidence-adjusted rating (30%) |
+| `popular` | Most popular | Active/completed enrolments descending, then structural quality |
+| `highest_rated` | Highest rated | Confidence-adjusted approved rating, then review count and structural quality |
+| `newest` | Newest | Creation timestamp descending, then composite ranking |
+
+For all five modes, catalogue publication and the explicit/inferred domain boundary are applied before ranking. Selecting Highest quality, Most popular, Highest rated or Newest never broadens the query candidate set or reintroduces a known cross-domain course.
+
+Legacy `recent` URLs map to `newest`; legacy `title` URLs map to `best_match`. New UI state uses only the five canonical values. Explore stores the selected value in its URL so refresh and browser history restore it.
+
+### Learner-facing ranking reasons
+
+Public previews may include concise reason labels generated from the deterministic ranking components:
+
+- Strong match for your search / Relevant to your search.
+- Detailed course information.
+- Structured learning path.
+- Positive learner ratings (requires at least five approved reviews and a confidence-adjusted average of at least 4.2/5).
+- Popular with learners (at least 100 active/completed enrolments).
+- Recently added (freshness score at least 75).
+
+These labels describe the specific observable signals; they do not claim measured learning effectiveness or independently verified instructional quality. Cards show at most two reasons to keep the explanation concise.
+
 ## Pagination and deterministic behavior
 
 - Domain/relevance filtering occurs before this ranker.

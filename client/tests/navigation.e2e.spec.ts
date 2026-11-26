@@ -1039,8 +1039,8 @@ test.describe("learner control and state regression", () => {
     await expect(page).toHaveURL(/sort=newest/);
 
     await page.goto(baseURL + "/explore?sort=title");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
-    await expect(page).not.toHaveURL(/sort=/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page).toHaveURL(/sort=title/);
   });
 
   test("[EXP-SORT-MODES-001] Explore exposes supported sorts and preserves sort in URL and API requests", async ({ page }) => {
@@ -1054,10 +1054,10 @@ test.describe("learner control and state regression", () => {
     const sort = page.getByRole("combobox", { name: "Sort courses" });
     await expect(sort).toHaveValue("best_match");
     await expect(sort.locator("option")).toHaveText([
-      "Best match", "Highest quality", "Most popular", "Highest rated", "Newest"
+      "Best match", "Highest quality", "Most popular", "Highest rated", "Newest", "Title A–Z"
     ]);
 
-    for (const value of ["quality", "popular", "highest_rated", "newest", "best_match"]) {
+    for (const value of ["quality", "popular", "highest_rated", "newest", "title", "best_match"]) {
       await sort.selectOption(value);
       if (value === "best_match") {
         await expect(page).not.toHaveURL(/sort=/);

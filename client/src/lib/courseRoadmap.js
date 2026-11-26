@@ -55,7 +55,7 @@ function extractTopicLines(lesson, phase) {
     .map((line) => line.trim())
     .filter((line) => line.length >= 8 && line.length <= 110);
   return uniqueStrings([
-    ...quizTopics,
+    ...(quizTopics || []),
     ...projectTopics,
     ...contentLines,
     ...descriptionLines,
@@ -180,7 +180,7 @@ export function buildCourseRoadmapDocument({ course, roadmap, completedIds = [],
         : enrolled && lesson.id === currentNodeId
           ? "in_progress"
           : "remaining";
-      const isFinalProjectInFinalPhase = phase.id === finalPhaseId && lesson.id === finalProjectId;
+      const isFinalProjectInFinalPhase = phase.id === finalPhaseId && lesson.id === finalProjectId && lesson.id === phase.nodeIds[phase.nodeIds.length - 1];
       const node = {
         id: lesson.id,
         title: lesson.title,

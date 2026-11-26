@@ -175,7 +175,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 | 21 | Simplify trial creation | Guided quick-create, eligibility, limits, review, and publish flow | DONE |
 | 22 | Reorganize Course Pricing Studio | Overview, catalogue, bulk editor, recommendations/rules, and history sections | DONE |
 | 23 | Organize Subscription Plans dashboard | Basics, billing, entitlements, presentation, and review sections | DONE |
-| 24 | Improve Finance & Governance navigation | Clear grouping, concise labels, descriptions, and permission consistency | NOT_STARTED |
+| 24 | Improve Finance & Governance navigation | Clear grouping, concise labels, descriptions, and permission consistency | DONE |
 
 ### Phase 6 — Quality and release readiness
 
@@ -588,6 +588,30 @@ Verified on `buddy-for-study-v2.2`:
 **Exact-SHA verification:** commit `ab0af061a46cdb419b6038183a9851e7b7d193fc`, CI run [45852598692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45852598692):
 - Backend: **1,231 passed, 0 failed, 0 skipped**; lint, production-config preflight, selector comparison, and JavaScript syntax checks passed.
 - Frontend: lint, TypeScript, unit tests, deployment-config checks, and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
+
+
+## Task 24 Finance & Governance navigation — verified
+
+**Scope:** Provide clear administrator navigation groups, concise page labels and descriptions, and consistent role-based visibility and direct-route protection.
+
+Verified on `buddy-for-study-v2.2`:
+
+- `client/src/pages/admin/AdminLayout.tsx` defines five ordered navigation groups: **Overview**, **Learning & content**, **Growth & monetization**, **Operations**, and **Governance & access**.
+- Every primary navigation item has a concise label, a descriptive summary, an icon, a route, and an explicit permission key. Finance and monetization pages are grouped together: Subscription plans, Trial campaigns & grants, Course Pricing Studio, Billing & refunds, Subscriptions, and Coupons & promotions.
+- Navigation links and quick actions are filtered from the administrator's confirmed permission set. The command palette uses the same permission-filtered links/actions and exposes each page's description in its search result.
+- The sidebar and mobile navigation share the same ordered groups. Collapsed navigation retains link labels through accessible names/tooltips; mobile navigation has its own labelled workspace actions. The shell includes skip-to-content and breadcrumb navigation.
+- Direct route access is checked against the same page-to-permission map, with an explicit `settings.read` override for the Admin design-system route. The shell fails closed while permissions load or if the access response cannot be confirmed, and renders an Access restricted state for roles without the required permission.
+- App route inventory confirms every mounted admin route is wrapped in the shared AdminGuard/AdminLayout shell and has a corresponding explicit navigation permission or route override. Page-level mutation controls continue to enforce their own manage permissions.
+
+**Regression coverage:** `client/tests/admin-access.e2e.spec.ts` verifies the exact five navigation groups and key Finance & Governance destinations, searches and opens a permitted page through the command palette, confirms permission-filtered navigation and profile actions, and verifies direct access to restricted pages is blocked.
+
+**Exact-SHA verification:** commit `903d80c045517121177960f6cb23a6826c1eb55d`, CI run [45853114263](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45853114263):
+- Backend: **1,231 passed, 0 failed, 0 skipped**; lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
+- Frontend: lint, TypeScript, unit tests, deployment-config checks and production build passed.
 - Browser navigation/accessibility suite: **168 passed**.
 - Production release gate: passed.
 

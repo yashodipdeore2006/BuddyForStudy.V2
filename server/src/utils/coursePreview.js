@@ -155,6 +155,8 @@ export function toPublicCoursePreview(course) {
     certificateEnabled: course.certificateEnabled,
     featured: course.featured,
     cardMetadata,
+    moduleCount: Number.isFinite(Number(course.moduleCount)) ? Number(course.moduleCount) : modules.length,
+    ...(course.lessonCount !== undefined ? { lessonCount: Number(course.lessonCount) || 0 } : {}),
     ...(course.enrollmentCount !== undefined ? { enrollmentCount: course.enrollmentCount } : {}),
     // Keep published review aggregates in the public course-card projection.
     ...(course.ratingAverage !== undefined ? { ratingAverage: Number(course.ratingAverage) || 0 } : {}),

@@ -122,8 +122,16 @@ export function scoreCurriculumCoverage(course) {
 }
 
 export function calculateConfidenceAdjustedRating(course) {
-  const count = finiteCount(course?.ratingCount);
-  const rawAverage = count > 0 ? clamp(Number(course?.ratingAverage) || 0, 1, 5) : null;
+  const reportedCount = finiteCount(course?.ratingCount);
+  const reportedAverage = Number(course?.ratingAverage);
+  // Never treat an invalid or absent aggregate as evidence for a low/high
+  // rating. Ignore the whole aggregate and fall back to the prior instead.
+  const hasValidAggregate = reportedCount > 0 &&
+    Number.isFinite(reportedAverage) &&
+    reportedAverage >= 1 &&
+    reportedAverage <= 5;
+  const count = hasValidAggregate ? reportedCount : 0;
+  const rawAverage = hasValidAggregate ? reportedAverage : null;
   const priorAverage = COURSE_RANKING_POLICY.ratingPriorAverage;
   const priorStrength = COURSE_RANKING_POLICY.ratingPriorStrength;
   const observedAverage = rawAverage ?? priorAverage;

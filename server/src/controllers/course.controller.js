@@ -60,7 +60,8 @@ export async function list(req, res, next) {
       category: req.query.category,
       domain: req.query.domain,
       level: req.query.level,
-      sort: sortAliases[requestedSort]
+      sort: sortAliases[requestedSort],
+      includeDiscovery: page === 1 && String(req.query.includeDiscovery ?? "true").toLowerCase() !== "false"
     });
     const courses = result.courses || [];
     const courseIds = courses.map((course) => course?._id).filter(Boolean);

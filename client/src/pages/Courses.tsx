@@ -23,6 +23,7 @@ type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broa
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; assumptions?: { field: string; value: unknown }[]; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
+const CATALOG_PAGE_SIZE = 24;
 
 const BUILD_WITH_AI_LANGUAGES = [
   { code: "en", label: "English" }, { code: "hi", label: "Hindi" }, { code: "mr", label: "Marathi" },
@@ -316,7 +317,6 @@ export default function Courses() {
   const catalogSentinelRef = useRef<HTMLDivElement>(null);
   const catalogGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
-  const catalogPageSize = 24;
   const initialCatalogState = readCatalogUrlState(location.search);
   const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
   const [catalogQuery, setCatalogQuery] = useState(initialCatalogState.query);
@@ -593,7 +593,7 @@ export default function Courses() {
 
         const params = new URLSearchParams({
           page: "1",
-          limit: String(catalogPageSize),
+          limit: String(CATALOG_PAGE_SIZE),
           sort: catalogSort
         });
         if (selectedLevel !== "all") params.set("level", selectedLevel);
@@ -616,7 +616,7 @@ export default function Courses() {
         const batch = response.courses || response.items || [];
         setCourses(batch.map(mapCourse));
         setNextCatalogPage(2);
-        setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(1, response.pagination?.pages, batch.length, catalogPageSize));
+        setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(1, response.pagination?.pages, batch.length, CATALOG_PAGE_SIZE));
         const total = Number(response.pagination?.total);
         setTotalCourseCount(Number.isFinite(total) ? Math.max(0, total) : batch.length);
 
@@ -683,7 +683,7 @@ export default function Courses() {
     try {
       const params = new URLSearchParams({
         page: String(page),
-        limit: String(catalogPageSize),
+        limit: String(CATALOG_PAGE_SIZE),
         sort: catalogSort,
         includeDiscovery: "false"
       });
@@ -702,7 +702,7 @@ export default function Courses() {
       const mapped = batch.map(mapCourse);
       setCourses((current) => appendUniqueCourses(current, mapped));
       setNextCatalogPage(page + 1);
-      setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(page, response.pagination?.pages, batch.length, catalogPageSize));
+      setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(page, response.pagination?.pages, batch.length, CATALOG_PAGE_SIZE));
     } catch (error) {
       if (generation !== catalogGenerationRef.current) return;
       setLoadMoreError(error instanceof Error ? error.message : "Unable to load more courses.");
@@ -727,7 +727,18 @@ export default function Courses() {
   useEffect(() => {
     const sentinel = catalogSentinelRef.current;
     if (!sentinel || loading || loadingMore || !hasMoreCourses || catalogError || loadMoreError) return;
-    if (typeof IntersectionObserver === "undefined") return;
+    if (typeof IntersectionObserver === "undefined") {
+      const checkSentinel = () => {
+        if (sentinel.getBoundingClientRect().top <= window.innerHeight + 700) void loadMoreCourses();
+      };
+      window.addEventListener("scroll", checkSentinel, { passive: true });
+      window.addEventListener("resize", checkSentinel);
+      checkSentinel();
+      return () => {
+        window.removeEventListener("scroll", checkSentinel);
+        window.removeEventListener("resize", checkSentinel);
+      };
+    }
 
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void loadMoreCourses();

@@ -52,7 +52,7 @@ The public course preview may expose the policy version, total score, component 
 
 ## Supported sorting modes
 
-The public catalogue accepts five server-validated sort values:
+The public catalogue accepts six server-validated sort values:
 
 | URL/API value | Learner label | Ordering |
 |---|---|---|

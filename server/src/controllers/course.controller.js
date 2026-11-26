@@ -334,6 +334,18 @@ export async function learningItem(req, res, next) {
 
     const progress = await (await import("../models/Progress.js")).Progress.findOne({ user: req.user.userId, course: courseId });
     const completed = !!progress?.completedLessons.some(x => x.lessonId.toString() === itemId);
-    return success(res, { item: sanitizeLearningLesson(located.item), completed });
+    return success(res, {
+      item: sanitizeLearningLesson(located.item),
+      completed,
+      module: {
+        title: String(located.module.title || ""),
+        description: String(located.module.description || ""),
+        resources: (located.module.resources || []).map((resource) => ({
+          title: String(resource.title || ""),
+          url: String(resource.url || ""),
+          type: String(resource.type || "link")
+        }))
+      }
+    });
   } catch (e) { next(e); }
 }

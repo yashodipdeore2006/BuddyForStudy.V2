@@ -634,3 +634,30 @@ test("async roadmap passes the active subscription plan to the generator for mon
     RoadmapDraft.updateOne = originalUpdateOne;
   }
 });
+test("roadmap polling exposes lesson types so progress clients can exclude quizzes", async () => {
+  const originalDraftFindOne = RoadmapDraft.findOne;
+  const originalCourseFindOne = Course.findOne;
+  const ownerId = "507f191e810c19729de860ea";
+  const draft = {
+    draftId: "draft-progress", userId: ownerId, status: "building",
+    roadmapId: "507f191e810c19729de860ef", result: null, events: []
+  };
+  const course = {
+    _id: draft.roadmapId,
+    modules: [{ lessons: [
+      { _id: "lesson-1", title: "JavaScript fundamentals", type: "lesson", buildState: "ready" },
+      { _id: "quiz-1", title: "Module quiz", type: "quiz" }
+    ] }]
+  };
+  RoadmapDraft.findOne = () => ({ lean: async () => draft });
+  Course.findOne = () => ({ lean: async () => course });
+  try {
+    const poll = await getRoadmapPoll(draft.draftId, ownerId);
+    assert.deepEqual(poll.nodes.map((node) => node.type), ["lesson", "quiz"]);
+    assert.equal(poll.nodes[0].state, "ready");
+    assert.equal(poll.nodes[1].state, "pending");
+  } finally {
+    RoadmapDraft.findOne = originalDraftFindOne;
+    Course.findOne = originalCourseFindOne;
+  }
+});

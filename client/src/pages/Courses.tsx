@@ -425,7 +425,7 @@ export default function Courses() {
     canonicalSet("level", next.level, "all");
     canonicalSet("domain", next.domain, "all");
     canonicalSet("category", next.category, "all");
-    canonicalSet("sort", next.sort, "recent");
+    canonicalSet("sort", next.sort, "best_match");
     canonicalSet("page", String(next.page), "1");
     if (canonical.toString() !== params.toString()) {
       const search = canonical.toString();

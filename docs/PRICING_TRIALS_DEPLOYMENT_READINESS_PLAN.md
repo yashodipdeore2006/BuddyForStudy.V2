@@ -181,7 +181,7 @@ Task statuses: `DONE`, `IN_PROGRESS`, `BLOCKED`, `FAIL`, or `NOT_STARTED`. A cod
 
 | # | Task | Acceptance evidence | Status |
 |---:|---|---|---|
-| 25 | Audit plan and pricing integrity | Currency, ordering, sale price, feature and limit regression tests pass | NOT_STARTED |
+| 25 | Audit plan and pricing integrity | Currency, ordering, sale price, feature and limit regression tests pass | DONE |
 | 26 | Payment and subscription regression suite | Enabled/disabled checkout, verification, webhook, and cancellation tests pass | DONE |
 | 27 | Trial security and lifecycle regression suite | Eligibility, role isolation, concurrency, cap, idempotency, expiry and audit tests pass | DONE |
 | 28 | Frontend quality/accessibility checks | Typecheck, lint, unit, responsive, keyboard, accessibility and browser tests pass | DONE |
@@ -612,6 +612,28 @@ Verified on `buddy-for-study-v2.2`:
 **Exact-SHA verification:** commit `903d80c045517121177960f6cb23a6826c1eb55d`, CI run [45853114263](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45853114263):
 - Backend: **1,231 passed, 0 failed, 0 skipped**; lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
 - Frontend: lint, TypeScript, unit tests, deployment-config checks and production build passed.
+- Browser navigation/accessibility suite: **168 passed**.
+- Production release gate: passed.
+
+No staging/production deployment, pull request, branch creation, or merge was performed.
+
+
+## Task 25 Plan and pricing integrity — verified
+
+**Scope:** Verify monetary values and their presentation, subscription-plan catalogue order, course sale-price invariants, canonical feature entitlements, and usage-limit interpretation.
+
+Regression coverage verified on `buddy-for-study-v2.2`:
+
+- **Currency formatting:** `client/tests/courseNav.test.cjs` now directly exercises the shared `formatCurrencyAmount` utility. It verifies fractional minor-unit display for INR and USD, JPY formatting, invalid numeric input handling, and the documented INR fallback for an unsupported currency code. The same suite checks that crossed-out comparison prices never fall below the course base price and are hidden when a sale is disabled or invalid.
+- **Course sale prices:** `server/test/coursePricing.test.js` verifies valid sale prices are positive and below the base price; invalid, zero, negative and non-finite sale/base values fail closed; checkout uses the effective sale/base price; compare-at prices must exceed the base; and bulk pricing cannot silently preserve an invalid active sale.
+- **Subscription catalogue ordering and round-trip integrity:** `server/test/subscriptionPlanOrder.test.js` exercises the public billing-plan endpoint across INR, USD, JPY and CAD, with recurring intervals and fractional prices. It verifies the API preserves numeric prices, currency codes, billing intervals and normalized features, and orders plans by `sortOrder` with `createdAt` as a stable tie-breaker.
+- **Public plan visibility:** `server/test/publicPlanCatalogue.test.js` verifies active-plan filtering, configured ordering, feature normalization, and that checkout availability remains separate from public plan catalogue visibility.
+- **Features and limits:** `server/test/subscriptionEntitlementRules.test.js` and `server/test/subscriptionEntitlements.test.js` verify canonical feature keys/labels, legacy aliases, de-duplication, unknown-key fail-closed behavior, object/Map limit storage, invalid/missing limit fallback, and explicit semantics for zero (blocked) versus `-1` (unlimited). Existing admin-plan validation tests cover accepted feature/limit configuration at write time.
+- **Admin and learner surfaces:** `client/tests/adminPlans.test.mjs`, `client/tests/adminPricingStudio.test.mjs`, `client/tests/courseNav.test.cjs`, and the Playwright navigation suite cover currency-aware display, plan pricing/order and entitlement presentation, catalogue pricing, bulk pricing safeguards, and sale-price display alignment.
+
+**Exact-SHA verification:** commit `cb527e00ffd22334466e8ee94ee3f206112dcaba`, CI run [45854640080](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/45854640080):
+- Backend: **1,231 passed, 0 failed, 0 skipped**; backend lint, production configuration preflight, selector comparison and JavaScript syntax checks passed.
+- Frontend: lint, TypeScript, **104 unit tests passed with 0 failures**, deployment-config checks and production build passed.
 - Browser navigation/accessibility suite: **168 passed**.
 - Production release gate: passed.
 

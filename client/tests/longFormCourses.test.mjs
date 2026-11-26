@@ -73,3 +73,15 @@ test("duration formatting rounds to minutes and carries into the next hour", () 
   assert.equal(formatCourseRuntime(59 * 60 + 40), "1h");
   assert.equal(formatCourseRuntime(0), "");
 });
+
+
+test("showcase caps at ten real eligible courses without filling missing entries", () => {
+  const courses = Array.from({ length: 12 }, (_, index) => course({
+    _id: "real-course-" + index,
+    title: "MERN Engineering Course " + index
+  }));
+  const selected = selectLongFormCourses(courses);
+  assert.equal(selected.length, 10);
+  assert.equal(selected[0].id, "real-course-0");
+  assert.equal(selected[9].id, "real-course-9");
+});

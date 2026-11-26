@@ -27,14 +27,19 @@ type TrialClaim = { _id: string; status: string; claimedAt: string; activatedAt?
 type TrialCampaign = {
   _id: string;
   internalName: string;
+  internalReason?: string;
   offerTitle: string;
-  trialPlan?: { name?: string } | null;
+  offerDescription?: string;
+  trialPlan?: { _id?: string; name?: string } | null;
   trialDays: number;
   status: "draft" | "published" | "paused" | "ended";
   startsAt: string;
   endsAt?: string | null;
   maxClaims: number;
   claimedCount: number;
+  eligibility?: Partial<CampaignEligibility>;
+  conversionMode?: "none" | "consent_required";
+  conversionPlan?: { _id?: string; name?: string } | null;
 };
 type CampaignForm = {
   presetId: string;
@@ -74,6 +79,13 @@ const initialCampaignForm: CampaignForm = {
 const initialFilters = { q: "", emailExact: "", status: "active", role: "user", createdAfter: "", createdBefore: "", registeredAfter: "", registeredBefore: "", authProvider: "any", emailVerified: "yes", planId: "", expiresWithinDays: "", courseId: "", enrollmentStatus: "", progressMin: "", progressMax: "", inactiveDays: "", totalSpendMin: "", courseCountMin: "", planSegment: "", courseSegment: "", phoneVerified: "any", marketingConsent: "any", profileSetup: "any", city: "", learningGoal: "", priorTrial: "never", subscriptionStatus: "none" };
 type Filters = typeof initialFilters;
 const date = (value?: string) => value ? new Date(value).toLocaleString("en-IN") : "—";
+const toDateTimeLocalInput = (value?: string | null) => {
+  if (!value) return "";
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const localDate = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+};
 
 export default function AdminTrialCampaigns() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -99,6 +111,8 @@ export default function AdminTrialCampaigns() {
   const [presets, setPresets] = useState<CampaignPreset[]>([]);
   const [campaigns, setCampaigns] = useState<TrialCampaign[]>([]);
   const [campaignForm, setCampaignForm] = useState<CampaignForm>(initialCampaignForm);
+  const [editingCampaignId, setEditingCampaignId] = useState("");
+  const [editReason, setEditReason] = useState("");
   const [campaignStep, setCampaignStep] = useState(0);
   const [showCampaignAdvanced, setShowCampaignAdvanced] = useState(false);
   const [publishTarget, setPublishTarget] = useState<TrialCampaign | null>(null);
@@ -152,6 +166,46 @@ export default function AdminTrialCampaigns() {
     setCampaignError("");
   }
 
+  function startEditingCampaign(campaign: TrialCampaign) {
+    if (!["draft", "paused"].includes(campaign.status) || campaign.claimedCount > 0) return;
+    setCampaignForm({
+      presetId: [7, 14, 30].includes(campaign.trialDays) ? `${campaign.trialDays}_days` : "custom",
+      internalName: campaign.internalName,
+      internalReason: campaign.internalReason || "Administrator-approved campaign update.",
+      offerTitle: campaign.offerTitle,
+      offerDescription: campaign.offerDescription || "",
+      trialPlanId: campaign.trialPlan?._id || "",
+      trialDays: campaign.trialDays,
+      maxClaims: campaign.maxClaims,
+      startsAt: toDateTimeLocalInput(campaign.startsAt),
+      endsAt: toDateTimeLocalInput(campaign.endsAt),
+      eligibility: {
+        requireActiveAccount: campaign.eligibility?.requireActiveAccount !== false,
+        requireVerifiedEmail: campaign.eligibility?.requireVerifiedEmail !== false,
+        requireNoActiveSubscription: true,
+        requireNoPreviousTrial: campaign.eligibility?.requireNoPreviousTrial !== false
+      },
+      conversionMode: campaign.conversionMode === "consent_required" ? "consent_required" : "none",
+      conversionPlanId: campaign.conversionPlan?._id || ""
+    });
+    setEditingCampaignId(campaign._id);
+    setEditReason("");
+    setCampaignStep(0);
+    setShowCampaignAdvanced(true);
+    setCampaignError("");
+    setCampaignMessage(`Editing ${campaign.internalName}. Saving updates the draft configuration; it does not publish the campaign.`);
+    document.getElementById("trial-campaigns")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function cancelCampaignEdit() {
+    setEditingCampaignId("");
+    setEditReason("");
+    setCampaignForm(initialCampaignForm);
+    setCampaignStep(0);
+    setCampaignError("");
+    setCampaignMessage("Campaign editing cancelled. No changes were saved.");
+  }
+
   function campaignStepError(step: number) {
     const form = campaignForm;
     if (step === 0) {
@@ -190,6 +244,9 @@ export default function AdminTrialCampaigns() {
       if (form.offerDescription.trim().length < 10 || form.offerDescription.trim().length > 1000) {
         return "Learner-facing description must contain 10–1,000 characters.";
       }
+      if (editingCampaignId && (editReason.trim().length < 10 || editReason.trim().length > 500)) {
+        return "Enter an administrator change reason between 10 and 500 characters.";
+      }
     }
     return "";
   }
@@ -225,7 +282,7 @@ export default function AdminTrialCampaigns() {
 
     setCampaignSaving(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         internalName: form.internalName.trim(),
         internalReason: form.internalReason.trim(),
         offerTitle: form.offerTitle.trim(),
@@ -235,16 +292,25 @@ export default function AdminTrialCampaigns() {
         startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
         endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
         maxClaims: form.maxClaims,
-        eligibility: { ...form.eligibility },
+        eligibility: { ...form.eligibility, requireNoActiveSubscription: true },
         conversionMode: form.conversionMode,
         conversionPlanId: form.conversionMode === "consent_required" ? form.conversionPlanId : null
       };
-      const result = await adminFetch("/api/admin/trials/campaigns", {
-        method: "POST",
+      const editing = Boolean(editingCampaignId);
+      if (editing) body.reason = editReason.trim();
+      const endpoint = editing
+        ? "/api/admin/trials/campaigns/" + encodeURIComponent(editingCampaignId)
+        : "/api/admin/trials/campaigns";
+      const result = await adminFetch(endpoint, {
+        method: editing ? "PUT" : "POST",
         body: JSON.stringify(body)
       });
-      const createdName = result.campaign?.internalName || form.internalName;
-      setCampaignMessage(createdName + " was saved as a draft. It is not live until you publish it.");
+      const campaignName = result.campaign?.internalName || form.internalName;
+      setCampaignMessage(editing
+        ? campaignName + " was updated. Its current status was not changed."
+        : campaignName + " was saved as a draft. It is not live until you publish it.");
+      setEditingCampaignId("");
+      setEditReason("");
       setCampaignForm(initialCampaignForm);
       setCampaignStep(0);
       setShowCampaignAdvanced(false);
@@ -509,7 +575,10 @@ export default function AdminTrialCampaigns() {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireActiveAccount} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireActiveAccount: e.target.checked } }))} /><span>Require an active learner account</span></label>
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireVerifiedEmail} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireVerifiedEmail: e.target.checked } }))} /><span>Require a verified email address</span></label>
-                  <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireNoActiveSubscription} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireNoActiveSubscription: e.target.checked } }))} /><span>Require no active subscription</span></label>
+                  <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={true} disabled aria-describedby="campaign-active-subscription-policy" /><span>Require no active subscription or trial <span className="font-normal text-slate-500">(mandatory safety rule)</span></span></label>
+                </div>
+                <p id="campaign-active-subscription-policy" className="mt-2 text-xs text-slate-500">Welcome campaigns cannot replace a learner’s current paid subscription or active trial.</p>
+                <div className="hidden">
                   <label className="flex items-start gap-2 text-sm text-slate-700"><input className="mt-1 h-4 w-4 accent-violet-600" type="checkbox" checked={campaignForm.eligibility.requireNoPreviousTrial} onChange={e => setCampaignForm(current => ({ ...current, eligibility: { ...current.eligibility, requireNoPreviousTrial: e.target.checked } }))} /><span>Require no previous trial</span></label>
                 </div>
               </section>
@@ -550,6 +619,10 @@ export default function AdminTrialCampaigns() {
               <textarea className={inputClass} rows={4} minLength={10} maxLength={1000} value={campaignForm.offerDescription} onChange={e => setCampaignForm(current => ({ ...current, offerDescription: e.target.value }))} />
               <span className="mt-1 block font-normal text-slate-500">{campaignForm.offerDescription.trim().length}/1,000 characters</span>
             </label>
+            {editingCampaignId && <label className={labelClass + " sm:col-span-2"}>Administrator change reason (required for audit)
+              <textarea className={inputClass} rows={2} minLength={10} maxLength={500} value={editReason} onChange={e => setEditReason(e.target.value)} placeholder="Explain why these campaign settings need to change." />
+              <span className="mt-1 block font-normal text-slate-500">{editReason.trim().length}/500 characters · This reason is written to the campaign audit record.</span>
+            </label>}
           </div>
         </section>}
 
@@ -584,6 +657,10 @@ export default function AdminTrialCampaigns() {
                 ].map(([label, enabled]) => <div key={String(label)} className="flex items-center gap-2 text-sm text-slate-700"><span aria-hidden="true">{enabled ? "✓" : "—"}</span><span>{label}: {enabled ? "Required" : "Not required"}</span></div>)}
               </div>
             </div>
+            {editingCampaignId && <div className="border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Administrator change reason</p>
+              <p className="mt-1 text-sm text-slate-700">{editReason || "Enter a reason before saving changes."}</p>
+            </div>}
             <div className="border-t border-slate-100 pt-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Paid conversion</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{campaignForm.conversionMode === "none" ? "No conversion offer" : plans.find(plan => plan._id === campaignForm.conversionPlanId)?.name + " · requires separate learner consent"}</p>
@@ -600,12 +677,12 @@ export default function AdminTrialCampaigns() {
           <button type="button" className="btn-secondary justify-center" onClick={goBackCampaignStep} disabled={campaignStep === 0 || campaignSaving}>Back</button>
           {campaignStep < 2
             ? <button type="button" className="btn-primary justify-center" onClick={continueCampaignStep} disabled={campaignLoading || campaignSaving || (campaignStep === 0 && !presets.length)}>Continue</button>
-            : <button type="button" className="btn-primary justify-center" onClick={() => void createSelfServeCampaign()} disabled={!campaignFormValid || campaignSaving || campaignLoading || !presets.length}>
-                <ShieldCheck className="h-4 w-4" />{campaignSaving ? "Saving draft…" : "Save campaign as draft"}
+: <button type="button" className="btn-primary justify-center" onClick={() => void createSelfServeCampaign()} disabled={!campaignFormValid || campaignSaving || campaignLoading || !presets.length}>
+                <ShieldCheck className="h-4 w-4" />{campaignSaving ? (editingCampaignId ? "Saving changes…" : "Saving draft…") : (editingCampaignId ? "Save campaign changes" : "Save campaign as draft")}
               </button>}
         </div>
         <div className="mt-8 border-t border-slate-100 pt-5">
-          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900">Existing self-serve campaigns</h3><p className="mt-1 text-xs text-slate-500">Publish, pause or disable a campaign separately from draft creation.</p></div><span className="text-xs text-slate-500">{campaigns.length} shown</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900">Existing self-serve campaigns</h3><p className="mt-1 text-xs text-slate-500">Edit unclaimed drafts or paused campaigns; publish, pause or disable separately from saving settings.</p></div><span className="text-xs text-slate-500">{campaigns.length} shown</span></div>
           {campaignLoading && <p className="mt-4 text-sm text-slate-500">Loading campaigns…</p>}
           {!campaignLoading && !campaigns.length && <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No self-serve campaigns have been created yet.</p>}
           {!campaignLoading && campaigns.length > 0 && <div className="mt-4 space-y-3">
@@ -616,6 +693,7 @@ export default function AdminTrialCampaigns() {
                 <p className="mt-1 text-xs text-slate-500">{campaign.claimedCount || 0} of {campaign.maxClaims} claims · Starts {date(campaign.startsAt)}{campaign.endsAt ? " · Ends " + date(campaign.endsAt) : ""}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {(campaign.status === "draft" || campaign.status === "paused") && campaign.claimedCount === 0 && <button type="button" className="btn-secondary" onClick={() => startEditingCampaign(campaign)} disabled={campaignSaving || campaignActionId === campaign._id}>Edit</button>}
                 {(campaign.status === "draft" || campaign.status === "paused") && <button type="button" className="btn-primary" onClick={() => { setCampaignError(""); setCampaignMessage(""); setPublishTarget(campaign); }} disabled={campaignActionId === campaign._id}><Rocket className="h-4 w-4" />Publish</button>}
                 {campaign.status === "published" && <button type="button" className="btn-secondary" onClick={() => void runCampaignLifecycleAction(campaign._id, "pause")} disabled={campaignActionId === campaign._id}><PauseCircle className="h-4 w-4" />Pause</button>}
                 {campaign.status !== "ended" && <button type="button" className="btn-secondary" onClick={() => void runCampaignLifecycleAction(campaign._id, "disable")} disabled={campaignActionId === campaign._id}><Ban className="h-4 w-4" />Disable</button>}

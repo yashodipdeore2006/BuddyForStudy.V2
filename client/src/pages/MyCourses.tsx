@@ -186,20 +186,12 @@ function CourseLearningCard({
     if (result !== "failed") window.setTimeout(() => setShareNotice(""), 2500);
   };
 
-  const thumbnailProps = getCourseThumbnailProps(course);
-  const thumbnailLinkLabel = [
-    "View course information",
-    thumbnailProps.domain,
-    ...thumbnailProps.skills,
-    thumbnailProps.title,
-    thumbnailProps.level,
-  ].filter(Boolean).join(" ");
-
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
       <div className="bfs-course-card__media">
-        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={thumbnailLinkLabel}>
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link">
           <CourseThumbnail {...getCourseThumbnailProps(course)} />
+          <span className="bfs-sr-only">View course information for {course.title}</span>
         </Link>
         <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>

@@ -267,15 +267,6 @@ function CourseCardContent({
     compact ? "bfs-course-card__compact" : "",
     horizontal ? "bfs-course-card__horizontal" : "",
   ].filter(Boolean).join(" ");
-  const thumbnailProps = getCourseThumbnailProps(course);
-  const thumbnailLinkLabel = [
-    "View course details",
-    thumbnailProps.domain,
-    ...thumbnailProps.skills,
-    thumbnailProps.title,
-    thumbnailProps.level,
-  ].filter(Boolean).join(" ");
-
   return (
     <article className={rootClass} data-variant={variant}>
       <Link
@@ -288,8 +279,9 @@ function CourseCardContent({
       </Link>
 
       <div className="bfs-course-card__media">
-        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={thumbnailLinkLabel} tabIndex={-1}>
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" tabIndex={-1}>
           <CourseThumbnail {...getCourseThumbnailProps(course)} />
+          <span className="bfs-sr-only">View course details for {course.title}</span>
         </Link>
         <button
           type="button"

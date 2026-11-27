@@ -98,7 +98,7 @@ export function createAuthNavigationState(
 export function getAuthDestination(
   state: AuthNavigationState,
   fallback: string,
-): { to: string; state?: { resumeIntent: EnrollmentResumeIntent } } {
+): { to: string; state?: { resumeIntent?: EnrollmentResumeIntent; resumeContext?: AuthResumeContext } } {
   const location = state.from || safeLocation(fallback);
   const to = location ? location.pathname + (location.search || "") + (location.hash || "") : "/";
   return {

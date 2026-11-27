@@ -1009,7 +1009,7 @@ test.describe("canonical learner navigation", () => {
 
     for (const path of ["/", "/home"]) {
       await page.goto(baseURL + path);
-      await expect(page.getByRole("heading", { name: "Find the right course. Follow a clear learning path." })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Find your career path. Build skills with a clear learning roadmap." })).toBeVisible();
       await expect(page.getByRole("link", { name: "Explore courses", exact: true }).first()).toHaveAttribute("href", "/explore");
       await expect(page.getByRole("link", { name: "Create a free account", exact: true })).toHaveAttribute("href", "/register");
       await expect(page.getByRole("link", { name: "Pricing", exact: true }).first()).toHaveAttribute("href", "/pricing");
@@ -1028,7 +1028,7 @@ test.describe("canonical learner navigation", () => {
     await page.goto(baseURL + "/");
     await expect(page.getByRole("heading", { name: "Welcome back, Learner" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Find the right course. Follow a clear learning path." })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Find your career path. Build skills with a clear learning roadmap." })).toHaveCount(0);
   });
 
   test("guest Explore, course details, login and registration routes remain public", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
 import { formatCurrencyAmount } from "@/lib/coursePricing";
 import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 type Plan = {
   _id: string;
@@ -50,6 +51,7 @@ type TrialConversionOffer = { _id: string; endsAt: string; conversionConsentStat
 
 export default function Pricing() {
   const { session } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const courseId = searchParams.get("courseId");
 
@@ -124,7 +126,11 @@ export default function Pricing() {
     }
 
     if (!session) {
-      window.location.href = routes.login();
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to choose a plan",
+        description: "Create a free account or sign in to continue. You can review and confirm any payment separately after returning to Pricing.",
+      });
       return;
     }
 

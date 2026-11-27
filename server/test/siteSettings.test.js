@@ -19,11 +19,25 @@ test("public site defaults use only the existing BuddyForStudy identity and no i
   const settings = toPublicSiteSettings(DEFAULT_SITE_SETTINGS);
   assert.equal(settings.brand.siteName, "BuddyForStudy");
   assert.equal(settings.brand.logoUrl, "/buddyforstudy-mascot.webp");
+  assert.equal(settings.brand.tagline, "Find Your Path. Learn with Purpose. Build Your Future.");
+  assert.match(settings.brand.description, /AI-powered career learning platform/);
   assert.equal(settings.contact.supportEmail, "");
   assert.equal(settings.contact.supportPhone, "");
   assert.equal(settings.contact.officeAddress, "");
   assert.equal(settings.contact.businessHours, "");
   assert.ok(settings.footerLinks.some((item) => item.label === "All policies & accessibility" && item.href === "/legal"));
+});
+
+test("legacy brand placeholders resolve to approved public brand copy", () => {
+  const settings = toPublicSiteSettings({
+    brand: {
+      siteName: "BuddyForStudy",
+      tagline: "[ADD: approved platform tagline]",
+      description: "[ADD: approved platform description]",
+    },
+  });
+  assert.equal(settings.brand.tagline, "Find Your Path. Learn with Purpose. Build Your Future.");
+  assert.match(settings.brand.description, /AI-powered career learning platform/);
 });
 
 test("public site projection excludes administrator metadata and sanitizes unsafe persisted links", () => {

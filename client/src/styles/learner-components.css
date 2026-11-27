@@ -1284,3 +1284,68 @@
   .bfs-public-pillar,.bfs-contact-card,.bfs-public-step { padding: var(--s-4); }
   .bfs-learning-preview { padding: var(--s-3); }
 }
+
+/* Landing hero: compact the full parent section without changing its content or flow. */
+.bfs-public-hero--landing {
+  --s-1: 3px;
+  --s-2: 6px;
+  --s-3: 9px;
+  --s-4: 12px;
+  --s-5: 18px;
+  --s-7: 36px;
+  --control-h: 34px;
+  --control-h-sm: 27px;
+  --control-h-lg: 42px;
+}
+
+.bfs-public-hero--landing .bfs-public-hero__copy > h1 {
+  font-size: clamp(28px, 4.2vw, 36px);
+  line-height: 1.05;
+}
+
+.bfs-public-hero--landing .bfs-public-hero__copy > p:not(.bfs-public-note) {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview {
+  padding: 18px;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__heading h2 {
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__heading p {
+  line-height: 1.45;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__step {
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__step-copy strong {
+  line-height: 17px;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__step-copy small {
+  line-height: 14px;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__step > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.bfs-public-hero--landing .bfs-learning-preview__footer img {
+  width: 27px;
+  height: 27px;
+}
+
+@media (max-width: 420px) {
+  .bfs-public-hero--landing .bfs-learning-preview {
+    padding: 9px;
+  }
+}
+

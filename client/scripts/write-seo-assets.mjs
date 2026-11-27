@@ -154,7 +154,7 @@ function buildRouteHtml(template, route, canonicalUrl, origin) {
   html = upsertMeta(html, "name", "twitter:title", route.title);
   html = upsertMeta(html, "name", "twitter:description", route.description);
   const structuredData = '<script type="application/ld+json">' + buildSiteStructuredData(origin) + "</script>";
-  html = html.replace(/<\\/head>/i, structuredData + "\\n  </head>");
+  html = html.replace(/<\/head>/i, structuredData + "\n  </head>");
   return upsertCanonical(html, canonicalUrl);
 }
 

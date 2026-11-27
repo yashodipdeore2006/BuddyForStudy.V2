@@ -35,6 +35,8 @@ import { routes } from "@/lib/routes";
 import EnrollmentAuthDialog from "@/components/EnrollmentAuthDialog";
 import { readAuthNavigationState, type EnrollmentResumeIntent } from "@/lib/authNavigation";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
 import {
@@ -1346,8 +1348,10 @@ export default function CourseDetails() {
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
             <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
               <button type="button" onClick={() => setPreviewOpen(true)} aria-label={previewVideoId ? 'Preview this course: Play course preview' : 'Video preview unavailable: View course preview information'} className="group relative block aspect-video w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
-                {course.thumbnail ? <img src={course.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950" />}
-                <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
+                <div className="absolute inset-0">
+                  <CourseThumbnail {...getCourseThumbnailProps(course)} />
+                </div>
+                <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
                 <span className="absolute inset-0 flex items-center justify-center"><span className={classNames("flex h-14 w-14 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-950 shadow-lg transition", previewVideoId ? "group-hover:scale-105" : "opacity-70")}><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>
                 <span className="absolute bottom-3 left-3 right-3 text-left text-sm font-semibold text-white">{previewVideoId ? 'Preview this course' : 'Video preview unavailable'}</span>
               </button>
@@ -1495,8 +1499,8 @@ export default function CourseDetails() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {relatedCourses.map((item) => (
               <Link key={item.id} to={routes.course(item.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
-                <div className="aspect-video overflow-hidden bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950">
-                  {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />}
+                <div className="overflow-hidden">
+                  <CourseThumbnail {...getCourseThumbnailProps(item)} />
                 </div>
                 <div className="p-4">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">

@@ -68,12 +68,12 @@ function resolveMetadata(pathname: string, siteName: string, configuredDescripti
       description: "Learn how " + siteName + " connects career exploration, structured skill roadmaps, curated courses, and learning progress in one AI-assisted career learning platform.",
     },
     "/contact": {
-      title: "Contact " + siteName + " | Support and help",
-      description: "Find official support information and practical guidance for questions about your " + siteName + " account and learning experience.",
+      title: "Contact " + siteName + " | Support & Help",
+      description: "Contact " + siteName + " for help with your account, course access, or learning experience. Find the official support information published on our website.",
     },
     "/faq": {
-      title: siteName + " Help Centre | Frequently asked questions",
-      description: "Find answers about getting started, accounts, courses, plans, payments, privacy, and using " + siteName + ".",
+      title: siteName + " Help Centre | FAQs",
+      description: "Get answers about " + siteName + " accounts, career roadmaps, curated courses, learning progress, plans, payments, and platform support.",
     },
     "/explore": {
       title: "Courses & Learning Resources | " + siteName,
@@ -84,8 +84,8 @@ function resolveMetadata(pathname: string, siteName: string, configuredDescripti
       description: "Explore " + siteName + " plans and learning access options. Compare available features and pricing before choosing how to continue your learning journey.",
     },
     "/legal": {
-      title: siteName + " | Legal and policies",
-      description: "Read the privacy, terms, cookie, and other policy documents currently published by " + siteName + ".",
+      title: "Legal & Policies | " + siteName,
+      description: "Review the privacy, terms, cookie, and other policy documents that govern your use of " + siteName + ".",
     },
   };
   if (legalDetail) return { title: siteName + " | Policy details", description: "Read the current policy details published by " + siteName + "." };

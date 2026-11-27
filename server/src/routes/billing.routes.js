@@ -52,6 +52,37 @@ export async function listPublicPlans(_req, res, next, dependencies = {}) {
 
 router.get("/plans", listPublicPlans);
 router.use(authMiddleware);
+router.get("/payments/:paymentId", async (req, res, next) => {
+  try {
+    const paymentId = String(req.params.paymentId || "");
+    if (!isValidObjectId(paymentId)) return failure(res, "Invalid payment ID", 400);
+
+    // Always scope the lookup to the authenticated learner. A payment belonging
+    // to another account is indistinguishable from a missing transaction.
+    const payment = await Payment.findOne({ _id: paymentId, user: req.user.userId })
+      .select("_id amount currency status provider providerPaymentId providerOrderId course plan createdAt updatedAt paidAt")
+      .populate("course", "title")
+      .populate("plan", "name billingInterval")
+      .lean();
+    if (!payment) return failure(res, "Transaction not found", 404);
+
+    const [refunds, issues] = await Promise.all([
+      RefundRequest.find({ user: req.user.userId, payment: payment._id })
+        .select("_id amount status reason createdAt updatedAt processedAt adminNote")
+        .sort({ createdAt: -1 })
+        .lean(),
+      PaymentIssue.find({ user: req.user.userId, payment: payment._id })
+        .select("_id category description status adminNote createdAt updatedAt resolvedAt")
+        .sort({ createdAt: -1 })
+        .lean()
+    ]);
+
+    return success(res, { payment, refunds, issues });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try {
   await expireUserTrialIfDue(req.user.userId, { now: new Date(), maxItems: 10 });

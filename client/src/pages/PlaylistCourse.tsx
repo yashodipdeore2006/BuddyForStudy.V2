@@ -8,7 +8,7 @@ import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import CourseThumbnail from "@/components/CourseThumbnail";
-import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
+import { getCourseThumbnailProps, getYouTubeVideoThumbnailUrl } from "@/lib/courseThumbnail";
 
 export default function PlaylistCourse() {
   const { playlistId } = useParams<{ playlistId: string }>();
@@ -166,6 +166,9 @@ export default function PlaylistCourse() {
                   level: String(course.level ?? "Intermediate"),
                   modules: course.modules,
                   learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                  thumbnail: course.thumbnail,
+                  cardMetadata: course.cardMetadata,
+                  lessons: course.lessons,
                 })} />
             </div>
 
@@ -188,17 +191,33 @@ export default function PlaylistCourse() {
             </p>
 
             <div className="mt-4 space-y-2">
-              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => (
-                <div key={lesson.id} className="flex gap-3 rounded-xl bg-white p-3">
-                  <PlayCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">
-                      {lesson.order}. {lesson.title}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">{lesson.duration}</p>
+              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => {
+                const lessonThumbnail = getYouTubeVideoThumbnailUrl(lesson);
+                return (
+                  <div key={lesson.id} className="flex items-center gap-3 rounded-xl bg-white p-3">
+                    <span className="relative flex h-12 w-[76px] flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                      <PlayCircle className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                      {lessonThumbnail && (
+                        <img
+                          src={lessonThumbnail}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(event) => { event.currentTarget.style.display = "none"; }}
+                        />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        {lesson.order}. {lesson.title}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{lesson.duration}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </aside>
         </div>

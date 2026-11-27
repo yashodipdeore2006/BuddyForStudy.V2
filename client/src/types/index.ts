@@ -194,6 +194,7 @@ export interface Course {
     typeTag?: string;
     videoCount?: number;
     previewVideoId?: string;
+    previewThumbnailUrl?: string;
     qualityScore?: number;
     viewCount?: number;
     likeCount?: number;

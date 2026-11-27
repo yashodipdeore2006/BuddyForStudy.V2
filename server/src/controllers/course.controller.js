@@ -77,30 +77,41 @@ export async function list(req, res, next) {
     // Course catalogue aggregation deliberately excludes module documents. When
     // the landing showcase opts in, fetch only the fields needed for its safe
     // public preview and verified YouTube runtime; never return raw resources.
-    const previewResourceCourses = includeLongFormMetadata && courseIds.length ? await Course.find({ _id: { $in: courseIds } })
-      .select([
-        "modules._id", "modules.title", "modules.order",
-        "modules.lessons._id", "modules.lessons.title", "modules.lessons.type",
-        "modules.lessons.order", "modules.lessons.durationSeconds",
-        "modules.lessons.tutorial.videos.videoId", "modules.lessons.tutorial.videos.url",
-        "modules.lessons.tutorial.videos.title", "modules.lessons.tutorial.videos.channelTitle",
-        "modules.lessons.tutorial.videos.channelUrl", "modules.lessons.tutorial.videos.channel_url",
-        "modules.lessons.tutorial.videos.channelId", "modules.lessons.tutorial.videos.thumbnail",
-        "modules.lessons.tutorial.videos.durationSeconds", "modules.lessons.tutorial.videos.duration",
-        "modules.lessons.project.videos.videoId", "modules.lessons.project.videos.url",
-        "modules.lessons.project.videos.title", "modules.lessons.project.videos.channelTitle",
-        "modules.lessons.project.videos.channelUrl", "modules.lessons.project.videos.channel_url",
-        "modules.lessons.project.videos.channelId", "modules.lessons.project.videos.thumbnail",
-        "modules.lessons.project.videos.durationSeconds", "modules.lessons.project.videos.duration",
-        "generation.mode", "generation.sourceResourceType", "generation.query",
-        "generation.snapshot.modules.course.videoId", "generation.snapshot.modules.course.url",
-        "generation.snapshot.modules.course.title", "generation.snapshot.modules.course.channelTitle",
-        "generation.snapshot.modules.course.channelUrl", "generation.snapshot.modules.course.channel_url",
-        "generation.snapshot.modules.course.channelId", "generation.snapshot.modules.course.thumbnail",
-        "generation.snapshot.modules.course.durationSeconds", "generation.snapshot.modules.course.duration",
-        "generation.snapshot.modules.course.score", "generation.snapshot.modules.course.viewCount",
-        "generation.snapshot.modules.course.likeCount"
-      ].join(" "))
+    const thumbnailResourceFields = [
+      "modules.lessons.tutorial.videos.videoId",
+      "modules.lessons.tutorial.videos.url",
+      "modules.lessons.tutorial.videos.thumbnail",
+      "modules.lessons.project.videos.videoId",
+      "modules.lessons.project.videos.url",
+      "modules.lessons.project.videos.thumbnail",
+      "generation.snapshot.modules.course.videoId",
+      "generation.snapshot.modules.course.url",
+      "generation.snapshot.modules.course.thumbnail"
+    ];
+    const longFormResourceFields = [
+      "modules._id", "modules.title", "modules.order",
+      "modules.lessons._id", "modules.lessons.title", "modules.lessons.type",
+      "modules.lessons.order", "modules.lessons.durationSeconds",
+      "modules.lessons.tutorial.videos.title", "modules.lessons.tutorial.videos.channelTitle",
+      "modules.lessons.tutorial.videos.channelUrl", "modules.lessons.tutorial.videos.channel_url",
+      "modules.lessons.tutorial.videos.channelId", "modules.lessons.tutorial.videos.durationSeconds",
+      "modules.lessons.tutorial.videos.duration",
+      "modules.lessons.project.videos.title", "modules.lessons.project.videos.channelTitle",
+      "modules.lessons.project.videos.channelUrl", "modules.lessons.project.videos.channel_url",
+      "modules.lessons.project.videos.channelId", "modules.lessons.project.videos.durationSeconds",
+      "modules.lessons.project.videos.duration",
+      "generation.mode", "generation.sourceResourceType", "generation.query",
+      "generation.snapshot.modules.course.title", "generation.snapshot.modules.course.channelTitle",
+      "generation.snapshot.modules.course.channelUrl", "generation.snapshot.modules.course.channel_url",
+      "generation.snapshot.modules.course.channelId", "generation.snapshot.modules.course.durationSeconds",
+      "generation.snapshot.modules.course.duration", "generation.snapshot.modules.course.score",
+      "generation.snapshot.modules.course.viewCount", "generation.snapshot.modules.course.likeCount"
+    ];
+    const previewResourceFields = includeLongFormMetadata
+      ? [...new Set([...thumbnailResourceFields, ...longFormResourceFields])]
+      : thumbnailResourceFields;
+    const previewResourceCourses = courseIds.length ? await Course.find({ _id: { $in: courseIds } })
+      .select(previewResourceFields.join(" "))
       .lean() : [];
     const previewResourcesByCourseId = new Map(previewResourceCourses.map((course) => [String(course._id), course]));
     const taxonomy = await courseService.getPublicCourseTaxonomy();
@@ -116,7 +127,7 @@ export async function list(req, res, next) {
             ? Number(course.moduleCount)
             : Array.isArray(previewResources.modules) ? previewResources.modules.length : 0,
           enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
-        });
+        }, { thumbnailSource: previewResources });
       })
     });
   } catch (e) { next(e); }

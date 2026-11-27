@@ -55,3 +55,20 @@ test("course card commercial and learning footer content remains present", () =>
   assert.match(card, /ratingAverage/);
   assert.match(card, /handlePrimaryAction/);
 });
+
+
+test("original course and YouTube thumbnails take precedence over generated artwork", () => {
+  assert.match(thumbnail, /imageUrl\?: string/);
+  assert.match(thumbnail, /showOriginalImage \? \(/);
+  assert.match(thumbnail, /object-cover/);
+  assert.match(thumbnail, /onError=\{\(\) => setImageFailed\(true\)\}/);
+  assert.match(resolver, /courseImage \|\| metadataPreviewImage \|\| primaryVideoImage \|\| previewVideoFallback/);
+  assert.match(resolver, /https:\/\/i\.ytimg\.com\/vi\//);
+  assert.match(resolver, /export function getYouTubeVideoThumbnailUrl/);
+});
+
+test("playlist video rows resolve each lesson's own thumbnail", () => {
+  assert.match(playlist, /getYouTubeVideoThumbnailUrl\(lesson\)/);
+  assert.match(playlist, /src=\{lessonThumbnail\}/);
+  assert.match(playlist, /object-cover/);
+});

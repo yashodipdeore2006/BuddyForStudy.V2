@@ -110,7 +110,9 @@ export function toLongFormCourseCard(course) {
     durationSeconds: Math.round(runtimeSeconds),
     durationLabel: formatCourseRuntime(runtimeSeconds),
     moduleCount,
-    thumbnailUrl: getSafeThumbnail(course.thumbnail)
+    thumbnailUrl: getSafeThumbnail(course.thumbnail),
+    previewThumbnailUrl: getSafeThumbnail(metadata.previewThumbnailUrl),
+    previewVideoId: /^[a-zA-Z0-9_-]{11}$/.test(String(metadata.previewVideoId || "")) ? String(metadata.previewVideoId) : null
   };
 }
 

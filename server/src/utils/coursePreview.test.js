@@ -130,3 +130,47 @@ test("public list projection preserves module count and strips raw module video 
   assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "tutorial"), false);
   assert.equal(Object.hasOwn(preview.modules[0].lessons[0], "project"), false);
 });
+
+
+test("public list previews expose only the selected YouTube thumbnail from narrow resource metadata", () => {
+  const preview = toPublicCoursePreview({
+    _id: "course-thumbnail-projection",
+    title: "YouTube-backed course",
+    thumbnail: "",
+    modules: [],
+    generation: { mode: "normal", sourceResourceType: "video" }
+  }, {
+    thumbnailSource: {
+      modules: [{
+        lessons: [{
+          tutorial: {
+            videos: [{
+              videoId: "dQw4w9WgXcQ",
+              thumbnail: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+              url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            }]
+          }
+        }]
+      }]
+    }
+  });
+
+  assert.equal(preview.cardMetadata.previewVideoId, "dQw4w9WgXcQ");
+  assert.equal(preview.cardMetadata.previewThumbnailUrl, "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg");
+  assert.equal(preview.modules.length, 0);
+  assert.equal(JSON.stringify(preview).includes("tutorial"), false);
+});
+
+test("public preview derives a YouTube-hosted thumbnail only for a valid YouTube video ID", () => {
+  const preview = toPublicCoursePreview({
+    title: "Video-backed course",
+    modules: [{
+      lessons: [{
+        tutorial: {
+          videos: [{ videoId: "dQw4w9WgXcQ", url: "https://youtube.com/watch?v=dQw4w9WgXcQ" }]
+        }
+      }]
+    }]
+  });
+  assert.equal(preview.cardMetadata.previewThumbnailUrl, "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+});

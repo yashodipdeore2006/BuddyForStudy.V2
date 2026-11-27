@@ -1,9 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 export type ThumbnailVariant = "node-circuit" | "terminal-matrix" | "bento-tile" | "isometric-stack" | "kinetic-mesh";
 
 export interface CourseThumbnailProps {
   identity?: string;
+  imageUrl?: string;
   title: string;
   domain: string;
   skills: string[];
@@ -25,6 +26,7 @@ function hashString(value: string): number {
 
 export default function CourseThumbnail({
   identity,
+  imageUrl,
   title,
   domain,
   skills = [],
@@ -37,15 +39,30 @@ export default function CourseThumbnail({
   const seed = useMemo(() => hashString(identity || title), [identity, title]);
   const visibleSkills = skills.slice(0, 2);
   const offset = (seed % 18) - 9;
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [imageUrl]);
+  const showOriginalImage = Boolean(imageUrl) && !imageFailed;
 
   return (
     <div
-      style={{
+      style={!showOriginalImage ? {
         backgroundColor: surfaceHex,
         backgroundImage: "radial-gradient(120% 100% at 100% 0%, " + accentHex + "29 0%, transparent 65%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.28) 100%)",
-      }}
+      } : undefined}
       className="relative h-[168px] w-full select-none overflow-hidden rounded-t-xl border-b border-slate-800/80 font-sans text-slate-100"
     >
+      {showOriginalImage ? (
+        <img
+          src={imageUrl || undefined}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          decoding="async"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <>
       {variant === "node-circuit" && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-25" viewBox="0 0 320 168" fill="none" aria-hidden="true">
           <path d={"M -10 " + (45 + offset) + " H 95 L 125 " + (75 + offset) + " H 235 L 265 40 H 330"} stroke="#94A3B8" strokeWidth="1" />
@@ -129,6 +146,9 @@ export default function CourseThumbnail({
           {level}
         </span>
       </div>
+
+        </>
+      )}
 
       {topRightActions && (
         <div className="absolute right-2.5 top-2.5 z-20 flex flex-col gap-1.5">

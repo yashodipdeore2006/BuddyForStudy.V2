@@ -44,6 +44,25 @@ function getYouTubeVideoId(resource) {
   }
 }
 
+function getSafePreviewImageUrl(value) {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) return "";
+  if (candidate.startsWith("/") && !candidate.startsWith("//")) return candidate;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "https:" ? candidate : "";
+  } catch {
+    return "";
+  }
+}
+
+function getPreviewThumbnailUrl(resource) {
+  const storedThumbnail = getSafePreviewImageUrl(resource?.thumbnail);
+  if (storedThumbnail) return storedThumbnail;
+  const videoId = getYouTubeVideoId(resource);
+  return videoId ? "https://i.ytimg.com/vi/" + encodeURIComponent(videoId) + "/hqdefault.jpg" : "";
+}
+
 function addYouTubeVideoRuntime(videoDurations, resource) {
   const videoId = getYouTubeVideoId(resource);
   if (!videoId) return;
@@ -59,24 +78,37 @@ function addYouTubeVideoRuntime(videoDurations, resource) {
   videoDurations.set(videoId, Math.max(videoDurations.get(videoId) || 0, durationSeconds));
 }
 
-export function toPublicCoursePreview(course) {
+export function toPublicCoursePreview(course, options = {}) {
   const modules = course.modules || [];
+  // List endpoints may supply narrow thumbnail-only resources without returning
+  // full lesson/provider payloads to public catalogue clients.
+  const thumbnailSource = options.thumbnailSource && typeof options.thumbnailSource === "object"
+    ? options.thumbnailSource
+    : course;
+  const resourceModules = Array.isArray(thumbnailSource.modules) ? thumbnailSource.modules : modules;
   const videosById = new Map();
-  for (const module of modules) {
+  const videoResources = [];
+  for (const module of resourceModules) {
     for (const lesson of module.lessons || []) {
-      for (const video of lesson.tutorial?.videos || []) {
+      const tutorialVideos = lesson.tutorial?.videos || [];
+      const projectVideos = lesson.project?.videos || [];
+      for (const video of [...tutorialVideos, ...projectVideos]) {
+        if (video && typeof video === "object") videoResources.push(video);
+      }
+      for (const video of tutorialVideos) {
         const key = String(video.videoId || video.url || video.title || "");
         if (key && !videosById.has(key)) videosById.set(key, video);
       }
     }
   }
-  const snapshotModules = Array.isArray(course.generation?.snapshot?.modules) ? course.generation.snapshot.modules : [];
+  const snapshot = thumbnailSource.generation?.snapshot || course.generation?.snapshot;
+  const snapshotModules = Array.isArray(snapshot?.modules) ? snapshot.modules : [];
   const selectedResources = snapshotModules.map((module) => module?.course).filter(Boolean);
 
   // Expose only aggregate public metadata. Do not return the underlying YouTube
   // resource records from this public projection.
   const youtubeVideoDurations = new Map();
-  for (const module of modules) {
+  for (const module of resourceModules) {
     for (const lesson of module.lessons || []) {
       for (const video of [
         ...(lesson.tutorial?.videos || []),
@@ -98,7 +130,7 @@ export function toPublicCoursePreview(course) {
     .filter(Boolean));
   const videoCount = Math.max(videosById.size, selectedVideoKeys.size);
   const channelNames = [...new Set([
-    ...[...videosById.values()].map((video) => String(video.channelTitle || "").trim()),
+    ...videoResources.map((video) => String(video.channelTitle || "").trim()),
     ...selectedResources.map((video) => String(video.channelTitle || "").trim())
   ].filter(Boolean))];
   const scoredResources = selectedResources.filter((resource) => Number.isFinite(Number(resource.score)) && Number(resource.score) > 0);
@@ -115,10 +147,10 @@ export function toPublicCoursePreview(course) {
       : sourceResourceType === "playlist" || sourceResourceType === "series" || videoCount > 1
         ? "Playlist"
         : "Course";
-  const allResources = [...selectedResources, ...videosById.values()];
-  const firstPreviewVideoId = String(
-    allResources.find((resource) => /^[a-zA-Z0-9_-]{11}$/.test(String(resource.videoId || "")))?.videoId || ""
-  );
+  const allResources = [...selectedResources, ...videoResources];
+  const firstPreviewResource = allResources.find((resource) => getYouTubeVideoId(resource));
+  const firstPreviewVideoId = firstPreviewResource ? getYouTubeVideoId(firstPreviewResource) : "";
+  const previewThumbnailUrl = firstPreviewResource ? getPreviewThumbnailUrl(firstPreviewResource) : "";
   const firstCreatorResource = allResources.find((resource) =>
     String(resource.channelTitle || "").trim() && (String(resource.channelUrl || resource.channel_url || "").trim() || String(resource.channelId || "").trim())
   );
@@ -133,6 +165,7 @@ export function toPublicCoursePreview(course) {
     youtubeVideoCount: youtubeVideoDurations.size,
     youtubeRuntimeSeconds,
     ...(firstPreviewVideoId ? { previewVideoId: firstPreviewVideoId } : {}),
+    ...(previewThumbnailUrl ? { previewThumbnailUrl } : {}),
     ...(qualityScore !== null ? { qualityScore } : {}),
     ...(viewCount > 0 ? { viewCount } : {}),
     ...(likeCount > 0 ? { likeCount } : {})

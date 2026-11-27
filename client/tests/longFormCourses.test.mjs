@@ -94,3 +94,18 @@ test("course cards use module count from the public list projection", () => {
   }));
   assert.equal(selected.moduleCount, 6);
 });
+
+
+test("showcase preserves the designated YouTube preview thumbnail metadata", () => {
+  const selected = toLongFormCourseCard(course({
+    cardMetadata: {
+      youtubeRuntimeSeconds: 20 * 60 * 60,
+      previewVideoId: "dQw4w9WgXcQ",
+      previewThumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+    },
+    thumbnail: ""
+  }));
+  assert.equal(selected.thumbnailUrl, null);
+  assert.equal(selected.previewVideoId, "dQw4w9WgXcQ");
+  assert.equal(selected.previewThumbnailUrl, "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+});

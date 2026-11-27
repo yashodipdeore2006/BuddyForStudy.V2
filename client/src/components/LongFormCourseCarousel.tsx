@@ -56,6 +56,11 @@ function LongFormCourseLink({
           domain: course.domain,
           tags: course.tags,
           level: course.level,
+          thumbnail: course.thumbnailUrl,
+          cardMetadata: {
+            previewThumbnailUrl: course.previewThumbnailUrl,
+            previewVideoId: course.previewVideoId,
+          },
           modules: course.modules,
           learning_outcomes: course.learning_outcomes,
         })} />

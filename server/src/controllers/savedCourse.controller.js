@@ -3,7 +3,7 @@ import { Course } from "../models/Course.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 
-const courseSelect = "title slug description category domain tags level duration thumbnail isPublished pricing learningOutcomes modules.title";
+const courseSelect = "title slug description category domain tags level duration thumbnail isPublished pricing learningOutcomes modules.title modules.lessons.tutorial.videos.videoId modules.lessons.tutorial.videos.url modules.lessons.tutorial.videos.thumbnail modules.lessons.project.videos.videoId modules.lessons.project.videos.url modules.lessons.project.videos.thumbnail generation.snapshot.modules.course.videoId generation.snapshot.modules.course.url generation.snapshot.modules.course.thumbnail";
 
 export async function mine(req, res, next) {
   try {

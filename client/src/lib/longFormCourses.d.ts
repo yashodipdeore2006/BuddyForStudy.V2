@@ -12,6 +12,8 @@ export interface LongFormCourseCard {
   durationLabel: string;
   moduleCount: number;
   thumbnailUrl: string | null;
+  previewThumbnailUrl: string | null;
+  previewVideoId: string | null;
 }
 
 export declare function formatCourseRuntime(seconds: number): string;

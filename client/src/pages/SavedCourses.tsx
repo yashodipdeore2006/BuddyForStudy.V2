@@ -21,7 +21,18 @@ type Saved = {
     domain?: string | null;
     tags?: string[];
     learningOutcomes?: string[];
-    modules?: Array<{ title?: string }>;
+    modules?: Array<{
+      title?: string;
+      lessons?: Array<{
+        tutorial?: { videos?: Array<{ videoId?: string; url?: string; thumbnail?: string }> };
+        project?: { videos?: Array<{ videoId?: string; url?: string; thumbnail?: string }> };
+      }>;
+    }>;
+    generation?: {
+      snapshot?: {
+        modules?: Array<{ course?: { videoId?: string; url?: string; thumbnail?: string } }>;
+      };
+    };
     level: string;
     duration: string;
     thumbnail?: string;

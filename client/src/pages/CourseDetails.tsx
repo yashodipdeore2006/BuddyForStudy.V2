@@ -57,6 +57,10 @@ type RelatedCourseCard = {
   id: string;
   title: string;
   category: string;
+  domain?: string | null;
+  tags?: unknown;
+  learning_outcomes?: unknown;
+  modules?: unknown;
   description: string;
   duration: string;
   pricing?: Course['pricing'];
@@ -248,6 +252,10 @@ export default function CourseDetails() {
           id: String(raw?._id ?? raw?.id ?? ''),
           title: String(raw?.title ?? ''),
           category: String(raw?.category ?? ''),
+          domain: typeof raw?.domain === "string" ? raw.domain : null,
+          tags: Array.isArray(raw?.tags) ? raw.tags : [],
+          learning_outcomes: raw?.learningOutcomes ?? raw?.learning_outcomes,
+          modules: raw?.modules,
           description: String(raw?.description ?? ''),
           duration: String(raw?.duration ?? ''),
           thumbnail: raw?.thumbnail || null,

@@ -762,7 +762,7 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 }
 .bfs-course-results-grid > * { min-width: 0; }
 .bfs-course-card { min-width: 0; }
-.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+.bfs-course-card__media { height: 168px; min-height: 168px; }
 @media (min-width: 1500px) {
   .bfs-course-results-grid { grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); }
 }
@@ -794,7 +794,7 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 }
 .bfs-course-grid > * { min-width: 0; }
 .bfs-course-card { min-width: 0; }
-.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+.bfs-course-card__media { height: 168px; min-height: 168px; }
 @media (max-width: 520px) {
   .bfs-shell { padding-inline: 12px; }
   .bfs-course-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }

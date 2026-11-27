@@ -149,7 +149,6 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [privacyError, setPrivacyError] = useState("");
   const [privacyMessage, setPrivacyMessage] = useState("");
 
-
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [savingNotifs, setSavingNotifs] = useState(false);
@@ -297,8 +296,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       try {
         const data = await apiFetch("/api/notifications/preferences");
         if (cancelled) return;
-        setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data.preferences || {}) });
-        setPushAvailable(Boolean(data.pushAvailable));
+        setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data.preferences || {}) });        setPushAvailable(Boolean(data.pushAvailable));
       } catch (error) {
         if (!cancelled) setNotifError(error instanceof Error ? error.message : "Unable to load notification preferences.");
       } finally {
@@ -447,8 +445,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     try {
       const result = await apiFetch<{ token?: string; user?: unknown }>("/api/auth/change-password", {
         method: "POST",
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
+        body: JSON.stringify({ currentPassword, newPassword }),      });
       // Password changes invalidate previously issued tokens; keep this browser signed in
       // with the newly issued token for the rotated account version.
       if (typeof result.token === "string" && result.user) {
@@ -564,11 +561,13 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       {!embedded && <PageHeader title="Settings" subtitle="Personalize BuddyForStudy, protect your account, and control how we contact you." />}
       {!embedded && <nav aria-label="Settings sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
         <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-transparent px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-violet-100 hover:bg-violet-50 hover:text-violet-800"><UserRound className="h-4 w-4" />Account</a>
-        <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
-        <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
-        <a href="#privacy-consent" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Privacy & consent</a>
+        <a href="#contact-details" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Contact details</a>
         <a href="#learning-goals" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Target className="h-4 w-4" />Learning goals</a>
+        <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
         <a href="#notifications" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Bell className="h-4 w-4" />Notifications</a>
+        <a href="#privacy-consent" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Privacy & consent</a>
+        <a href="#data-rights" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><FileText className="h-4 w-4" />Data rights</a>
+        <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
         <a href={routes.billing()} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
       </nav>}
       <section id="account" className={embedded ? "grid gap-5" : "mt-8 scroll-mt-28 grid gap-5"}>
@@ -578,27 +577,6 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div>
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div>
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div>
-          </div>
-          <div className="mt-5 border-t border-slate-100 pt-5">
-            <div className="flex items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">Contact & learning details</h3><p className="mt-1 text-xs text-slate-500">Optional details used to personalize your learning experience.</p></div>
-              <button type="button" onClick={() => setEditingPersonalInfo((value) => !value)} aria-expanded={editingPersonalInfo} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 px-3.5 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-50">{editingPersonalInfo ? <><X className="h-4 w-4" />Cancel</> : <><Pencil className="h-4 w-4" />Edit</>}</button>
-            </div>
-            {contactError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{contactError}</p>}
-            {contactSuccess && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">Personal information saved.</p>}
-            {editingPersonalInfo ? (
-              <form onSubmit={saveContactDetails} className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-semibold text-slate-700">Contact number <span className="font-normal text-slate-400">(optional)</span><input type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={32} className="input-field mt-1.5" placeholder="+91 98765 43210" /></label>
-                <label className="block text-sm font-semibold text-slate-700">City <span className="font-normal text-slate-400">(optional)</span><input value={contactCity} onChange={(event) => setContactCity(event.target.value)} maxLength={100} autoComplete="address-level2" className="input-field mt-1.5" placeholder="Your city" /></label>
-                <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">Learning goal <span className="font-normal text-slate-400">(optional)</span><input value={contactLearningGoal} onChange={(event) => setContactLearningGoal(event.target.value)} maxLength={240} className="input-field mt-1.5" placeholder="e.g. Become a backend developer" /></label>
-                <div className="sm:col-span-2 flex justify-end"><button type="submit" disabled={savingContact} className="btn-primary">{savingContact ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Save personal information"}</button></div>
-              </form>
-            ) : (
-              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl bg-slate-50 p-3.5"><dt className="text-xs font-medium text-slate-500">Contact number</dt><dd className="mt-1 break-words font-semibold text-slate-900">{contactPhone || "Not added"}</dd></div>
-                <div className="rounded-xl bg-slate-50 p-3.5"><dt className="text-xs font-medium text-slate-500">City</dt><dd className="mt-1 font-semibold text-slate-900">{contactCity || "Not added"}</dd></div>
-                <div className="rounded-xl bg-slate-50 p-3.5 sm:col-span-2"><dt className="text-xs font-medium text-slate-500">Learning goal</dt><dd className="mt-1 font-semibold text-slate-900">{contactLearningGoal || "Not added"}</dd></div>
-              </dl>
-            )}
           </div>
         </div>}
         <div id="appearance" className="scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose how the interface looks on this browser.</p></div></div><div className="mt-5 grid grid-cols-3 gap-3">{(["light", "dark", "system"] as const).map((mode) => <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => setTheme(mode)} className={theme === mode ? "rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-left text-[var(--text)]" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}>{mode === "light" ? <Sun className="h-5 w-5" /> : mode === "dark" ? <Moon className="h-5 w-5" /> : <Activity className="h-5 w-5" />}<span className="mt-3 block text-sm font-bold">{mode === "system" ? "System" : mode[0].toUpperCase() + mode.slice(1)}</span></button>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Theme preference is saved in this browser.</p></div>
@@ -747,8 +725,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
                   <p className="mt-1 text-xs leading-5 text-slate-500">Receive important learning updates on this browser when browser permission and your account preference are enabled.</p>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
-                <div className="min-w-0 flex-1">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-slate-900">Browser push notifications</p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
                     {pushActiveOnThisBrowser
@@ -841,6 +818,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
           <a href="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Privacy policy</a>
           <a href="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Terms of service</a>
         </div>
+      </section>
 
       <section id="data-rights" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
         <div className="flex items-start gap-3">
@@ -897,8 +875,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
             <textarea
               value={privacyDescription}
               onChange={(event) => setPrivacyDescription(event.target.value)}
-              minLength={10}
-              maxLength={1500}
+              minLength={10}              maxLength={1500}
               rows={4}
               required
               className="input-field mt-1.5"
@@ -945,7 +922,6 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
             <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">You have not submitted a privacy request.</p>
           )}
         </div>
-      </section>
       </section>
     </div>
   );

@@ -137,7 +137,12 @@ export function toPublicSiteSettings(record) {
   };
 }
 
-function cleanBrandText(value, fallback, maxLength) {\n  const text = cleanText(value, fallback, maxLength);\n  return /^\\[ADD:/i.test(text) ? fallback : text;\n}\n\nfunction cleanText(value, fallback, maxLength) {
+function cleanBrandText(value, fallback, maxLength) {
+  const text = cleanText(value, fallback, maxLength);
+  return /^\[ADD:/i.test(text) ? fallback : text;
+}
+
+function cleanText(value, fallback, maxLength) {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, maxLength);
 }

@@ -16,7 +16,7 @@ test("course thumbnails enforce the fixed layout, safe zones, and bounded metada
   assert.match(thumbnail, /pr-12/);
   assert.match(thumbnail, /pb-10/);
   assert.match(thumbnail, /skills\.slice\(0, 2\)/);
-  assert.match(thumbnail, /text-\[15px\].*font-bold.*leading-\[1\.28\].*text-slate-50.*line-clamp-2/);
+  assert.match(thumbnail, /line-clamp-2.*text-\[15px\].*font-bold.*leading-\[1\.28\].*text-slate-50/);
   for (const variant of ["node-circuit", "terminal-matrix", "bento-tile", "isometric-stack", "kinetic-mesh"]) {
     assert.ok(thumbnail.includes(variant), "missing thumbnail variant: " + variant);
   }

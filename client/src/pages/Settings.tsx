@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch, setAuth } from "@/lib/api";
@@ -558,16 +558,25 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   return (
     <div className={embedded ? "space-y-8" : "mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"}>
       {!embedded && <PageHeader title="Settings" subtitle="Personalize BuddyForStudy, protect your account, and control how we contact you." />}
-      {!embedded && <nav aria-label="Settings sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
-        <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-transparent px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-violet-100 hover:bg-violet-50 hover:text-violet-800"><UserRound className="h-4 w-4" />Account</a>
-        <a href="#contact-details" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Contact details</a>
-        <a href="#learning-goals" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Target className="h-4 w-4" />Learning goals</a>
-        <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
-        <a href="#notifications" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Bell className="h-4 w-4" />Notifications</a>
-        <a href="#privacy-consent" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Privacy & consent</a>
-        <a href="#data-rights" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><FileText className="h-4 w-4" />Data rights</a>
-        <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
-        <a href={routes.billing()} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
+      {!embedded && <nav aria-label="Settings sections" className="sticky top-3 z-20 mt-6 flex gap-3 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
+        <div role="group" aria-label="Account preferences" className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-50 p-1">
+          <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Account</span>
+          <a href="#account" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Profile</a>
+          <a href="#contact-details" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Contact</a>
+          <a href="#learning-goals" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Learning goal</a>
+          <a href="#appearance" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Appearance</a>
+        </div>
+        <div role="group" aria-label="Security and communication" className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-50 p-1">
+          <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Security</span>
+          <a href="#security" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Password</a>
+          <a href="#notifications" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Notifications</a>
+        </div>
+        <div role="group" aria-label="Privacy controls" className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-50 p-1">
+          <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Privacy</span>
+          <a href="#privacy-consent" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Consent</a>
+          <a href="#data-rights" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Data rights</a>
+        </div>
+        <Link to={routes.billing()} className="inline-flex shrink-0 items-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-100">Purchases & payments</Link>
       </nav>}
       <section id="account" className={embedded ? "grid gap-5" : "mt-8 scroll-mt-28 grid gap-5"}>
         {!embedded && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7">

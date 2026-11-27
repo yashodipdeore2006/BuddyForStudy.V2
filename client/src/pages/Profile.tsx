@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import {
-  ArrowUpRight, Award, BookOpen, CheckCircle2, Flame, Loader2,
+  ArrowUpRight, Award, BookOpen, CheckCircle2, CreditCard, Flame, Loader2,
   Settings2, Target, Trophy
 } from "lucide-react";
 
@@ -65,7 +65,7 @@ export default function Profile() {
 
   if (!profile) return null;
 
-  const initials = profile.name.trim().split(/\\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "B";
+  const initials = profile.name.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "B";
   const activeCourses = enrollments.filter((item) => ["active", "completed"].includes(String(item.status || "").toLowerCase())).length;
   const completedCourses = enrollments.filter((item) => String(item.status || "").toLowerCase() === "completed").length;
   const achievements = Array.isArray(stats?.achievements) ? stats.achievements : [];
@@ -91,9 +91,14 @@ export default function Profile() {
               <p className="mt-2 break-all text-sm text-slate-300">{session?.user.email || "Email unavailable"}</p>
               <p className="mt-1 text-xs text-slate-300">{profile.role === "admin" ? "Administrator account" : "BuddyForStudy learner"}</p>
             </div>
-            <Link to={routes.settings()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15">
-              <Settings2 className="h-4 w-4" /> Account settings
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link to={routes.settings()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15">
+                <Settings2 className="h-4 w-4" /> Account settings
+              </Link>
+              <Link to={routes.billing()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15">
+                <CreditCard className="h-4 w-4" /> Purchases & payments
+              </Link>
+            </div>
           </div>
         </div>
 

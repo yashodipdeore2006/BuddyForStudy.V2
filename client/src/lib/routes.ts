@@ -43,6 +43,7 @@ export const routes = {
   forgotPassword: () => "/forgot-password",
   pricing: () => "/pricing",
   billing: () => "/billing",
+  paymentDetails: (paymentId: string) => `/billing/transactions/${encodeRouteSegment(paymentId, "payment id")}`,
   notifications: () => "/notifications",
   profile: () => "/profile",
   settings: () => "/settings",

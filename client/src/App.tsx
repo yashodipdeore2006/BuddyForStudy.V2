@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import FeatureUpgradeModal from '@/components/FeatureUpgradeModal';
+import AuthPromptHost from '@/components/AuthPromptHost';
 import CookieConsentManager from "@/components/CookieConsentManager";
 import AccountConsentGate from "@/components/AccountConsentGate";
 import PushNotificationPrompt from "@/components/PushNotificationPrompt";
@@ -70,7 +71,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
-  return <div className="flex min-h-screen flex-col"><PublicCanonicalUrl />{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><CookieConsentManager /><AccountConsentGate /><PushNotificationPrompt /><TrialCampaignOfferPrompt /></div>;
+  return <div className="flex min-h-screen flex-col"><PublicCanonicalUrl />{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><AuthPromptHost /><CookieConsentManager /><AccountConsentGate /><PushNotificationPrompt /><TrialCampaignOfferPrompt /></div>;
 }
 
 function AdminPage({ children }: { children: React.ReactNode }) {

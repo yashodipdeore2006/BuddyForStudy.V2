@@ -30,6 +30,8 @@ function mapCourse(raw: RawDashboardCourse): Course {
     slug: raw.slug,
     description: raw.description,
     category: raw.category,
+    domain: raw.domain ?? null,
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
     level: raw.level,
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,

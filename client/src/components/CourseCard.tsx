@@ -289,7 +289,7 @@ function CourseCardContent({
 
       <div className="bfs-course-card__media">
         <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={thumbnailLinkLabel} tabIndex={-1}>
-          <CourseThumbnail {...thumbnailProps} />
+          <CourseThumbnail {...getCourseThumbnailProps(course)} />
         </Link>
         <button
           type="button"

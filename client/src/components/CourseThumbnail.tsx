@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 export type ThumbnailVariant = "node-circuit" | "terminal-matrix" | "bento-tile" | "isometric-stack" | "kinetic-mesh";
 
@@ -39,9 +39,8 @@ export default function CourseThumbnail({
   const seed = useMemo(() => hashString(identity || title), [identity, title]);
   const visibleSkills = skills.slice(0, 2);
   const offset = (seed % 18) - 9;
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [imageUrl]);
-  const showOriginalImage = Boolean(imageUrl) && !imageFailed;
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const showOriginalImage = Boolean(imageUrl) && failedImageUrl !== imageUrl;
 
   return (
     <div
@@ -59,7 +58,7 @@ export default function CourseThumbnail({
           draggable={false}
           decoding="async"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedImageUrl(imageUrl || null)}
         />
       ) : (
         <>

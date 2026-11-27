@@ -61,7 +61,7 @@ test("original course and YouTube thumbnails take precedence over generated artw
   assert.match(thumbnail, /imageUrl\?: string/);
   assert.match(thumbnail, /showOriginalImage \? \(/);
   assert.match(thumbnail, /object-cover/);
-  assert.match(thumbnail, /onError=\{\(\) => setImageFailed\(true\)\}/);
+  assert.match(thumbnail, /onError=\{\(\) => setFailedImageUrl\(imageUrl \|\| null\)\}/);
   assert.match(resolver, /courseImage \|\| metadataPreviewImage \|\| primaryVideoImage \|\| previewVideoFallback/);
   assert.match(resolver, /https:\/\/i\.ytimg\.com\/vi\//);
   assert.match(resolver, /export function getYouTubeVideoThumbnailUrl/);

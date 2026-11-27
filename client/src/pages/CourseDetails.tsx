@@ -1359,7 +1359,7 @@ export default function CourseDetails() {
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
             <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
-              <button type="button" onClick={() => setPreviewOpen(true)} aria-label={previewVideoId ? 'Preview this course: Play course preview' : 'Video preview unavailable: View course preview information'} className="group relative block h-[168px] w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
+              <button type="button" onClick={() => setPreviewOpen(true)} className="group relative block h-[168px] w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
                 <div className="absolute inset-0">
                   <CourseThumbnail {...getCourseThumbnailProps(course)} />
                 </div>

@@ -11,6 +11,8 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
+import { requestAuthPrompt } from "@/lib/authPrompt";
+import { readAuthNavigationState } from "@/lib/authNavigation";
 import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 import { getRoadmapDurationSummary } from "@/lib/roadmapDuration.js";
 import { appendUniqueCourses, hasMoreCoursePages } from "@/lib/courseCatalogPagination.js";
@@ -494,6 +496,15 @@ export default function Courses() {
   const [aiCourseDepth, setAiCourseDepth] = useState<"short" | "medium" | "complete">("complete");
   const [aiResourceLanguages, setAiResourceLanguages] = useState<string[]>(["en", "hi"]);
 
+  useEffect(() => {
+    const resumeContext = readAuthNavigationState(location.state).resumeContext;
+    if (resumeContext?.type !== "ai-roadmap") return;
+    setAiTopic(resumeContext.topic);
+    if (resumeContext.resourceLanguages.length) {
+      setAiResourceLanguages(resumeContext.resourceLanguages);
+    }
+  }, [location.state]);
+
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
@@ -906,7 +917,16 @@ export default function Courses() {
       return;
     }
     if (!session) {
-      setAiError('Sign in to generate a personalized AI roadmap.');
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to build your AI roadmap",
+        description: "Create a free account or sign in to personalize and generate a roadmap. Your topic and language preferences will be preserved.",
+        resumeContext: {
+          type: "ai-roadmap",
+          topic: query,
+          resourceLanguages: aiResourceLanguages,
+        },
+      });
       return;
     }
     setIntentLoading(true);
@@ -1122,7 +1142,16 @@ export default function Courses() {
       return;
     }
     if (!session) {
-      setAiError("Sign in to generate a personalized AI roadmap.");
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to generate your AI roadmap",
+        description: "Your topic and language preferences will be preserved. After signing in, you can review and start generation yourself.",
+        resumeContext: {
+          type: "ai-roadmap",
+          topic,
+          resourceLanguages: aiResourceLanguages,
+        },
+      });
       return;
     }
     const selectedLanguages = [...new Set(aiResourceLanguages.filter((code) =>

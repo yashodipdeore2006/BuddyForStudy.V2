@@ -575,6 +575,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
           <span className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Privacy</span>
           <a href="#privacy-consent" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Consent</a>
           <a href="#data-rights" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Data rights</a>
+          <a href="#account-deletion" className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-violet-800">Account deletion</a>
         </div>
         <Link to={routes.billing()} className="inline-flex shrink-0 items-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-100">Purchases & payments</Link>
       </nav>}
@@ -853,7 +854,18 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
           <p className="mt-3 text-xs leading-5 text-amber-800">Coverage note: this export is a partial repository inventory. It does not include lesson notes kept only in this browser, provider-side records, infrastructure logs or backups. Check the file’s known limitations before relying on it as a complete archive.</p>
         </div>
 
-        <form onSubmit={submitPrivacyRequest} className="mt-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
+        <div id="account-deletion" className="mt-5 scroll-mt-28 rounded-2xl border border-rose-200 bg-rose-50/60 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900">Account deletion</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">You can request account deletion here. This is a reviewed privacy request, not an instant account-removal action. Identity checks and legal or financial record-retention requirements may apply.</p>
+              <a href="#data-rights-request" className="mt-3 inline-flex text-sm font-bold text-rose-800 underline underline-offset-2">Go to privacy request form</a>
+            </div>
+          </div>
+        </div>
+
+        <form id="data-rights-request" onSubmit={submitPrivacyRequest} className="mt-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
           <h3 className="text-sm font-bold text-slate-900">Submit a privacy request</h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">Requests are linked to your authenticated account. The team may need to verify your identity and review legal or financial retention obligations.</p>
           <label className="mt-4 block text-sm font-semibold text-slate-700">Request type

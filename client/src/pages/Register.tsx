@@ -38,7 +38,7 @@ export default function Register() {
 
   const handleGoogle = async (credential: string) => {
     // Keep users with a protected destination or resumable action on that destination.
-    googleProfileRedirect.current = !authFlow.resumeIntent && !authFlow.resumeContext;
+    googleProfileRedirect.current = !authFlow.from && !authFlow.resumeIntent && !authFlow.resumeContext;
     setError(null);
     setLoading(true);
     try {

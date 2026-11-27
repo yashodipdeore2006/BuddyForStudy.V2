@@ -99,6 +99,14 @@ export function toLongFormCourseCard(course) {
     id,
     title,
     domainTag: getDomainTag(course),
+    domain: String(course.domain || getDomainTag(course)),
+    category: String(course.category || getDomainTag(course)),
+    tags: Array.isArray(course.tags) ? course.tags.filter((tag) => typeof tag === "string") : [],
+    level: String(course.level || "Intermediate"),
+    learning_outcomes: Array.isArray(course.learningOutcomes ?? course.learning_outcomes)
+      ? (course.learningOutcomes ?? course.learning_outcomes)
+      : [],
+    modules,
     durationSeconds: Math.round(runtimeSeconds),
     durationLabel: formatCourseRuntime(runtimeSeconds),
     moduleCount,

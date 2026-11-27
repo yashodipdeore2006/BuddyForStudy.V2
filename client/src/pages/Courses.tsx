@@ -316,8 +316,11 @@ export default function Courses() {
   const [totalCourseCount, setTotalCourseCount] = useState(initialSnapshot?.totalCourseCount ?? initialSnapshot?.courses.length ?? 0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState("");
+  const [catalogRevalidating, setCatalogRevalidating] = useState(Boolean(initialSnapshot));
   const catalogSentinelRef = useRef<HTMLDivElement>(null);
   const catalogGenerationRef = useRef(0);
+  const preserveInitialSnapshotRef = useRef(Boolean(initialSnapshot));
+  const preserveCurrentResultsRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const initialCatalogState = readCatalogUrlState(location.search);
   const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
@@ -345,6 +348,7 @@ export default function Courses() {
       // The Explore component may be retained while another route is shown. A
       // popstate event still signals a history return even when it is not remounted.
       hasInitialSnapshot.current = true;
+      preserveCurrentResultsRef.current = true;
       setCatalogRetryKey((current) => current + 1);
     };
     const revalidateOnPageRestore = (event: PageTransitionEvent) => {
@@ -352,6 +356,7 @@ export default function Courses() {
       // A document restored from the back/forward cache resumes its previous React
       // tree, so explicitly refresh the public catalogue after the browser restores it.
       hasInitialSnapshot.current = true;
+      preserveCurrentResultsRef.current = true;
       setCatalogRetryKey((current) => current + 1);
     };
     window.addEventListener("popstate", revalidateOnHistoryReturn);
@@ -577,32 +582,34 @@ export default function Courses() {
   }, [session]);
 
   useEffect(() => {
-    // A fresh history entry can reuse its short-lived Explore snapshot, including
-    // its scroll position and next page. Back/forward-cache restores still revalidate.
-    if (hasRestorableSnapshot && catalogRetryKey === 0) {
-      hasInitialSnapshot.current = false;
-      setLoading(false);
-      return;
-    }
+    // A valid session snapshot renders immediately, while page one is refreshed
+    // in the background. Keep cached results visible until the request settles.
+    const preserveCachedResults =
+      preserveInitialSnapshotRef.current || preserveCurrentResultsRef.current;
+    preserveInitialSnapshotRef.current = false;
+    preserveCurrentResultsRef.current = false;
 
     let active = true;
     const generation = ++catalogGenerationRef.current;
     loadingMoreRef.current = false;
     setLoadingMore(false);
     setLoadMoreError("");
-    setLoading(true);
-    setCourses([]);
-    setTotalCourseCount(0);
-    setNextCatalogPage(1);
-    setHasMoreCourses(true);
+    setCatalogRevalidating(preserveCachedResults);
+    setLoading(!preserveCachedResults);
+
+    if (!preserveCachedResults) {
+      setCourses([]);
+      setTotalCourseCount(0);
+      setNextCatalogPage(1);
+      setHasMoreCourses(true);
+      setYoutubeDiscovery(null);
+      setYoutubePlaylistsLoading(false);
+      setYoutubePlaylistError("");
+    }
 
     async function fetchFirstCoursePage() {
       try {
         setCatalogError("");
-        setYoutubeDiscovery(null);
-        setYoutubePlaylistsLoading(false);
-        setYoutubePlaylistError("");
-
         const params = new URLSearchParams({
           page: "1",
           limit: String(CATALOG_PAGE_SIZE),
@@ -632,14 +639,13 @@ export default function Courses() {
         const total = Number(response.pagination?.total);
         setTotalCourseCount(Number.isFinite(total) ? Math.max(0, total) : batch.length);
 
+        setYoutubeDiscovery(response.discovery || null);
+        setYoutubePlaylistError(String(response.discovery?.youtubeError || ""));
+        setYoutubePlaylistsLoading(false);
+
         if (response.discovery) {
           const discovery = response.discovery;
-          setYoutubeDiscovery(discovery);
-          setYoutubePlaylistError(String(discovery.youtubeError || ""));
-
           if (Array.isArray(discovery.curatedResources)) {
-            // The curation engine returns one ranked video/playlist/series list.
-            // Do not run the legacy playlist fetch and reintroduce duplicate categories.
             setYoutubePlaylistsLoading(false);
           } else {
             setYoutubePlaylistsLoading(true);
@@ -668,11 +674,12 @@ export default function Courses() {
       } catch (error) {
         if (!active || generation !== catalogGenerationRef.current) return;
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
-        setHasMoreCourses(false);
+        if (!preserveCachedResults) setHasMoreCourses(false);
       } finally {
         if (active && generation === catalogGenerationRef.current) {
           hasInitialSnapshot.current = false;
           setLoading(false);
+          setCatalogRevalidating(false);
         }
       }
     }
@@ -685,7 +692,7 @@ export default function Courses() {
   }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey, navigationType, hasRestorableSnapshot]);
 
   const loadMoreCourses = useCallback(async () => {
-    if (loadingMoreRef.current || loading || !hasMoreCourses || catalogError) return;
+    if (loadingMoreRef.current || loading || catalogRevalidating || !hasMoreCourses || catalogError) return;
     const generation = catalogGenerationRef.current;
     const page = nextCatalogPage;
     loadingMoreRef.current = true;
@@ -726,6 +733,7 @@ export default function Courses() {
     }
   }, [
     loading,
+    catalogRevalidating,
     hasMoreCourses,
     catalogError,
     nextCatalogPage,
@@ -738,7 +746,7 @@ export default function Courses() {
 
   useEffect(() => {
     const sentinel = catalogSentinelRef.current;
-    if (!sentinel || loading || loadingMore || !hasMoreCourses || catalogError || loadMoreError) return;
+    if (!sentinel || loading || loadingMore || catalogRevalidating || !hasMoreCourses || catalogError || loadMoreError) return;
     if (typeof IntersectionObserver === "undefined") {
       const checkSentinel = () => {
         if (sentinel.getBoundingClientRect().top <= window.innerHeight + 700) void loadMoreCourses();
@@ -761,7 +769,7 @@ export default function Courses() {
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loading, loadingMore, hasMoreCourses, catalogError, loadMoreError, loadMoreCourses]);
+  }, [loading, loadingMore, catalogRevalidating, hasMoreCourses, catalogError, loadMoreError, loadMoreCourses]);
 
   useEffect(() => {
     let active = true;

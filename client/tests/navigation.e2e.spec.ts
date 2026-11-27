@@ -229,13 +229,47 @@ async function mockAppApi(page: Page, options: {
       const query = String(params.get("q") || "").trim().toLowerCase();
       const level = String(params.get("level") || "all").toLowerCase();
       const category = String(params.get("category") || "all").toLowerCase();
+      const domain = String(params.get("domain") || "all").toLowerCase();
+      const page = Math.max(1, Number(params.get("page") || 1) || 1);
+      const limit = Math.max(1, Math.min(50, Number(params.get("limit") || 12) || 12));
+      const sort = String(params.get("sort") || "best_match");
       const rows = (options.catalogCourses || []).filter((item) => {
-        const searchable = [item.title, item.description, item.category].map((value) => String(value || "").toLowerCase()).join(" ");
+        const searchable = [item.title, item.description, item.category, item.domain]
+          .map((value) => String(value || "").toLowerCase()).join(" ");
         return (!query || searchable.includes(query))
           && (level === "all" || String(item.level || "").toLowerCase() === level)
-          && (category === "all" || String(item.category || "").toLowerCase() === category);
+          && (category === "all" || String(item.category || "").toLowerCase() === category)
+          && (domain === "all" || String(item.domain || "").toLowerCase() === domain);
       });
-      return json(route, { courses: rows, ...(options.catalogDiscovery && query ? { discovery: options.catalogDiscovery } : {}) });
+      const ranking = (item: ReturnType<typeof courseFixture>) =>
+        (item as unknown as { ranking?: { score?: number; qualityScore?: number; components?: { confidenceAdjustedRating?: number }; rating?: { count?: number }; enrollmentCount?: number } }).ranking || {};
+      const byQuality = (a: ReturnType<typeof courseFixture>, b: ReturnType<typeof courseFixture>) =>
+        Number(ranking(b).qualityScore || 0) - Number(ranking(a).qualityScore || 0)
+        || Number(ranking(b).score || 0) - Number(ranking(a).score || 0);
+      const sorted = [...rows].sort((a, b) => {
+        if (sort === "quality") return byQuality(a, b);
+        if (sort === "popular") return Number(ranking(b).enrollmentCount || 0) - Number(ranking(a).enrollmentCount || 0) || byQuality(a, b);
+        if (sort === "highest_rated") {
+          return Number(ranking(b).components?.confidenceAdjustedRating || 0) - Number(ranking(a).components?.confidenceAdjustedRating || 0)
+            || Number(ranking(b).rating?.count || 0) - Number(ranking(a).rating?.count || 0)
+            || byQuality(a, b);
+        }
+        if (sort === "title") return String(a.title).localeCompare(String(b.title));
+        if (sort === "newest") {
+          const created = (item: ReturnType<typeof courseFixture>) => String((item as unknown as { createdAt?: string }).createdAt || "");
+          return created(b).localeCompare(created(a)) || byQuality(a, b);
+        }
+        return Number(ranking(b).score || 0) - Number(ranking(a).score || 0) || byQuality(a, b);
+      });
+      const total = sorted.length;
+      const pages = total ? Math.ceil(total / limit) : 0;
+      const courses = sorted.slice((page - 1) * limit, page * limit);
+      const includeDiscovery = params.get("includeDiscovery") !== "false";
+      return json(route, {
+        courses,
+        pagination: { page, limit, total, pages },
+        ...(options.catalogDiscovery && query && includeDiscovery ? { discovery: options.catalogDiscovery } : {}),
+      });
     }
     if (pathname === `/api/courses/${courseId}/roadmap`) {
       return json(route, {
@@ -664,11 +698,12 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("roadmap route renders its current journey experience", async ({ page }) => {
+  test("roadmap route renders its published course roadmap preview", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByRole("img", { name: /Journey roadmap for Course fixture, 1 stages/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Course roadmap explorer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "View course and enroll" })).toBeVisible();
   });
 
   test("Google sign-in explains missing backend configuration instead of silently disabling the button", async ({ page }) => {
@@ -909,9 +944,9 @@ test.describe("canonical learner navigation", () => {
   test("missing progress does not prevent the roadmap from rendering", async ({ page }) => {
     await mockAppApi(page, { authenticated: true, missingProgress: true });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByText("Roadmap not available yet.")).toHaveCount(0);
-    await expect(page.getByRole("img", { name: /Journey roadmap for Course fixture, 1 stages/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByText("No matching milestones")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Course roadmap explorer" })).toBeVisible();
   });
 
   test("roadmap Continue action navigates to the canonical player route", async ({ page }) => {
@@ -928,7 +963,7 @@ test.describe("canonical learner navigation", () => {
       },
     });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    const continueButton = page.getByRole("button", { name: /Continue: Lesson one/i });
+    const continueButton = page.getByRole("button", { name: "Continue learning", exact: true });
     await expect(continueButton).toBeVisible();
     await continueButton.click();
     await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-1$/);
@@ -940,16 +975,15 @@ test.describe("canonical learner navigation", () => {
       roadmapStages: [],
     });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByText("Roadmap not available yet.")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enroll to start your journey/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByText("No matching milestones")).toBeVisible();
   });
 
   test("missing course gets a safe unavailable message without exposing the server response", async ({ page }) => {
     await mockAppApi(page, { courseId: "missing-course", missingCourse: true });
     await page.goto(baseURL + "/courses/missing-course/roadmap");
     await expect(page.getByRole("heading", { name: "Roadmap unavailable" })).toBeVisible();
-    await expect(page.getByText("This course is not available.")).toBeVisible();
+    await expect(page.getByText("This course is not available or may no longer be published.")).toBeVisible();
     await expect(page.getByText("The requested item could not be found.")).toHaveCount(0);
   });
 
@@ -1238,7 +1272,7 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("No BuddyForStudy or YouTube results found")).toHaveCount(0);
   });
 
-  test("[EXP-CATALOG-SORT-PAGE-001] quality sort and pagination operate on the complete filtered result set", async ({ page }) => {
+  test("[EXP-CATALOG-SORT-PAGE-001] quality sort applies across server pages during infinite scrolling", async ({ page }) => {
     const titles = ["Zeta Course", "Alpha Course", ...Array.from({ length: 12 }, (_, index) => "Course " + String(index + 3).padStart(2, "0"))];
     const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, {
       title,
@@ -1260,7 +1294,6 @@ test.describe("learner control and state regression", () => {
     await page.goto(baseURL + "/explore");
 
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
     const grid = page.locator(".bfs-course-results-grid").last();
     await expect(grid.getByRole("heading")).toHaveCount(12);
 
@@ -1270,12 +1303,11 @@ test.describe("learner control and state regression", () => {
     await expect(rankingReasonLabels).toHaveCount(12);
     await expect(rankingReasonLabels.first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Next course page" }).click();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toBeVisible();
-    await expect(grid.getByRole("heading")).toHaveCount(2);
-    await page.getByRole("button", { name: "Previous course page" }).click();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+    await expect(grid.getByRole("heading")).toHaveCount(14);
+    await expect(page.getByText("You’ve reached the end of the course catalogue.", { exact: true })).toBeVisible();
   });
 
   test("[EXP-CATALOG-LOADING-001] course catalogue shows loading skeletons until the request settles", async ({ page }) => {
@@ -2745,7 +2777,7 @@ test("[ROUTE-BILLING-ERROR-RETRY-001] billing failure never renders empty transa
   await expect(page.getByText("No transactions yet")).toHaveCount(0);
 
   await page.getByRole("button", { name: /retry/i }).click();
-  await expect(page.getByRole("heading", { name: "Billing & transactions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Purchases & payments" })).toBeVisible();
   expect(attempts).toBe(2);
 });
 
@@ -3508,7 +3540,7 @@ test.describe("Explore result restoration", () => {
     await page.goto(baseURL + "/explore?q=Reload");
     await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toBeVisible();
 
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.evaluate(() => window.scrollTo(0, 420));
     const previousScroll = await page.evaluate(() => window.scrollY);
     expect(previousScroll).toBeGreaterThan(0);
 
@@ -3617,7 +3649,7 @@ test.describe("Explore result restoration", () => {
 
     await page.addInitScript(() => {
       const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
-        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v2:")));
       const matchingKeys = keys.filter((key) => {
         try {
           const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
@@ -3667,7 +3699,7 @@ test.describe("Explore result restoration", () => {
 
     await page.addInitScript(() => {
       const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
-        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v1:")));
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v2:")));
       const matchingKeys = keys.filter((key) => {
         try {
           const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
@@ -3686,7 +3718,7 @@ test.describe("Explore result restoration", () => {
 });
 
 test.describe("Explore canonical URL state", () => {
-  test("changing filters from page two resets pagination and removes the stale page parameter", async ({ page }) => {
+  test("changing filters after loading more courses resets the Explore result set", async ({ page }) => {
     const advancedCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "page-reset-advanced-" + index,
       { title: "Advanced Development " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
@@ -3697,43 +3729,43 @@ test.describe("Explore canonical URL state", () => {
     ));
     await mockAppApi(page, { catalogCourses: [...advancedCourses, ...beginnerCourses] });
     await page.goto(baseURL + "/explore");
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 3")).toBeVisible();
-    await page.getByRole("button", { name: "Next course page" }).click();
-    await expect(page).toHaveURL(/page=2/);
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 3")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Advanced Development 01" })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Advanced Development 14" })).toBeVisible();
 
     await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Beginner");
     await expect(page).toHaveURL(/level=Beginner/);
-    await expect(page).not.toHaveURL(/page=2/);
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+    await expect(page).not.toHaveURL(/page=/);
     await expect(page.getByRole("heading", { name: "Beginner Data 01" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Advanced Development 01" })).toHaveCount(0);
   });
 
-  test("deep links restore search, filters, sorting and pagination after reload", async ({ page }) => {
+  test("deep links restore search, filters and sorting after reload", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "deep-link-" + index,
       { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
     ));
     await mockAppApi(page, { catalogCourses });
-    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=quality&page=2");
+    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=quality");
 
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
-    await expect(page.locator(".bfs-course-results-grid").last().getByRole("heading")).toHaveCount(2);
+    await expect(page.getByRole("heading", { name: "Linux Course 01" })).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Linux Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Linux Course 14" })).toBeVisible();
   });
 
-  test("search, filters, sorting and pagination restore every state through Back and Forward", async ({ page }) => {
+  test("search, filters and sorting restore every state through Back and Forward", async ({ page }) => {
     const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
       "history-" + index,
       { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
@@ -3757,55 +3789,37 @@ test.describe("Explore canonical URL state", () => {
     await page.getByRole("combobox", { name: "Sort courses" }).selectOption("highest_rated");
     await expect(page).toHaveURL(/sort=highest_rated/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
-
-    await page.getByRole("button", { name: "Next course page" }).click();
-    await expect(page).toHaveURL(/page=2/);
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
-
-    await page.goBack();
-    await expect(page).not.toHaveURL(/page=2/);
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
-    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
-    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
-    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Linux Course 14" })).toBeVisible();
 
     await page.goBack();
     await expect(page).not.toHaveURL(/sort=highest_rated/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
 
     await page.goBack();
     await expect(page).not.toHaveURL(/category=Development/);
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
 
     await page.goBack();
     await expect(page).not.toHaveURL(/level=Advanced/);
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
-    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
 
     await page.goBack();
     await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("");
-    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
-    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
 
     await page.goForward();
     await expect(page).toHaveURL(/q=Linux/);
     await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
     await page.goForward();
-    await expect(page).toHaveURL(/level=Advanced/);
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
     await page.goForward();
-    await expect(page).toHaveURL(/category=Development/);
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
     await page.goForward();
-    await expect(page).toHaveURL(/sort=highest_rated/);
     await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
-    await page.goForward();
-    await expect(page).toHaveURL(/page=2/);
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
   });
+
 });

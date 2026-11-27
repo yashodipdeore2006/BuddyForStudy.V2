@@ -239,7 +239,7 @@ router.post("/issues", async (req,res,next)=>{ try {
   const payment = await Payment.findOne({ _id: paymentId, user: req.user.userId });
   if (!payment) return failure(res,"Transaction not found",404);
   const existing = await PaymentIssue.findOne({ user: req.user.userId, payment: payment._id, status: { $in: ["open", "in_review"] } });
-  if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Billing.",409);
+  if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Purchases & payments.",409);
   let issue;
   try {
     issue = await PaymentIssue.create({
@@ -251,14 +251,14 @@ router.post("/issues", async (req,res,next)=>{ try {
     });
   } catch (createError) {
     if (createError?.code === 11000) {
-      return failure(res, "An issue is already open for this transaction. You can track it in Billing.", 409);
+      return failure(res, "An issue is already open for this transaction. You can track it in Purchases & payments.", 409);
     }
     throw createError;
   }
   await sendNotificationSafely({
     userId: String(req.user.userId),
     title: "Payment issue reported",
-    message: "Your report has been received. You can track its status in Billing & transactions.",
+    message: "Your report has been received. You can track its status in Purchases & payments.",
     type: "billing",
     link: "/billing",
     eventKey: `payment-issue-reported:${issue._id}`,
@@ -302,7 +302,7 @@ router.post("/refunds", async (req,res,next)=>{ try {
     });
   } catch (createError) {
     if (createError?.code === 11000) {
-      return failure(res, "A refund request already exists for this payment. Refresh Billing to see its status.", 409);
+      return failure(res, "A refund request already exists for this payment. Refresh Purchases & payments to see its status.", 409);
     }
     throw createError;
   }

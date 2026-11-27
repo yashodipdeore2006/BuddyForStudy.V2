@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, CheckCircle2, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
+import { Bookmark, CheckCircle2, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -13,6 +13,8 @@ import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { useCourseState } from "@/lib/useCourseState";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -85,7 +87,6 @@ function CourseCardContent({
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
   const isFree = course.pricing?.mode === "free";
   const [saved, setSaved] = useState(initiallySaved);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
@@ -244,17 +245,6 @@ function CourseCardContent({
   };
 
   const displayOutcome = getCourseCardDescription(course);
-  const coverCategory = (course.category || "").toLowerCase();
-  const coverPalette = /data|analytics|sql|database/.test(coverCategory) ? "data"
-    : /design|ui|ux|art/.test(coverCategory) ? "design"
-      : /business|finance|marketing/.test(coverCategory) ? "business"
-        : /ai|machine|python|program/.test(coverCategory) ? "technology"
-          : "learning";
-  const CoverIcon = /data|analytics|sql|database/.test(coverCategory) ? Database
-    : /design|ui|ux|art/.test(coverCategory) ? Palette
-      : /business|finance|marketing/.test(coverCategory) ? BriefcaseBusiness
-        : /ai|machine|python/.test(coverCategory) ? BrainCircuit
-          : /program|software|web|code/.test(coverCategory) ? Code2 : GraduationCap;
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
   const navTargets = getCourseNavTargets({
@@ -288,15 +278,10 @@ function CourseCardContent({
         <span className="bfs-sr-only">{enrollmentState === "not-enrolled" ? "Open course details for " : "Continue learning "}{course.title}</span>
       </Link>
 
-      <div className={"bfs-course-card__media" + (course.generation?.mode === "ai" ? " bfs-course-card__media--generated" : "")}>
+      <div className="bfs-course-card__media">
         <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course details for " + course.title} tabIndex={-1}>
-        {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
-          <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
-        ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} role="img" aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
-        )}
+          <CourseThumbnail {...getCourseThumbnailProps(course)} />
         </Link>
-        {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
         <button
           type="button"
           className="bfs-course-card__save"

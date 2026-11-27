@@ -60,12 +60,12 @@ function resolveMetadata(pathname: string, siteName: string, configuredDescripti
   if (!canonicalPath && !legalDetail && !courseDetail) return null;
   const homeDescription = configuredDescription && !/^\[ADD:/i.test(configuredDescription)
     ? configuredDescription
-    : "Discover courses, explore structured learning paths, and track your learning progress with " + siteName + ".";
+    : "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress.";
   const pages: Record<string, PageMetadata> = {
-    "/": { title: siteName + " — Learn. Plan. Grow.", description: homeDescription },
+    "/": { title: "AI-Powered Career Learning Platform | " + siteName, description: homeDescription },
     "/about": {
-      title: "About " + siteName + " | A clearer way to learn",
-      description: "Learn how " + siteName + " brings course discovery, structured learning paths, and learner progress into one connected experience.",
+      title: "About " + siteName + " | AI-Powered Career Learning",
+      description: "Learn how " + siteName + " connects career exploration, structured skill roadmaps, curated courses, and learning progress in one AI-assisted career learning platform.",
     },
     "/contact": {
       title: "Contact " + siteName + " | Support and help",
@@ -76,12 +76,12 @@ function resolveMetadata(pathname: string, siteName: string, configuredDescripti
       description: "Find answers about getting started, accounts, courses, plans, payments, privacy, and using " + siteName + ".",
     },
     "/explore": {
-      title: "Explore Courses | " + siteName,
-      description: "Browse available courses and structured learning options on " + siteName + ". Review course details before you begin.",
+      title: "Courses & Learning Resources | " + siteName,
+      description: "Discover curated courses and learning resources for technology and other career skills. Compare course details and choose a practical next step with " + siteName + ".",
     },
     "/pricing": {
-      title: siteName + " Plans and Pricing",
-      description: "Review the plans and access options currently published on " + siteName + ". Availability and prices are shown on the platform.",
+      title: "Plans & Pricing | " + siteName,
+      description: "Explore " + siteName + " plans and learning access options. Compare available features and pricing before choosing how to continue your learning journey.",
     },
     "/legal": {
       title: siteName + " | Legal and policies",

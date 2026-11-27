@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { Clock3, Code2, Layers3 } from "lucide-react";
+import { Clock3, Layers3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { selectLongFormCourses, type LongFormCourseCard } from "@/lib/longFormCourses";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 import "@/styles/long-form-course-carousel.css";
 
 type PublicCourseCatalogueResponse = {
@@ -47,20 +49,13 @@ function LongFormCourseLink({
       onBlur={onBlur}
     >
       <span className="bfs-long-form-carousel__media" aria-hidden="true">
-        <span className="bfs-long-form-carousel__fallback">
-          <Code2 size={34} strokeWidth={1.6} />
-        </span>
-        {course.thumbnailUrl && (
-          <img
-            src={course.thumbnailUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={(event) => {
-              event.currentTarget.hidden = true;
-            }}
-          />
-        )}
+        <CourseThumbnail {...getCourseThumbnailProps({
+          id: course.id,
+          title: course.title,
+          category: course.domainTag,
+          domain: course.domainTag,
+          level: "Intermediate",
+        })} />
       </span>
       <span className="bfs-long-form-carousel__body">
         <span className="bfs-long-form-carousel__domain">{course.domainTag}</span>

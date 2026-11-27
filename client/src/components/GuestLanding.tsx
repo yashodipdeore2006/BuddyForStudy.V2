@@ -62,9 +62,9 @@ export default function GuestLanding() {
         <div className="bfs-public-hero__copy">
           <span className="bfs-public-eyebrow">
             <Sparkles size={15} aria-hidden="true" />
-            A clearer way to learn with {siteName}
+            AI-powered career learning with {siteName}
           </span>
-          <h1 id="guest-landing-title">Find the right course. Follow a clear learning path.</h1>
+          <h1 id="guest-landing-title">Find your career path. Build skills with a clear learning roadmap.</h1>
           <p>
             Bring course discovery, structured learning paths and learning progress
             together in one place—so you can spend less time wondering where to start

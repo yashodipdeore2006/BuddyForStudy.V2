@@ -2,6 +2,10 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
+
+function escapeHtmlAttributeText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 const publicPages = [
   { name: "Homepage", path: "/", title: "AI-Powered Career Learning Platform | BuddyForStudy", description: "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress." },
   { name: "About", path: "/about", title: "About BuddyForStudy | AI-Powered Career Learning", description: "career exploration, structured skill roadmaps, curated courses, and learning progress" },
@@ -36,7 +40,7 @@ for (const route of publicPages) {
     const response = await page.request.get(baseURL + routeIndexPath);
     expect(response.ok()).toBeTruthy();
     const html = await response.text();
-    expect(html).toContain("<title>" + route.title + "</title>");
+    expect(html).toContain("<title>" + escapeHtmlAttributeText(route.title) + "</title>");
     expect(html.toLowerCase()).toContain(route.description.toLowerCase());
     expect(html).toContain('rel="canonical" href="' + canonicalUrl + '"');
     expect(html).toContain('property="og:url" content="' + canonicalUrl + '"');

@@ -50,12 +50,6 @@ function normalizeCourseId(value: unknown): string {
   return id == null ? "" : String(id).toLowerCase();
 }
 
-function levelClass(level?: string): string {
-  if (level === "Beginner") return "bfs-course-chip bfs-course-chip--beginner bfs-course-card__level";
-  if (level === "Intermediate") return "bfs-course-chip bfs-course-chip--intermediate bfs-course-card__level";
-  if (level === "Advanced") return "bfs-course-chip bfs-course-chip--advanced bfs-course-card__level";
-  return "bfs-course-chip bfs-course-card__level";
-}
 
 function courseLessonCount(course: Course): number | null {
   if (Array.isArray(course.modules) && course.modules.length > 0) return countAllLessons(course.modules);

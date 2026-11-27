@@ -4,7 +4,7 @@ import PageHeader from "@/components/PageHeader";
 import ErrorState from "@/components/ErrorState";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, CreditCard, FileText, MessageSquareWarning, ReceiptText, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, CreditCard, MessageSquareWarning, ReceiptText, ShieldCheck, XCircle } from "lucide-react";
 
 type RelatedRefund = {
   _id: string;

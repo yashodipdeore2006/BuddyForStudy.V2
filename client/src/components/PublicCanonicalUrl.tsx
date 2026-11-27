@@ -60,7 +60,7 @@ function resolveMetadata(pathname: string, siteName: string, configuredDescripti
   if (!canonicalPath && !legalDetail && !courseDetail) return null;
   const homeDescription = configuredDescription && !/^\[ADD:/i.test(configuredDescription)
     ? configuredDescription
-    : "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress.";
+    : "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress with " + siteName + ".";
   const pages: Record<string, PageMetadata> = {
     "/": { title: "AI-Powered Career Learning Platform | " + siteName, description: homeDescription },
     "/about": {

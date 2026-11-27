@@ -7,7 +7,7 @@ import { routes } from "@/lib/routes";
 import ContactDetailsCard from "@/components/ContactDetailsCard";
 import {
   ArrowUpRight, Award, BookOpen, CheckCircle2, Flame, Loader2,
-  Settings2, Target, Trophy, UserRound
+  Settings2, Target, Trophy
 } from "lucide-react";
 
 type LearningStats = {

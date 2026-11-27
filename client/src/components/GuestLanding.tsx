@@ -66,9 +66,9 @@ export default function GuestLanding() {
           </span>
           <h1 id="guest-landing-title">Find your career path. Build skills with a clear learning roadmap.</h1>
           <p>
-            Bring course discovery, structured learning paths and learning progress
-            together in one place—so you can spend less time wondering where to start
-            and more time building skills.
+            Explore career paths, follow structured skill roadmaps, discover curated courses
+            and learning resources, and track your progress—all in one connected learning
+            platform.
           </p>
           <div className="bfs-public-hero__actions">
             <Link className="bfs-public-button" to={routes.explore()}>

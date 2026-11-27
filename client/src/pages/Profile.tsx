@@ -4,7 +4,6 @@ import PageHeader from "@/components/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
-import ContactDetailsCard from "@/components/ContactDetailsCard";
 import {
   ArrowUpRight, Award, BookOpen, CheckCircle2, Flame, Loader2,
   Settings2, Target, Trophy
@@ -149,13 +148,7 @@ export default function Profile() {
         </section>
       </div>
 
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-lg font-extrabold text-slate-950">Personal information</h2><p className="mt-1 text-sm text-slate-500">Manage the contact details associated with your learner account.</p></div>
-          <Link to={routes.settings()} className="inline-flex items-center gap-1 text-sm font-bold text-blue-700 hover:text-blue-800">Manage account <ArrowUpRight className="h-4 w-4" /></Link>
-        </div>
-        <div className="mt-5"><ContactDetailsCard /></div>
-      </section>
+
     </div>
   );
 }

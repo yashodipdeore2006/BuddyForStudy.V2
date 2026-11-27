@@ -3,13 +3,41 @@ import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const PUBLIC_SEO_ROUTES = Object.freeze([
-  { path: "/", title: "BuddyForStudy — Learn. Plan. Grow.", description: "Discover courses, explore structured learning paths, and track your learning progress with BuddyForStudy." },
-  { path: "/about", title: "About BuddyForStudy | A clearer way to learn", description: "Learn how BuddyForStudy brings course discovery, structured learning paths, and learner progress into one connected experience." },
-  { path: "/contact", title: "Contact BuddyForStudy | Support and help", description: "Find official support information and practical guidance for questions about your BuddyForStudy account and learning experience." },
-  { path: "/faq", title: "BuddyForStudy Help Centre | Frequently asked questions", description: "Find answers about getting started, accounts, courses, plans, payments, privacy, and using BuddyForStudy." },
-  { path: "/explore", title: "Explore Courses | BuddyForStudy", description: "Browse available courses and structured learning options on BuddyForStudy. Review course details before you begin." },
-  { path: "/pricing", title: "BuddyForStudy Plans and Pricing", description: "Review the plans and access options currently published on BuddyForStudy. Availability and prices are shown on the platform." },
-  { path: "/legal", title: "BuddyForStudy | Legal and policies", description: "Read the privacy, terms, cookie, and other policy documents currently published by BuddyForStudy." },
+  {
+    path: "/",
+    title: "AI-Powered Career Learning Platform | BuddyForStudy",
+    description: "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress.",
+  },
+  {
+    path: "/about",
+    title: "About BuddyForStudy | AI-Powered Career Learning",
+    description: "Learn how BuddyForStudy connects career exploration, structured skill roadmaps, curated courses, and learning progress in one AI-assisted career learning platform.",
+  },
+  {
+    path: "/contact",
+    title: "Contact BuddyForStudy | Support & Help",
+    description: "Contact BuddyForStudy for help with your account, course access, or learning experience. Find the official support information published on our website.",
+  },
+  {
+    path: "/faq",
+    title: "BuddyForStudy Help Centre | FAQs",
+    description: "Get answers about BuddyForStudy accounts, career roadmaps, curated courses, learning progress, plans, payments, and platform support.",
+  },
+  {
+    path: "/explore",
+    title: "Courses & Learning Resources | BuddyForStudy",
+    description: "Discover curated courses and learning resources for technology and other career skills. Compare course details and choose a practical next step with BuddyForStudy.",
+  },
+  {
+    path: "/pricing",
+    title: "Plans & Pricing | BuddyForStudy",
+    description: "Explore BuddyForStudy plans and learning access options. Compare available features and pricing before choosing how to continue your learning journey.",
+  },
+  {
+    path: "/legal",
+    title: "Legal & Policies | BuddyForStudy",
+    description: "Review the privacy, terms, cookie, and other policy documents that govern your use of BuddyForStudy.",
+  },
 ]);
 
 export const PRIVATE_ROBOTS_PATHS = Object.freeze([
@@ -85,7 +113,35 @@ export function buildSitemapXml(origin) {
   ].join("\n");
 }
 
-function buildRouteHtml(template, route, canonicalUrl) {
+
+export function buildSiteStructuredData(origin) {
+  const description = "BuddyForStudy is an AI-powered career learning platform that connects career exploration, structured skill roadmaps, curated courses, learning resources, and learner progress.";
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": origin + "/#website",
+        "url": origin + "/",
+        "name": "BuddyForStudy",
+        "alternateName": "Buddy For Study",
+        "description": description,
+        "inLanguage": "en-IN",
+        "publisher": { "@id": origin + "/#organization" }
+      },
+      {
+        "@type": "Organization",
+        "@id": origin + "/#organization",
+        "name": "BuddyForStudy",
+        "alternateName": "Buddy For Study",
+        "url": origin + "/",
+        "description": description
+      }
+    ]
+  }, null, 2).replace(/</g, "\\u003c");
+}
+
+function buildRouteHtml(template, route, canonicalUrl, origin) {
   let html = template.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, "<title>" + escapeHtml(route.title) + "</title>");
   html = upsertMeta(html, "name", "description", route.description);
   html = upsertMeta(html, "name", "robots", "index,follow,max-image-preview:large");
@@ -97,6 +153,8 @@ function buildRouteHtml(template, route, canonicalUrl) {
   html = upsertMeta(html, "name", "twitter:card", "summary");
   html = upsertMeta(html, "name", "twitter:title", route.title);
   html = upsertMeta(html, "name", "twitter:description", route.description);
+  const structuredData = '<script type="application/ld+json">' + buildSiteStructuredData(origin) + "</script>";
+  html = html.replace(/<\\/head>/i, structuredData + "\\n  </head>");
   return upsertCanonical(html, canonicalUrl);
 }
 
@@ -111,7 +169,7 @@ export async function writeSeoAssets({
 
   for (const route of PUBLIC_SEO_ROUTES) {
     const canonicalUrl = new URL(route.path, origin).toString();
-    const html = buildRouteHtml(template, route, canonicalUrl);
+    const html = buildRouteHtml(template, route, canonicalUrl, origin);
     const targetPath = route.path === "/" ? indexPath : resolve(outputDir, route.path.slice(1), "index.html");
     await mkdir(resolve(targetPath, ".."), { recursive: true });
     await writeFile(targetPath, html, "utf8");

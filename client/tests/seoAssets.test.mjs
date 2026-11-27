@@ -7,6 +7,7 @@ import {
   PUBLIC_SEO_ROUTES,
   PRIVATE_ROBOTS_PATHS,
   buildRobotsTxt,
+  buildSiteStructuredData,
   buildSitemapXml,
   resolvePublicSiteOrigin,
   writeSeoAssets,
@@ -60,11 +61,31 @@ test("build writes route-specific crawler-readable HTML and index files", async 
     assert.equal(result.routeCount, PUBLIC_SEO_ROUTES.length);
 
     const aboutHtml = await readFile(join(outputDirectory, "about", "index.html"), "utf8");
-    assert.ok(aboutHtml.includes("<title>About BuddyForStudy | A clearer way to learn</title>"));
+    assert.ok(aboutHtml.includes("<title>About BuddyForStudy | AI-Powered Career Learning</title>"));
     assert.ok(aboutHtml.includes('name="robots" content="index,follow,max-image-preview:large"'));
     assert.ok(aboutHtml.includes('rel="canonical" href="https://buddyforstudy.in/about"'));
     assert.ok(aboutHtml.includes('property="og:url" content="https://buddyforstudy.in/about"'));
-    assert.ok(aboutHtml.includes('name="twitter:title" content="About BuddyForStudy | A clearer way to learn"'));
+    assert.ok(aboutHtml.includes('name="twitter:title" content="About BuddyForStudy | AI-Powered Career Learning"'));
+
+    assert.ok(aboutHtml.includes('<script type="application/ld+json">'));
+
+    const homepageHtml = await readFile(join(outputDirectory, "index.html"), "utf8");
+    assert.ok(homepageHtml.includes("<title>AI-Powered Career Learning Platform | BuddyForStudy</title>"));
+    const schemaMarker = '<script type="application/ld+json">';
+    const schemaStart = homepageHtml.indexOf(schemaMarker);
+    const schemaEnd = homepageHtml.indexOf("</script>", schemaStart);
+    assert.ok(schemaStart >= 0 && schemaEnd > schemaStart, "homepage should include crawlable JSON-LD");
+    const schemaText = homepageHtml.slice(schemaStart + schemaMarker.length, schemaEnd);
+    const schema = JSON.parse(schemaText);
+    const website = schema["@graph"].find((item) => item["@type"] === "WebSite");
+    const organization = schema["@graph"].find((item) => item["@type"] === "Organization");
+    assert.equal(website.name, "BuddyForStudy");
+    assert.equal(website.alternateName, "Buddy For Study");
+    assert.equal(website.url, "https://buddyforstudy.in/");
+    assert.equal(organization.name, "BuddyForStudy");
+
+    const directSchema = JSON.parse(buildSiteStructuredData("https://buddyforstudy.in"));
+    assert.equal(directSchema["@graph"].length, 2);
 
     const sitemap = await readFile(join(outputDirectory, "sitemap.xml"), "utf8");
     const robots = await readFile(join(outputDirectory, "robots.txt"), "utf8");

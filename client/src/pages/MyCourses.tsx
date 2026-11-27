@@ -7,7 +7,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   Bookmark, GraduationCap, Info, Map,
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
-  Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users, Star, Share2,
+  Sparkles, Eye, Users, Star, Share2,
 } from "lucide-react";
 import type { Course, CourseAccessSummary, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
@@ -17,6 +17,8 @@ import { getAllLessonsFlat } from "@/lib/courseUtils";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
@@ -123,7 +125,6 @@ function CourseLearningCard({
   const [saveError, setSaveError] = useState("");
   const [shareNotice, setShareNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const lessons = getAllLessonsFlat(course.modules);
   const totalLessons = state.totalLessons || lessons.length;
   const hasRoadmap = lessons.length > 0;
@@ -155,20 +156,6 @@ function CourseLearningCard({
   const individuallyPurchased = courseAccess?.source === "individual" &&
     (courseAccess.status === "PURCHASED" || courseAccess.status === "COMPLETED");
   const description = getCourseCardDescription(course);
-  const category = (course.category || "").toLowerCase();
-  const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
-    : /design|ui|ux|art/.test(category) ? "design"
-      : /business|finance|marketing|entrepreneur/.test(category) ? "business"
-        : /ai|machine|python|program|software|web|code/.test(category) ? "technology"
-          : "learning";
-  const CoverIcon = /data|analytics|sql|database/.test(category) ? Database
-    : /design|ui|ux|art/.test(category) ? Palette
-      : /business|finance|marketing|entrepreneur/.test(category) ? BriefcaseBusiness
-        : /ai|machine|python/.test(category) ? BrainCircuit
-          : /program|software|web|code|javascript|development/.test(category) ? Code2
-            : GraduationCap;
-  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
-  const generatedCover = course.generation?.mode === "ai";
   const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
 
   const handleSave = async () => {
@@ -199,18 +186,10 @@ function CourseLearningCard({
 
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
-      <div className={"bfs-course-card__media" + (generatedCover ? " bfs-course-card__media--generated" : "")}>
+      <div className="bfs-course-card__media">
         <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course information for " + course.title}>
-          {!generatedCover && course.thumbnail && !thumbnailFailed ? (
-            <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
-          ) : (
-            <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} role="img" aria-label={course.title}>
-              <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
-              <span className="bfs-course-card__fallback-title">{coverWords}</span>
-            </div>
-          )}
+          <CourseThumbnail {...getCourseThumbnailProps(course)} />
         </Link>
-        {course.level && <span className={"bfs-course-chip bfs-course-card__level" + (course.level === "Beginner" ? " bfs-course-chip--beginner" : course.level === "Intermediate" ? " bfs-course-chip--intermediate" : course.level === "Advanced" ? " bfs-course-chip--advanced" : "")}>{course.level}</span>}
         <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />

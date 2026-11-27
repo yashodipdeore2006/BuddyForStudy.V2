@@ -102,6 +102,9 @@ export function resolveNotificationRoute(value: unknown): string | null {
     if (segments.length === 2 && segments[0] === "playlists") {
       return routes.playlist(decodeURIComponent(segments[1]));
     }
+    if (segments.length === 3 && segments[0] === "billing" && segments[1] === "transactions") {
+      return routes.paymentDetails(decodeURIComponent(segments[2]));
+    }
     if (segments.length === 2 && segments[0] === "roadmaps") {
       return routes.savedRoadmap(decodeURIComponent(segments[1]));
     }

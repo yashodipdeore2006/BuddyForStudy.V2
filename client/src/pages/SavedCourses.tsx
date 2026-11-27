@@ -21,7 +21,7 @@ type Saved = {
     domain?: string | null;
     tags?: string[];
     learningOutcomes?: string[];
-    modules?: Course["modules"];
+    modules?: Array<{ title?: string }>;
     level: string;
     duration: string;
     thumbnail?: string;
@@ -98,7 +98,7 @@ export default function SavedCourses() {
                 duration: saved.course.duration,
                 thumbnail: saved.course.thumbnail || null,
                 learning_outcomes: saved.course.learningOutcomes ?? [],
-                modules: saved.course.modules ?? [],
+                modules: (saved.course.modules ?? []) as Course["modules"],
                 is_published: saved.course.isPublished,
                 created_by: null,
                 created_at: "",

@@ -500,6 +500,7 @@ export default function Courses() {
     const resumeContext = readAuthNavigationState(location.state).resumeContext;
     if (resumeContext?.type !== "ai-roadmap") return;
     setAiTopic(resumeContext.topic);
+    setAiOpen(true);
     if (resumeContext.resourceLanguages.length) {
       setAiResourceLanguages(resumeContext.resourceLanguages);
     }

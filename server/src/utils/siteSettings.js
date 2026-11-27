@@ -19,8 +19,8 @@ export const SITE_FOOTER_GROUPS = Object.freeze([
 export const DEFAULT_SITE_SETTINGS = Object.freeze({
   brand: Object.freeze({
     siteName: "BuddyForStudy",
-    tagline: "[ADD: approved platform tagline]",
-    description: "[ADD: approved platform description]",
+    tagline: "Find Your Path. Learn with Purpose. Build Your Future.",
+    description: "BuddyForStudy is an AI-powered career learning platform that helps learners explore career paths, follow structured roadmaps, discover curated courses, and track their skill-building progress.",
     logoUrl: "/buddyforstudy-mascot.webp",
   }),
   contact: Object.freeze({
@@ -119,8 +119,8 @@ export function toPublicSiteSettings(record) {
   return {
     brand: {
       siteName: cleanText(brand.siteName, DEFAULT_SITE_SETTINGS.brand.siteName, 80),
-      tagline: cleanText(brand.tagline, DEFAULT_SITE_SETTINGS.brand.tagline, 160),
-      description: cleanText(brand.description, DEFAULT_SITE_SETTINGS.brand.description, 320),
+      tagline: cleanBrandText(brand.tagline, DEFAULT_SITE_SETTINGS.brand.tagline, 160),
+      description: cleanBrandText(brand.description, DEFAULT_SITE_SETTINGS.brand.description, 320),
       logoUrl: normalizeSiteLogoUrl(brand.logoUrl) || DEFAULT_SITE_SETTINGS.brand.logoUrl,
     },
     contact: {
@@ -137,7 +137,7 @@ export function toPublicSiteSettings(record) {
   };
 }
 
-function cleanText(value, fallback, maxLength) {
+function cleanBrandText(value, fallback, maxLength) {\n  const text = cleanText(value, fallback, maxLength);\n  return /^\\[ADD:/i.test(text) ? fallback : text;\n}\n\nfunction cleanText(value, fallback, maxLength) {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, maxLength);
 }

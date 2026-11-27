@@ -270,7 +270,14 @@ export default function Billing() {
         <div className="flex flex-wrap items-center gap-2"><Link to={routes.profile()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Profile</Link><Link to={routes.settings()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Settings</Link></div>
       </div>
 
-      <nav aria-label="Purchases and payments sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900\/[0.04] backdrop-blur-xl">\n        <a href="#subscription" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Subscription</a>\n        <a href="#transactions" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Transactions</a>\n        <a href="#refund-requests" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Refunds</a>\n        <a href="#payment-issues" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Payment support</a>\n      </nav>\n\n      {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
+      <nav aria-label="Purchases and payments sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
+        <a href="#subscription" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Subscription</a>
+        <a href="#transactions" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Transactions</a>
+        <a href="#refund-requests" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Refunds</a>
+        <a href="#payment-issues" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Payment support</a>
+      </nav>
+
+      {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
       {trialOfferMessage && <div role="status" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{trialOfferMessage}</div>}
       {trialOffer && currentPlanIsFree && !trialIsActive && <section aria-labelledby="trial-offer-reentry-heading" className="mt-6 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
@@ -379,7 +386,8 @@ export default function Billing() {
         </div> : <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-4"><div><p className="font-bold text-slate-900">You are on the Free plan</p><p className="mt-1 text-sm text-slate-500">Compare subscription plans to unlock additional learning features.</p></div><Link to={routes.pricing()} className="btn-primary">Explore plans</Link></div>}
       </section>
 
-      <section id="payment-issues" aria-labelledby="payment-issues-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">\n        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="payment-issues-heading" className="text-lg font-extrabold text-slate-950">Reported payment issues</h2><p className="mt-1 text-sm text-slate-500">Track payment problems, including benefits that were not unlocked after a successful charge.</p></div>
+      <section id="payment-issues" aria-labelledby="payment-issues-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="payment-issues-heading" className="text-lg font-extrabold text-slate-950">Reported payment issues</h2><p className="mt-1 text-sm text-slate-500">Track payment problems, including benefits that were not unlocked after a successful charge.</p></div>
         {issues.length ? <div className="divide-y divide-slate-100">{issues.map((issue) => {
           const title = issue.payment?.plan?.name || issue.payment?.course?.title || "BuddyForStudy payment";
           const status = String(issue.status || "open").toLowerCase();
@@ -388,7 +396,8 @@ export default function Billing() {
           return <article key={issue._id} className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-bold text-slate-900">{title}</p><p className="mt-1 text-xs text-slate-500">{categoryLabels[issue.category] || "Payment issue"} · Reported {date(issue.createdAt)}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{issue.description}</p>{issue.adminNote && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">Support update: {issue.adminNote}</p>}</div><span className={"inline-flex h-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-bold capitalize " + (styles[status] || styles.open)}>{status.replace(/_/g, " ")}</span></div></article>;
         })}</div> : <p className="p-6 text-sm text-slate-500">No payment issues reported. If a payment succeeds but your course or plan benefits do not appear, report the transaction from the history below.</p>}
       </section>
-      <section id="refund-requests" aria-labelledby="refund-requests-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">\n        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="refund-requests-heading" className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
+      <section id="refund-requests" aria-labelledby="refund-requests-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="refund-requests-heading" className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
         {refunds.length ? <div className="divide-y divide-slate-100">{refunds.map((refund) => {
           const refundStatus = String(refund.status || "pending").toLowerCase();
           const refundTitle = refund.payment?.plan?.name || refund.payment?.course?.title || "Payment refund";
@@ -397,7 +406,9 @@ export default function Billing() {
         })}</div> : <p className="p-6 text-sm text-slate-500">No refund requests yet. If you need help with an eligible payment, use Request refund in transaction history.</p>}
       </section>
 
-      <section id="transactions" aria-labelledby="transactions-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">\n        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">\n          <div><h2 id="transactions-heading" className="text-lg font-extrabold text-slate-950">Transaction history</h2><p className="mt-1 text-sm text-slate-500">Search by item, status, payment reference, or transaction ID.</p></div>
+      <section id="transactions" aria-labelledby="transactions-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">
+          <div><h2 id="transactions-heading" className="text-lg font-extrabold text-slate-950">Transaction history</h2><p className="mt-1 text-sm text-slate-500">Search by item, status, payment reference, or transaction ID.</p></div>
           <button type="button" onClick={exportCsv} disabled={!filteredPayments.length} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="h-4 w-4" />Export CSV</button>
         </div>
         <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[1fr_190px] sm:p-5">

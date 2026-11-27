@@ -33,6 +33,7 @@ type Saved = {
         modules?: Array<{ course?: { videoId?: string; url?: string; thumbnail?: string } }>;
       };
     };
+    cardMetadata?: Course["cardMetadata"];
     level: string;
     duration: string;
     thumbnail?: string;
@@ -108,6 +109,7 @@ export default function SavedCourses() {
                 level: saved.course.level as CourseLevel,
                 duration: saved.course.duration,
                 thumbnail: saved.course.thumbnail || null,
+                cardMetadata: saved.course.cardMetadata,
                 learning_outcomes: saved.course.learningOutcomes ?? [],
                 modules: (saved.course.modules ?? []) as Course["modules"],
                 is_published: saved.course.isPublished,

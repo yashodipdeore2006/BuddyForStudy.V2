@@ -236,6 +236,9 @@ export default function PlaylistCourse() {
                   level: String(course.level ?? "Intermediate"),
                   modules: course.modules,
                   learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                  thumbnail: course.thumbnail,
+                  cardMetadata: course.cardMetadata,
+                  lessons: course.lessons,
                 })} />
             </div>
 

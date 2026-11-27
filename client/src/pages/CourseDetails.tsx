@@ -61,6 +61,8 @@ type RelatedCourseCard = {
   tags?: unknown;
   learning_outcomes?: unknown;
   modules?: unknown;
+  thumbnail?: string | null;
+  cardMetadata?: Course['cardMetadata'];
   description: string;
   duration: string;
   pricing?: Course['pricing'];
@@ -258,7 +260,10 @@ export default function CourseDetails() {
           modules: raw?.modules,
           description: String(raw?.description ?? ''),
           duration: String(raw?.duration ?? ''),
-          thumbnail: raw?.thumbnail || null,
+          thumbnail: typeof raw?.thumbnail === "string" ? raw.thumbnail : null,
+          cardMetadata: raw?.cardMetadata && typeof raw.cardMetadata === "object"
+            ? raw.cardMetadata as Course['cardMetadata']
+            : undefined,
           pricing: raw?.pricing,
           level: String(raw?.level ?? 'Beginner'),
         })).filter((item: RelatedCourseCard) => item.id && item.id !== String(course.id) && item.title);

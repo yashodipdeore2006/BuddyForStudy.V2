@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 const publicPages = [
-  { name: "Homepage", path: "/", title: "BuddyForStudy — Learn. Plan. Grow.", description: "Discover courses, explore structured learning paths, and track your learning progress with BuddyForStudy." },
-  { name: "About", path: "/about", title: "About BuddyForStudy | A clearer way to learn", description: "course discovery, structured learning paths, and learner progress" },
-  { name: "Contact", path: "/contact", title: "Contact BuddyForStudy | Support and help", description: "official support information and practical guidance" },
-  { name: "Help Centre", path: "/faq", title: "BuddyForStudy Help Centre | Frequently asked questions", description: "getting started, accounts, courses, plans, payments, privacy" },
+  { name: "Homepage", path: "/", title: "AI-Powered Career Learning Platform | BuddyForStudy", description: "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress." },
+  { name: "About", path: "/about", title: "About BuddyForStudy | AI-Powered Career Learning", description: "career exploration, structured skill roadmaps, curated courses, and learning progress" },
+  { name: "Contact", path: "/contact", title: "Contact BuddyForStudy | Support & Help", description: "official support information published on our website" },
+  { name: "Help Centre", path: "/faq", title: "BuddyForStudy Help Centre | FAQs", description: "career roadmaps, curated courses, learning progress, plans, payments" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -74,6 +74,17 @@ test("Help Centre topic filters and search are keyboard operable", async ({ page
   await search.fill("courses");
   await expect(search).toHaveValue("courses");
   await expect(page.getByText(/answer/i).first()).toBeVisible();
+});
+
+test("Google Search Console verification artifacts are served from the public origin", async ({ page }) => {
+  const homepageResponse = await page.request.get(baseURL + "/");
+  expect(homepageResponse.ok()).toBeTruthy();
+  const homepage = await homepageResponse.text();
+  expect(homepage).toContain('name="google-site-verification" content="YUDG8DYjMkIs8FZVIStx7gHVytPwvvtujxRccUGklXc"');
+
+  const fileResponse = await page.request.get(baseURL + "/googlee5d053a421eb0750.html");
+  expect(fileResponse.ok()).toBeTruthy();
+  expect((await fileResponse.text()).trim()).toBe("google-site-verification: googlee5d053a421eb0750.html");
 });
 
 test("robots and sitemap publish public URLs and exclude private route families", async ({ page }) => {

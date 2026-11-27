@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import EnrollmentAuthDialog from "@/components/EnrollmentAuthDialog";
 import {
@@ -16,7 +16,7 @@ export default function AuthPromptHost() {
   const location = useLocation();
   const [prompt, setPrompt] = useState<ActivePrompt | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const handleAuthRequired = (event: Event) => {
       const detail = (event as CustomEvent<AuthPromptOptions>).detail;
       if (!detail) return;

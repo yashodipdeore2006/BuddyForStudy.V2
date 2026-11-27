@@ -428,6 +428,7 @@ export default function Billing() {
                   <p className="mt-2 break-all font-mono text-[11px] text-slate-400">Transaction: {payment._id}</p>
                   {payment.providerPaymentId && <p className="mt-1 break-all font-mono text-[11px] text-slate-400">Payment reference: {payment.providerPaymentId}</p>}
                   {payment.provider && <p className="mt-1 text-xs capitalize text-slate-500">Provider: {payment.provider}</p>}
+                  <Link to={routes.paymentDetails(payment._id)} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:underline">View transaction details <ArrowUpRight className="h-3 w-3" /></Link>
                 </div>
                 <div className="sm:min-w-36 sm:text-right"><p className="text-lg font-extrabold text-slate-950">{money(Number(payment.amount || 0), payment.currency || "INR")}</p>
                   {["paid", "partially_refunded"].includes(status) && !refunds.some((refund) => String(refund.payment?._id || "") === payment._id && ["pending", "approved", "processed"].includes(String(refund.status).toLowerCase())) && <button type="button" className="mt-2 block text-xs font-bold text-rose-700 hover:underline" onClick={() => { setRefundId(refundId === payment._id ? null : payment._id); setIssueId(null); setRefundReason(""); setRefundMessage(""); }}>Request refund</button>}

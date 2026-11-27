@@ -14,12 +14,13 @@ test("groups a seven-module course into between three and seven stages without s
   assert.deepEqual(stages.flatMap((stage) => stage.lessonIds).sort(), modules.map((module, index) => "l" + index).sort());
 });
 
-test("splits a single playlist module into five duration-aware stages", () => {
+test("splits a single-module playlist into four balanced phases and records duration totals", () => {
   const modules = [{ id: "playlist", title: "Playlist", lessons: Array.from({ length: 12 }, (_, index) => lesson("l" + index, index % 2 ? "20:00" : "10:00")) }];
   const stages = buildJourneyStages(modules);
-  assert.equal(stages.length, 5);
+  assert.equal(stages.length, 4);
+  assert.deepEqual(stages.map((stage) => stage.lessonIds.length), [3, 3, 3, 3]);
   assert.equal(stages.flatMap((stage) => stage.lessonIds).length, 12);
-  assert.ok(stages.every((stage) => stage.hours >= 0));
+  assert.deepEqual(stages.map((stage) => stage.hours), [0.67, 0.83, 0.67, 0.83]);
 });
 
 test("returns no stages for a course without lessons", () => {

@@ -653,8 +653,14 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/\/home$/);
   });
 
-  test("lesson player requires authentication", async ({ page }) => {
+  test("lesson player uses the shared authentication prompt", async ({ page }) => {
     await page.goto(baseURL + "/learn/course-fixture");
+    await expect(page).toHaveURL(/\/learn\/course-fixture$/);
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Sign in to access your learning space" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Sign in/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Create a free account/ })).toBeVisible();
+    await dialog.getByRole("button", { name: /Sign in/ }).click();
     await expect(page).toHaveURL(/\/login$/);
   });
 

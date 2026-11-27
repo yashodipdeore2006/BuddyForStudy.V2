@@ -186,10 +186,19 @@ function CourseLearningCard({
     if (result !== "failed") window.setTimeout(() => setShareNotice(""), 2500);
   };
 
+  const thumbnailProps = getCourseThumbnailProps(course);
+  const thumbnailLinkLabel = [
+    "View course information",
+    thumbnailProps.domain,
+    ...thumbnailProps.skills,
+    thumbnailProps.title,
+    thumbnailProps.level,
+  ].filter(Boolean).join(" ");
+
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
       <div className="bfs-course-card__media">
-        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course information for " + course.title}>
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={thumbnailLinkLabel}>
           <CourseThumbnail {...getCourseThumbnailProps(course)} />
         </Link>
         <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>

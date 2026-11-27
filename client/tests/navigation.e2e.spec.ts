@@ -1295,18 +1295,16 @@ test.describe("learner control and state regression", () => {
 
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
     const grid = page.locator(".bfs-course-results-grid").last();
-    await expect(grid.getByRole("heading")).toHaveCount(12);
-
     await page.getByRole("combobox", { name: "Sort courses" }).selectOption("quality");
     await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
-    const rankingReasonLabels = grid.getByText("Why this course:");
-    await expect(rankingReasonLabels).toHaveCount(12);
-    await expect(rankingReasonLabels.first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
 
+    // The observer may prefetch page two before the explicit scroll because it
+    // uses a generous root margin. Assert the global order after all pages load.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toBeVisible();
     await expect(grid.getByRole("heading")).toHaveCount(14);
+    await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
+    await expect(grid.getByRole("heading").last()).toHaveText("Zeta Course");
+    await expect(grid.getByText("Why this course:")).toHaveCount(14);
     await expect(page.getByText("You’ve reached the end of the course catalogue.", { exact: true })).toBeVisible();
   });
 

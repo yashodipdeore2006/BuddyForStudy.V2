@@ -11,6 +11,7 @@ import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 type ThemeMode = "light" | "dark" | "system";
 type EnrollmentLessonSummary = { _id?: string; id?: string };
@@ -158,7 +159,11 @@ export default function Navbar() {
     };
     const continueLastCourse = async () => {
       if (!session) {
-        navigate(routes.login());
+        requestAuthPrompt({
+          from: location,
+          title: "Sign in to continue learning",
+          description: "Sign in or create a free account to open your learning progress and continue where you left off.",
+        });
         return;
       }
       try {

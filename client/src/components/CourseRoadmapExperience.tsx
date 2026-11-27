@@ -44,6 +44,45 @@ type ResourceVideo = {
   thumbnail?: string;
 };
 
+function setupRoadmapDrawerEffects(drawer: HTMLElement | null, onClose: () => void): () => void {
+  const previousOverflow = document.body.style.overflow;
+  const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  document.body.style.overflow = "hidden";
+
+  const focusTimer = window.setTimeout(() => {
+    drawer?.querySelector<HTMLElement>("button, a[href], input, [tabindex]:not([tabindex='-1'])")?.focus();
+  }, 0);
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab" || !drawer) return;
+    const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex='-1'])"
+    ));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => {
+    window.clearTimeout(focusTimer);
+    document.body.style.overflow = previousOverflow;
+    window.removeEventListener("keydown", handleKeyDown);
+    if (previouslyFocused?.isConnected) previouslyFocused.focus();
+  };
+}
+
 type LessonDetail = {
   description?: string;
   type?: "tutorial" | "project" | "quiz";
@@ -295,41 +334,7 @@ export default function CourseRoadmapExperience({
 
   useEffect(() => {
     if (!selectedNodeId) return;
-    const previousOverflow = document.body.style.overflow;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = "hidden";
-    const focusTimer = window.setTimeout(() => {
-      drawerRef.current?.querySelector<HTMLElement>("button, a[href], input, [tabindex]:not([tabindex='-1'])")?.focus();
-    }, 0);
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSelectedNodeId(null);
-        return;
-      }
-      if (event.key !== "Tab" || !drawerRef.current) return;
-      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex='-1'])"
-      ));
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
-    };
+    return setupRoadmapDrawerEffects(drawerRef.current, () => setSelectedNodeId(null));
   }, [selectedNodeId]);
 
   const openNode = (node: CourseRoadmapNode) => {

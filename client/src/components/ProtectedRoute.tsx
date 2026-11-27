@@ -24,7 +24,7 @@ export default function ProtectedRoute({
       title: "Sign in to access your learning space",
       description: "Create a free account or sign in to continue to this protected page. You will return here after authentication.",
     });
-  }, [loading, session, location.pathname, location.search, location.hash]);
+  }, [loading, session, location]);
 
   if (loading) {
     return (

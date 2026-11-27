@@ -52,9 +52,12 @@ function LongFormCourseLink({
         <CourseThumbnail {...getCourseThumbnailProps({
           id: course.id,
           title: course.title,
-          category: course.domainTag,
-          domain: course.domainTag,
-          level: "Intermediate",
+          category: course.category,
+          domain: course.domain,
+          tags: course.tags,
+          level: course.level,
+          modules: course.modules,
+          learning_outcomes: course.learning_outcomes,
         })} />
       </span>
       <span className="bfs-long-form-carousel__body">

@@ -42,7 +42,11 @@ function collectSkills(course: ThumbnailCourse): string[] {
 export function getCourseThumbnailProps(course: ThumbnailCourse): CourseThumbnailProps {
   const title = asText(course.title) || "Learning path";
   const domain = asText(course.domain) || asText(course.category) || "Professional learning";
-  const context = [title, domain, asText(course.category), ...(Array.isArray(course.tags) ? course.tags.map(asText) : [])]
+  const moduleTitles = Array.isArray(course.modules)
+    ? course.modules.map((module) => module && typeof module === "object" ? asText((module as Record<string, unknown>).title) : "")
+    : [];
+  const outcomes = Array.isArray(course.learning_outcomes) ? course.learning_outcomes.map(asText) : [];
+  const context = [title, domain, asText(course.category), ...(Array.isArray(course.tags) ? course.tags.map(asText) : []), ...moduleTitles, ...outcomes]
     .join(" ")
     .toLowerCase();
 

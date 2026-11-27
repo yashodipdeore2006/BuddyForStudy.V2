@@ -47,6 +47,7 @@ test("build writes route-specific crawler-readable HTML and index files", async 
     await writeFile(join(outputDirectory, "index.html"), [
       "<!doctype html>", "<html><head>",
       '<meta name="description" content="Default description" />',
+      '<meta name="google-site-verification" content="YUDG8DYjMkIs8FZVIStx7gHVytPwvvtujxRccUGklXc" />',
       "<title data-default>Default title</title>",
       '<meta property="og:title" content="Default title" />',
       '<meta property="og:description" content="Default description" />',
@@ -68,6 +69,7 @@ test("build writes route-specific crawler-readable HTML and index files", async 
     assert.ok(aboutHtml.includes('name="twitter:title" content="About BuddyForStudy | AI-Powered Career Learning"'));
 
     assert.ok(aboutHtml.includes('<script type="application/ld+json">'));
+    assert.ok(aboutHtml.includes('name="google-site-verification" content="YUDG8DYjMkIs8FZVIStx7gHVytPwvvtujxRccUGklXc"'));
 
     const homepageHtml = await readFile(join(outputDirectory, "index.html"), "utf8");
     assert.ok(homepageHtml.includes("<title>AI-Powered Career Learning Platform | BuddyForStudy</title>"));
@@ -94,6 +96,15 @@ test("build writes route-specific crawler-readable HTML and index files", async 
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }
+});
+
+test("Google Search Console verification artifacts remain exact", async () => {
+  const [homepage, verificationFile] = await Promise.all([
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/googlee5d053a421eb0750.html", import.meta.url), "utf8"),
+  ]);
+  assert.ok(homepage.includes('<meta name="google-site-verification" content="YUDG8DYjMkIs8FZVIStx7gHVytPwvvtujxRccUGklXc" />'));
+  assert.equal(verificationFile.trim(), "google-site-verification: googlee5d053a421eb0750.html");
 });
 
 test("SEO generation fails closed when the public URL is not configured", async () => {

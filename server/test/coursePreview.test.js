@@ -66,6 +66,8 @@ test("public course preview exposes safe card metadata without leaking lesson pa
     creatorName: "Databricks",
     typeTag: "Playlist",
     videoCount: 2,
+    youtubeVideoCount: 0,
+    youtubeRuntimeSeconds: 0,
     qualityScore: 90,
     viewCount: 20000,
     likeCount: 1600

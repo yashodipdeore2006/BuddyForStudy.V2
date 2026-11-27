@@ -1,7 +1,6 @@
-import type { Course } from "@/types";
 import type { CourseThumbnailProps, ThumbnailVariant } from "@/components/CourseThumbnail";
 
-type ThumbnailCourse = Partial<Pick<Course, "id" | "title" | "category" | "domain" | "tags" | "level" | "learning_outcomes" | "modules">> & {
+type ThumbnailCourse = {
   id?: string;
   title: string;
   domain?: string | null;

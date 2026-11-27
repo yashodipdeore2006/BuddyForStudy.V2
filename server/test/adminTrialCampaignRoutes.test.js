@@ -1,0 +1,132 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import adminTrialsRouter from "../src/routes/adminTrials.routes.js";
+import { authMiddleware, adminMiddleware } from "../src/middleware/auth.js";
+import { ADMIN_ROLE_PROFILES } from "../src/utils/adminRbac.js";
+
+function getRoutes() {
+  return (adminTrialsRouter.stack || [])
+    .filter((layer) => layer.route)
+    .map((layer) => {
+      const route = layer.route;
+      const methods = Object.keys(route.methods || {}).filter((method) => route.methods[method]);
+      const permissionHandlers = (route.stack || [])
+        .map((entry) => entry.handle)
+        .filter((handler) => handler?.name === "requireAdminPermission");
+      return { path: route.path, methods, permissionHandlers };
+    });
+}
+
+function runPermission(middleware, role, overrides = []) {
+  const response = { statusCode: 200, body: undefined, nextCalled: false };
+  middleware({
+    user: {
+      role: "admin",
+      accessType: "admin",
+      adminRole: role,
+      adminPermissionOverrides: overrides,
+      userId: "trial-campaign-admin"
+    }
+  }, {
+    status(code) { response.statusCode = code; return this; },
+    json(body) { response.body = body; return this; }
+  }, () => { response.nextCalled = true; });
+  return response;
+}
+
+test("self-serve campaign management exposes list, detail, create, update and lifecycle endpoints", () => {
+  const routes = getRoutes();
+  const expected = [
+    ["get", "/campaigns"],
+    ["get", "/campaigns/presets"],
+    ["get", "/campaigns/:campaignId"],
+    ["post", "/campaigns"],
+    ["put", "/campaigns/:campaignId"],
+    ["post", "/campaigns/:campaignId/publish"],
+    ["post", "/campaigns/:campaignId/pause"],
+    ["post", "/campaigns/:campaignId/disable"]
+  ];
+  for (const [method, path] of expected) {
+    assert.ok(routes.some((route) => route.path === path && route.methods.includes(method)), method + " " + path);
+  }
+});
+
+test("every trial campaign route has exactly one trials.manage permission gate", () => {
+  const campaignRoutes = getRoutes().filter((route) => route.path.startsWith("/campaigns"));
+  assert.equal(campaignRoutes.length, 8);
+  const presetIndex = campaignRoutes.findIndex((route) => route.path === "/campaigns/presets");
+  const detailIndex = campaignRoutes.findIndex((route) => route.path === "/campaigns/:campaignId");
+  assert.ok(presetIndex >= 0 && detailIndex >= 0 && presetIndex < detailIndex,
+    "static preset route must be registered before the campaignId route");
+  for (const route of campaignRoutes) {
+    assert.equal(route.permissionHandlers.length, 1, route.path);
+    const middleware = route.permissionHandlers[0];
+    for (const role of Object.keys(ADMIN_ROLE_PROFILES)) {
+      const result = runPermission(middleware, role);
+      const allowed = ["super_admin", "platform_admin", "finance_manager"].includes(role);
+      assert.equal(result.nextCalled, allowed, role + " on " + route.path);
+      if (!allowed) assert.equal(result.statusCode, 403);
+    }
+  }
+});
+
+test("existing administrator grant endpoints remain registered and protected", () => {
+  const routes = getRoutes();
+  for (const path of ["/grants", "/preview", "/grant"]) {
+    const route = routes.find((item) => item.path === path);
+    assert.ok(route, "missing existing grant route " + path);
+    assert.equal(route.permissionHandlers.length, 1);
+  }
+});
+
+test("explicit trials.manage permission override is honoured by the campaign route", () => {
+  const route = getRoutes().find((item) => item.path === "/campaigns" && item.methods.includes("get"));
+  const result = runPermission(route.permissionHandlers[0], "support_manager", ["trials.manage"]);
+  assert.equal(result.nextCalled, true);
+});
+
+
+test("campaign claim ledger endpoint is registered and protected by trials.manage", () => {
+  const route = getRoutes().find((item) => item.path === "/claims" && item.methods.includes("get"));
+  assert.ok(route, "missing campaign claims ledger route");
+  assert.equal(route.permissionHandlers.length, 1);
+  for (const role of Object.keys(ADMIN_ROLE_PROFILES)) {
+    const result = runPermission(route.permissionHandlers[0], role);
+    const allowed = ["super_admin", "platform_admin", "finance_manager"].includes(role);
+    assert.equal(result.nextCalled, allowed, role + " on /claims");
+    if (!allowed) assert.equal(result.statusCode, 403);
+  }
+});
+
+
+test("admin trial routes require authentication and an administrator access token before permissions", () => {
+  const globalHandlers = (adminTrialsRouter.stack || [])
+    .filter((layer) => !layer.route)
+    .map((layer) => layer.handle);
+
+  assert.deepEqual(globalHandlers, [authMiddleware, adminMiddleware]);
+
+  for (const user of [
+    { role: "user", accessType: "user" },
+    { role: "admin", accessType: "user" },
+    { role: "user", accessType: "admin" },
+  ]) {
+    const response = { statusCode: 200, body: undefined, nextCalled: false };
+    adminMiddleware({ user }, {
+      status(code) { response.statusCode = code; return this; },
+      json(body) { response.body = body; return this; },
+    }, () => { response.nextCalled = true; });
+
+    assert.equal(response.nextCalled, false);
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.success, false);
+  }
+
+  const allowed = { statusCode: 200, nextCalled: false };
+  adminMiddleware({ user: { role: "admin", accessType: "admin" } }, {
+    status(code) { allowed.statusCode = code; return this; },
+    json(body) { allowed.body = body; return this; },
+  }, () => { allowed.nextCalled = true; });
+  assert.equal(allowed.nextCalled, true);
+  assert.equal(allowed.statusCode, 200);
+});

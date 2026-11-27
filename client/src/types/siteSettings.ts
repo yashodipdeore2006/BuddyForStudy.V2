@@ -1,0 +1,68 @@
+export type SiteFooterGroup = "company" | "discover" | "plans_support" | "policies";
+
+export interface SiteFooterLink {
+  id: string;
+  label: string;
+  href: string;
+  group: SiteFooterGroup;
+}
+
+export interface SiteSettings {
+  brand: {
+    siteName: string;
+    tagline: string;
+    description: string;
+    logoUrl: string;
+  };
+  contact: {
+    supportEmail: string;
+    supportPhone: string;
+    officeAddress: string;
+    businessHours: string;
+  };
+  socialLinks: {
+    instagram: string;
+    linkedin: string;
+    youtube: string;
+    x: string;
+    facebook: string;
+    github: string;
+  };
+  footerLinks: SiteFooterLink[];
+}
+
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  brand: {
+    siteName: "BuddyForStudy",
+    tagline: "Find Your Path. Learn with Purpose. Build Your Future.",
+    description: "BuddyForStudy is an AI-powered career learning platform that helps learners explore career paths, follow structured roadmaps, discover curated courses, and track their skill-building progress.",
+    logoUrl: "/buddyforstudy-mascot.webp",
+  },
+  contact: {
+    supportEmail: "",
+    supportPhone: "",
+    officeAddress: "",
+    businessHours: "",
+  },
+  socialLinks: {
+    instagram: "",
+    linkedin: "",
+    youtube: "",
+    x: "",
+    facebook: "",
+    github: "",
+  },
+  footerLinks: [
+    { id: "about", label: "About us", href: "/about", group: "company" },
+    { id: "contact", label: "Contact us", href: "/contact", group: "company" },
+    { id: "explore", label: "Explore courses", href: "/explore", group: "discover" },
+    { id: "roadmaps", label: "Learning roadmaps", href: "/explore?build=1", group: "discover" },
+    { id: "pricing", label: "Plans & pricing", href: "/pricing", group: "plans_support" },
+    { id: "faq", label: "Help centre & FAQs", href: "/faq", group: "plans_support" },
+    { id: "support-contact", label: "Contact support", href: "/contact", group: "plans_support" },
+    { id: "privacy", label: "Privacy policy", href: "/legal/privacy-policy", group: "policies" },
+    { id: "terms", label: "Terms of service", href: "/legal/terms-of-service", group: "policies" },
+    { id: "cookies", label: "Cookie policy", href: "/legal/cookie-policy", group: "policies" },
+    { id: "all-policies", label: "All policies & accessibility", href: "/legal", group: "policies" },
+  ],
+};

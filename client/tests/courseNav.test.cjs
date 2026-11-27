@@ -49,6 +49,8 @@ test("all course surfaces use a safe effective price and only show valid sale pr
   assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), false);
   assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0, compareAtPrice: 50 }), null);
   assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20, compareAtPrice: 50 }), 50);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20, compareAtPrice: 10 }), 35);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: false, salePrice: 20, compareAtPrice: 50 }), null);
 
   const card = fs.readFileSync(path.join(root, "src/components/CourseCard.tsx"), "utf8");
   const myLearning = fs.readFileSync(path.join(root, "src/pages/MyCourses.tsx"), "utf8");
@@ -57,6 +59,20 @@ test("all course surfaces use a safe effective price and only show valid sale pr
   assert.match(myLearning, /getEffectiveCoursePrice\(course\.pricing\)/);
   assert.match(details, /getEffectiveCoursePrice\(course\.pricing\)/);
   assert.match(details, /Checkout has been blocked to prevent a mismatched charge/);
+});
+
+
+test("shared currency formatter preserves supported minor-unit precision and safely falls back", () => {
+  const { formatCurrencyAmount } = coursePricingModule;
+  assert.ok(formatCurrencyAmount(99.5, "INR").includes("99.5"));
+  assert.ok(formatCurrencyAmount(9.99, "USD").includes("9.99"));
+  assert.match(formatCurrencyAmount(125, "JPY"), /125/);
+  assert.equal(formatCurrencyAmount(Number.NaN, "INR"), "Price unavailable");
+  assert.equal(
+    formatCurrencyAmount(12.34, "not-a-currency"),
+    formatCurrencyAmount(12.34, "INR"),
+    "unsupported currency codes must use the documented INR fallback"
+  );
 });
 
 test("course navigation stays in the same tab while external links open a new tab", () => {
@@ -240,9 +256,11 @@ test("pricing and upgrade modal share eligible plans, admin order and currency/u
   const upgradeModal = fs.readFileSync(path.join(root, "src/components/FeatureUpgradeModal.tsx"), "utf8");
   const sharedPlans = fs.readFileSync(path.join(root, "src/lib/subscriptionPlans.ts"), "utf8");
   const billingRoutes = fs.readFileSync(path.join(root, "../server/src/routes/billing.routes.js"), "utf8");
-  assert.match(billingRoutes, /SubscriptionPlan\.find\(\{isActive:true\}\)\.sort\(\{sortOrder:1,createdAt:1\}\)/);
+  assert.match(billingRoutes, /PlanModel\.find\(\{ isActive: true \}\)[\s\S]*?sort\(\{ sortOrder: 1, createdAt: 1 \}\)/);
   assert.match(pricingPage, /const availablePlans = getCheckoutSubscriptionPlans<Plan>\(data\.plans\)/);
-  assert.match(pricingPage, /setPlans\(data\.paymentsEnabled === false \? availablePlans\.filter\(\(plan\) => Number\(plan\.price\) === 0 \|\| plan\.name\.toLowerCase\(\) === "free"\) : availablePlans\)/);
+  assert.match(pricingPage, /setPlans\(availablePlans\)/);
+  assert.match(pricingPage, /if \(!paymentsEnabled\)[\s\S]*?Paid plan purchases are temporarily unavailable/);
+  assert.match(pricingPage, /Paid checkout is temporarily unavailable/);
   assert.match(pricingPage, /setPaymentsEnabled\(data\.paymentsEnabled !== false\)/);
   assert.match(pricingPage, /trialConversion && paymentsEnabled/);
   assert.match(upgradeModal, /getCheckoutSubscriptionPlans<Plan>\(planData\.plans\)/);
@@ -288,4 +306,118 @@ test("course player offers one-tap curation feedback and dismisses the choices a
   assert.match(player, /curationFeedbackDismissedKeys\.has/);
   assert.match(player, /setCurationFeedbackDismissedKeys\(\(current\) => new Set\(current\)\.add\(key\)\)/);
   assert.match(player, /Retry feedback/);
+});
+
+
+test("Build with AI enables adaptive onboarding only through the VITE_INTENT_V2 feature flag", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  assert.match(courses, /const INTENT_V2 = import\.meta\.env\.VITE_INTENT_V2 === "true"/);
+  assert.match(courses, /aria-label="Adaptive learning questions"/);
+  assert.match(courses, /aria-label="Review your learning profile"/);
+  assert.match(courses, /const parsedProfile = intentResult\?\.profile \|\| \{\}/);
+  assert.match(courses, /studyTimeMinutesPerDay: studyMinutes/);
+  assert.match(courses, /studyDays: String\(studyDaysPerWeek\)/);
+  assert.match(courses, /Estimated completion timeline/);
+  assert.match(courses, /Based on returned resource metadata; not a verification of video content/);
+  assert.doesNotMatch(courses, /Verified video runtime/);
+});
+
+
+test("Build with AI previews prerequisite relationships and selected video audio-language metadata", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const types = fs.readFileSync(path.join(root, "src/types/index.ts"), "utf8");
+
+  assert.match(courses, /skillGraph\?: AiSkillGraphNode\[\]/);
+  assert.match(courses, /skillGraphById\.get\(skillId\)\?\.prerequisites/);
+  assert.match(courses, /Prerequisites:/);
+  assert.match(courses, /YouTube audio metadata:/);
+  assert.match(courses, /video\.defaultAudioLanguage/);
+  assert.match(types, /defaultAudioLanguage\?: string/);
+  assert.match(courses, /Based on returned resource metadata; not a verification of video content/);
+});
+
+
+test("Build with AI adaptive questions remain optional and can be skipped without blocking progress", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const intentTests = fs.readFileSync(path.join(root, "../server/src/services/intent.service.test.js"), "utf8");
+  const questionPacks = fs.readFileSync(path.join(root, "src/data/buildWithAiQuestionPacks.ts"), "utf8");
+
+  assert.ok(courses.includes("question.optional && <span className="), "optional questions must be identified in the interface");
+  assert.ok(courses.includes('trackIntentQuestionEvent(question, "skipped", index)'), "continuing must record unanswered optional questions as skipped");
+  assert.ok(courses.includes("setIntentWizardStep((step) => Math.min(4, step + 1))"), "skipping must still advance the wizard");
+  assert.ok(questionPacks.includes("Not sure, pick for me"), "question packs must offer a safe unsure choice");
+  assert.match(intentTests, /all questions can be skipped and legacy goal mapping stays compatible/);
+  assert.match(intentTests, /provider outage and malformed JSON failures return a safe uncached fallback/);
+});
+
+test("Build with AI review controls pass edited learner profile fields to roadmap generation", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const labels = [
+    "Learning goal",
+    "Current experience",
+    "Course depth",
+    "Study minutes per day",
+    "Study days per week",
+    "Skills you already know",
+    "Resource languages"
+  ];
+  for (const label of labels) assert.ok(courses.includes(label), "missing editable review field: " + label);
+
+  assert.ok(courses.includes('markIntentAnswer("knownSkills", event.target.value)'), "known skills must be editable");
+  assert.ok(courses.includes('markIntentAnswer("studyDays", event.target.value + " days")'), "study days must be editable");
+  assert.ok(courses.includes("setAiResourceLanguages((current) =>"), "resource language selection must be editable");
+
+  const generateStart = courses.indexOf("const generateAiRoadmap = async () =>");
+  const profileStart = courses.indexOf("const profile = {", generateStart);
+  const requestStart = courses.indexOf("setAiLoading(true)", profileStart);
+  assert.ok(generateStart >= 0 && profileStart > generateStart && requestStart > profileStart, "expected the editable profile to be assembled before the roadmap request");
+  const profilePayload = courses.slice(profileStart, requestStart);
+
+  assert.match(profilePayload, /studyTimeMinutesPerDay: studyMinutes/);
+  assert.match(profilePayload, /language: preferredLanguage/);
+  assert.match(profilePayload, /knownSkills/);
+  assert.match(profilePayload, /studyDays: String\(studyDaysPerWeek\)/);
+  assert.match(profilePayload, /resourceLanguages: effectiveLanguages\.join\(","\)/);
+  assert.match(profilePayload, /targetRole: selectedRole/);
+  assert.match(profilePayload, /targetCompany: selectedCompany/);
+});
+
+
+test("subscription plan creation is a guided, validated flow with a learner-facing review", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  assert.match(plansPage, /const createPlanSteps = \[/);
+  assert.match(plansPage, /title: "Basics"/);
+  assert.match(plansPage, /title: "Price & billing"/);
+  assert.match(plansPage, /title: "Features & limits"/);
+  assert.match(plansPage, /title: "Review"/);
+  assert.match(plansPage, /slugifyPlanName/);
+  assert.match(plansPage, /Learner-facing description/);
+  assert.match(plansPage, /Plan currency/);
+  assert.match(plansPage, /Show this plan to learners/);
+  assert.match(plansPage, /Mark as popular/);
+  assert.match(plansPage, /Learner-facing plan preview/);
+  assert.match(plansPage, /continueCreatePlan/);
+  assert.match(plansPage, /Creating a plan does not enable payments globally/);
+});
+
+
+test("subscription admin uses recurring intervals for new plans and currency-aware plan prices", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  const planValidation = fs.readFileSync(path.join(root, "../server/src/utils/subscriptionPlanAdminValidation.js"), "utf8");
+  assert.match(plansPage, /Subscription plans must use a recurring billing interval/);
+  assert.match(plansPage, /formatPlanPrice\(plan\.price, plan\.currency \|\| "INR", plan\.billingInterval\)/);
+  assert.match(plansPage, /currency: String\(plan\.currency \|\| "INR"\)\.trim\(\)\.toUpperCase\(\)/);
+  assert.match(planValidation, /keepsLegacyOneTimeInterval/);
+  assert.match(planValidation, /Subscription plans must use a recurring billing interval/);
+});
+
+
+test("subscription plan admin makes public visibility and ordering explicit in the review", () => {
+  const plansPage = fs.readFileSync(path.join(root, "src/pages/admin/AdminPlans.tsx"), "utf8");
+  assert.match(plansPage, /Show this plan to learners/);
+  assert.match(plansPage, /Active plans appear in the public plan catalogue/);
+  assert.match(plansPage, /Lower numbers appear first/);
+  assert.match(plansPage, /Visible to learners/);
+  assert.match(plansPage, /Hidden from learners/);
+  assert.match(plansPage, /Display order \{form\.sortOrder\}/);
 });

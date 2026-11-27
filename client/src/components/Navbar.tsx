@@ -10,6 +10,8 @@ import CommandPalette from "@/components/CommandPalette";
 import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 type ThemeMode = "light" | "dark" | "system";
 type EnrollmentLessonSummary = { _id?: string; id?: string };
@@ -48,6 +50,7 @@ function resolveTheme(mode: ThemeMode): "light" | "dark" {
 
 export default function Navbar() {
   const { profile, session, signOut } = useAuth();
+  const { settings } = useSiteSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -156,7 +159,11 @@ export default function Navbar() {
     };
     const continueLastCourse = async () => {
       if (!session) {
-        navigate(routes.login());
+        requestAuthPrompt({
+          from: location,
+          title: "Sign in to continue learning",
+          description: "Sign in or create a free account to open your learning progress and continue where you left off.",
+        });
         return;
       }
       try {
@@ -265,7 +272,7 @@ export default function Navbar() {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [navigate, openPalette, session, paletteOpen, shortcutsOpen, menuOpen]);
+  }, [navigate, location, openPalette, session, paletteOpen, shortcutsOpen, menuOpen]);
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -286,9 +293,9 @@ export default function Navbar() {
     <>
       <header className="bfs-user-header">
         <nav className="bfs-user-header__inner" aria-label="Primary navigation">
-          <Link to={isLearner ? "/home" : "/"} className="bfs-user-brand" aria-label="BuddyForStudy home">
-            <span className="bfs-user-brand__mark"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" /></span>
-            <span className="bfs-user-brand__wordmark">Buddy<span>For</span>Study</span>
+          <Link to={isLearner ? "/home" : "/"} className="bfs-user-brand" aria-label={settings.brand.siteName + " home"}>
+            <span className="bfs-user-brand__mark"><img src={settings.brand.logoUrl || "/buddyforstudy-mascot.webp"} alt="" aria-hidden="true" /></span>
+            <span className="bfs-user-brand__wordmark">{settings.brand.siteName}</span>
           </Link>
 
           {profile && (
@@ -310,8 +317,8 @@ export default function Navbar() {
             {profile && !isAdmin && <NotificationMenu />}
             {profile ? (
               <div className="bfs-avatar-menu" ref={menuRef}>
-                <button ref={accountTriggerRef} type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={"Open account menu for " + avatarName}>
-                  <span className="bfs-avatar">{avatarInitial}</span>
+                <button ref={accountTriggerRef} type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={avatarInitial + avatarName + " Open account menu for " + avatarName}>
+                  <span className="bfs-avatar" aria-hidden="true">{avatarInitial}</span>
                   <span className="bfs-avatar-trigger__name">{avatarName}</span>
                 </button>
                 {menuOpen && (
@@ -334,7 +341,9 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="bfs-public-actions">
-                <Link to={routes.explore()} className="bfs-public-link">Explore</Link>
+                <Link to={routes.explore()} className="bfs-public-link bfs-public-link--explore">Explore</Link>
+                <Link to={routes.landing() + "#how-it-works"} className="bfs-public-link bfs-public-link--how-it-works">How it works</Link>
+                <Link to={routes.pricing()} className="bfs-public-link bfs-public-link--pricing">Pricing</Link>
                 <Link to={routes.login()} className="bfs-public-link">Sign in</Link>
                 <Link to={routes.register()} className="bfs-user-primary-button">Get started</Link>
               </div>

@@ -1,9 +1,10 @@
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
-import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
+import { getDefaultFreePlan } from "./defaultFreePlan.service.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 const featureByKey = new Map(SUBSCRIPTION_FEATURES.map((feature) => [feature.key, feature]));
@@ -24,32 +25,63 @@ export function isSubscriptionPeriodCurrent(subscription, now = Date.now()) {
   return Number.isFinite(end) && end > Number(now);
 }
 
-export async function getActivePlanForUser(userId) {
+export async function getActiveSubscriptionForUser(userId) {
   const subscription = await UserSubscription.findOne({
     user: userId,
     status: { $in: ["trialing", "active", "past_due"] }
   }).populate("plan").lean();
 
-  if (subscription?.plan && isSubscriptionPeriodCurrent(subscription)) {
-    return subscription.plan;
-  }
+  return subscription?.plan && isSubscriptionPeriodCurrent(subscription)
+    ? subscription
+    : null;
+}
 
-  return SubscriptionPlan.findOne({
-    isActive: true,
-    $or: [{ slug: "free" }, { price: 0 }]
-  }).sort({ sortOrder: 1, createdAt: 1 }).lean();
+async function getFreePlan() {
+  return getDefaultFreePlan();
+}
+
+export async function getActivePlanForUser(userId) {
+  const subscription = await getActiveSubscriptionForUser(userId);
+  return subscription?.plan || getFreePlan();
 }
 
 export async function getEntitlement(userId, feature) {
   const definition = resolveFeature(feature);
-  if (!definition) return { allowed: false, feature: null, plan: null, limits: {} };
+  if (!definition) return { allowed: false, feature: null, plan: null, limits: {}, isTrial: false, trialEndsAt: null };
 
-  const override = await UserFeatureOverride.findOne({
-    user: userId,
-    featureKey: definition.key,
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
-  }).lean();
-  const plan = await getActivePlanForUser(userId);
+  const [override, subscription] = await Promise.all([
+    UserFeatureOverride.findOne({
+      user: userId,
+      featureKey: definition.key,
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
+    }).lean(),
+    getActiveSubscriptionForUser(userId)
+  ]);
+  // Trial grants are the durable source of truth for trial history. The
+  // maintenance scheduler changes both TrialGrant and UserSubscription from
+  // "trialing" to "expired", so querying only a trialing subscription loses
+  // the learner-facing expiry state after maintenance has run.
+  const entitlementCheckAt = new Date();
+  const [plan, expiredTrialGrant, expiredTrialSubscription] = await Promise.all([
+    subscription?.plan ? Promise.resolve(subscription.plan) : getFreePlan(),
+    !subscription && !override
+      ? TrialGrant.findOne({
+          user: userId,
+          status: { $in: ["trialing", "expired"] },
+          endsAt: { $ne: null, $lte: entitlementCheckAt }
+        }).populate("plan").sort({ endsAt: -1 }).lean()
+      : Promise.resolve(null),
+    !subscription && !override
+      ? UserSubscription.findOne({
+          user: userId,
+          status: "trialing",
+          currentPeriodEnd: { $ne: null, $lte: entitlementCheckAt }
+        }).populate("plan").sort({ currentPeriodEnd: -1 }).lean()
+      : Promise.resolve(null)
+  ]);
+  const expiredTrialPlan = expiredTrialGrant?.plan || expiredTrialSubscription?.plan;
+  const expiredTrialFeatures = normalizeSubscriptionFeatures(expiredTrialPlan?.features || []);
+
   if (override) {
     return {
       allowed: override.allowed,
@@ -60,18 +92,39 @@ export async function getEntitlement(userId, feature) {
         allowed: override.allowed,
         expiresAt: override.expiresAt || null,
         reason: override.reason
-      }
+      },
+      isTrial: false,
+      trialEndsAt: null,
+      trialExpired: false
     };
   }
-  if (!plan) return { allowed: false, feature: definition, plan: null, limits: {} };
+  if (!plan) {
+    const expiredFeatures = expiredTrialFeatures;
+    return {
+      allowed: false,
+      feature: definition,
+      plan: null,
+      limits: {},
+      override: null,
+      isTrial: false,
+      trialEndsAt: null,
+      trialExpired: expiredFeatures.includes(definition.label)
+    };
+  }
 
   const features = normalizeSubscriptionFeatures(plan.features || []);
+  const allowed = features.includes(definition.label);
+  const isTrial = Boolean(allowed && subscription?.status === "trialing");
+  const trialExpired = Boolean(!allowed && expiredTrialFeatures.includes(definition.label));
   return {
-    allowed: features.includes(definition.label),
+    allowed,
     feature: definition,
     plan,
     limits: plan.limits || {},
-    override: null
+    override: null,
+    isTrial,
+    trialEndsAt: isTrial ? subscription.currentPeriodEnd || null : null,
+    trialExpired
   };
 }
 
@@ -125,6 +178,73 @@ export function isEnrollmentCourseAccessAllowed({
   }
   if (!course.isPublished) return false;
   return Boolean(planEntitled);
+}
+
+/**
+ * Resolve the learner-facing access state for a course card.
+ * This summary never replaces canAccessCourse checks on protected APIs.
+ */
+export function resolveCourseCardAccess({
+  enrollment,
+  course,
+  userId,
+  planEntitled = false,
+  planName = null,
+  planOverride = false,
+  isTrial = false,
+  trialEndsAt = null,
+  trialExpired = false,
+  hasIndividualPayment = false
+}) {
+  const pricingMode = course?.pricing?.mode;
+  const isPaidCourse = pricingMode === "paid";
+  const isFreeCourse = pricingMode === "free";
+  const hasValidEnrollment = Boolean(
+    enrollment &&
+    !enrollment.revokedBy &&
+    ["active", "completed"].includes(String(enrollment.status || "").toLowerCase())
+  );
+  const enrollmentAllowed = hasValidEnrollment && isEnrollmentCourseAccessAllowed({
+    enrollment, course, userId, planEntitled, hasIndividualPayment
+  });
+  const isCompleted = Boolean(enrollmentAllowed && String(enrollment.status).toLowerCase() === "completed");
+
+  let source = "none";
+  if (isPaidCourse && hasIndividualPayment) source = "individual";
+  else if (isPaidCourse && planEntitled && isTrial) source = "trial";
+  else if (isPaidCourse && planEntitled) source = "subscription";
+  else if (enrollmentAllowed && ["subscription", "admin", "self"].includes(enrollment.accessSource)) {
+    source = enrollment.accessSource === "subscription" && isTrial ? "trial" : enrollment.accessSource;
+  }
+
+  const status = enrollment?.revokedBy
+    ? "ACCESS_REVOKED"
+    : (!isPaidCourse && !isFreeCourse)
+      ? "PRICE_UNAVAILABLE"
+      : isCompleted
+        ? "COMPLETED"
+        : isPaidCourse && hasIndividualPayment
+          ? "PURCHASED"
+          : isPaidCourse && planEntitled && isTrial
+            ? "TRIAL_INCLUDED"
+            : isPaidCourse && planEntitled
+              ? "PLAN_INCLUDED"
+              : enrollment?.accessSource === "subscription" && !planEntitled && !hasIndividualPayment
+                ? "ACCESS_EXPIRED"
+              : enrollmentAllowed
+                ? "ENROLLED"
+                : isPaidCourse && trialExpired
+                  ? "ACCESS_EXPIRED"
+                  : isFreeCourse ? "FREE" : "PAID";
+
+  return {
+    status,
+    source,
+    isEnrolled: Boolean(enrollmentAllowed),
+    isCompleted,
+    planName: planEntitled && !planOverride && !isTrial ? (String(planName || "").trim() || null) : null,
+    trialEndsAt: isTrial && trialEndsAt ? new Date(trialEndsAt).toISOString() : null
+  };
 }
 
 export async function canAccessCourse(userId, courseId) {

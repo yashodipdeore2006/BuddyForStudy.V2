@@ -56,3 +56,21 @@ test("course admin patch rejects a zero-priced active sale", () => {
     error.field === "pricing.salePrice" && /greater than zero/i.test(error.message)
   ));
 });
+
+
+test("course admin patch accepts canonical domain and a bounded tag list", () => {
+  assert.deepEqual(validateCourseAdminPatch({
+    domain: "software-development",
+    tags: ["React", "Node.js", "Backend APIs"]
+  }), { valid: true, errors: [] });
+});
+
+test("course admin patch rejects unknown domains and malformed tags", () => {
+  const result = validateCourseAdminPatch({
+    domain: "random-domain",
+    tags: ["", 12, "x".repeat(41)]
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.field === "domain"));
+  assert.ok(result.errors.some((error) => error.field === "tags"));
+});

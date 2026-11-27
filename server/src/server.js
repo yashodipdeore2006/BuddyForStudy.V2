@@ -37,10 +37,11 @@ import publicSettingsRoutes from "./routes/publicSettings.routes.js";
 import consentRoutes from "./routes/consent.routes.js";
 import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import adminTrialsRoutes from "./routes/adminTrials.routes.js";
-import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
+import trialCampaignRoutes from "./routes/trialCampaign.routes.js";
+import { getBackgroundOperationsHealth } from "./services/backgroundOperationsHealth.service.js";
+import { createInlineBackgroundScheduler } from "./jobs/inlineBackgroundScheduler.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { requestId } from "./middleware/requestId.js";
-import { createPaymentAvailabilityMiddleware } from "./middleware/paymentAvailability.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
@@ -50,7 +51,6 @@ app.set("trust proxy", env.trustProxyHops);
 app.use(requestId);
 const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("payments"), message: { success: false, message: "Too many payment requests. Please try again later." } });
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("webhooks") });
-const requirePaymentsEnabled = createPaymentAvailabilityMiddleware({ enabled: env.paymentsEnabled });
 
 app.disable("x-powered-by");
 app.use(helmet());
@@ -102,6 +102,7 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/admin", adminProRoutes);
 app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/trials", adminTrialsRoutes);
+app.use("/api/trials", trialCampaignRoutes);
 app.use("/api/admin/saved-views", savedViewRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", curriculumRoutes);
@@ -116,26 +117,57 @@ app.use("/api/achievements", achievementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/saved-courses", savedCourseRoutes);
 app.use("/api/legal", legalRoutes);
-app.use("/api/payments", paymentLimiter, requirePaymentsEnabled, paymentRoutes);
-app.use("/api/webhooks", webhookLimiter, requirePaymentsEnabled, webhookRoutes);
+// Gate only new order creation inside paymentRoutes. Keep verification and
+// signed webhooks available so already-created transactions can be reconciled.
+app.use("/api/payments", paymentLimiter, paymentRoutes);
+app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
 
 connectDatabase()
-  .then(() => {
-    const workerHealthTimer = setInterval(() => {
-      void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
-    }, 60 * 1000);
-    workerHealthTimer.unref?.();
-    void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
+  .then(async () => {
+    let workerHealthTimer = null;
+    let inlineBackgroundScheduler = null;
+
+    if (env.backgroundWorkerMode === "inline") {
+      inlineBackgroundScheduler = createInlineBackgroundScheduler();
+      await inlineBackgroundScheduler.start();
+    }
+
+    if (env.backgroundWorkerMode !== "disabled") {
+      const monitorBackgroundOperations = async () => {
+        const health = await getBackgroundOperationsHealth();
+        if (health.status === "degraded") {
+          console.warn("[operations] background execution health is degraded", {
+            mode: health.mode,
+            workerStatus: health.worker.status,
+            jobs: health.jobs.filter((job) => job.status === "expired").map((job) => job.jobKey)
+          });
+        }
+        return health;
+      };
+      workerHealthTimer = setInterval(() => {
+        void monitorBackgroundOperations().catch((error) => console.error("[operations] background health monitor failed", { name: error?.name || "Error", code: error?.code }));
+      }, 60 * 1000);
+      workerHealthTimer.unref?.();
+      void monitorBackgroundOperations().catch((error) => console.error("[operations] initial background health check failed", { name: error?.name || "Error", code: error?.code }));
+    } else {
+      console.info("[operations] background scheduling is explicitly disabled; heartbeat and lease alerts are suppressed");
+    }
+
     const server = app.listen(env.port, "0.0.0.0", () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
     });
     const shutdown = createGracefulShutdown({
       server,
       disconnect: disconnectDatabase,
-      clearTimers: () => clearInterval(workerHealthTimer),
+      clearTimers: () => {
+        if (workerHealthTimer) clearInterval(workerHealthTimer);
+      },
+      beforeClose: async () => {
+        if (inlineBackgroundScheduler) await inlineBackgroundScheduler.stop();
+      },
       timeoutMs: Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000,
       logger: console,
     });

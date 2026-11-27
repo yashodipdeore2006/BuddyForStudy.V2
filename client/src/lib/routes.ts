@@ -13,6 +13,7 @@ export const routes = {
   faq: () => "/faq",
   adminHome: () => "/admin",
   adminSettings: () => "/admin/settings",
+  adminSiteSettings: () => "/admin/site-settings",
   adminUsers: () => "/admin/users",
   adminCourses: () => "/admin/courses",
   adminAnalytics: () => "/admin/analytics",
@@ -42,6 +43,7 @@ export const routes = {
   forgotPassword: () => "/forgot-password",
   pricing: () => "/pricing",
   billing: () => "/billing",
+  paymentDetails: (paymentId: string) => `/billing/transactions/${encodeRouteSegment(paymentId, "payment id")}`,
   notifications: () => "/notifications",
   profile: () => "/profile",
   settings: () => "/settings",
@@ -99,6 +101,9 @@ export function resolveNotificationRoute(value: unknown): string | null {
     }
     if (segments.length === 2 && segments[0] === "playlists") {
       return routes.playlist(decodeURIComponent(segments[1]));
+    }
+    if (segments.length === 3 && segments[0] === "billing" && segments[1] === "transactions") {
+      return routes.paymentDetails(decodeURIComponent(segments[2]));
     }
     if (segments.length === 2 && segments[0] === "roadmaps") {
       return routes.savedRoadmap(decodeURIComponent(segments[1]));

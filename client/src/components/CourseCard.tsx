@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, CheckCircle2, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Bookmark, CheckCircle2, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -13,6 +13,9 @@ import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { useCourseState } from "@/lib/useCourseState";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -48,12 +51,6 @@ function normalizeCourseId(value: unknown): string {
   return id == null ? "" : String(id).toLowerCase();
 }
 
-function levelClass(level?: string): string {
-  if (level === "Beginner") return "bfs-course-chip bfs-course-chip--beginner bfs-course-card__level";
-  if (level === "Intermediate") return "bfs-course-chip bfs-course-chip--intermediate bfs-course-card__level";
-  if (level === "Advanced") return "bfs-course-chip bfs-course-chip--advanced bfs-course-card__level";
-  return "bfs-course-chip bfs-course-card__level";
-}
 
 function courseLessonCount(course: Course): number | null {
   if (Array.isArray(course.modules) && course.modules.length > 0) return countAllLessons(course.modules);
@@ -72,6 +69,7 @@ function CourseCardContent({
 }: CourseCardProps) {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const lessonCount = courseLessonCount(course);
   const cardMetadata = course.cardMetadata;
   const videoCount = Number.isFinite(cardMetadata?.videoCount) ? Number(cardMetadata?.videoCount) : 0;
@@ -85,7 +83,6 @@ function CourseCardContent({
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
   const isFree = course.pricing?.mode === "free";
   const [saved, setSaved] = useState(initiallySaved);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
@@ -103,6 +100,26 @@ function CourseCardContent({
   }, [undoSavedTo]);
 
   const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id), courseStateRetry);
+  const cardAccess = session?.user?.id && !courseState.loading ? courseState.access : null;
+  const includedInTrial = course.pricing?.mode === "paid" && cardAccess?.source === "trial" &&
+    (cardAccess.status === "TRIAL_INCLUDED" || cardAccess.status === "COMPLETED");
+  const includedInPlan = cardAccess?.source === "subscription" &&
+    (cardAccess.status === "PLAN_INCLUDED" || cardAccess.status === "COMPLETED");
+  const individuallyPurchased = cardAccess?.source === "individual" &&
+    (cardAccess.status === "PURCHASED" || cardAccess.status === "COMPLETED");
+  const accessPriceLabel = includedInTrial
+    ? "Included in your trial"
+    : includedInPlan
+      ? "Included in " + (cardAccess?.planName || "your plan")
+    : individuallyPurchased
+      ? "Purchased"
+      : cardAccess?.status === "ENROLLED"
+        ? "Enrolled"
+        : cardAccess?.status === "COMPLETED"
+          ? "Completed"
+          : cardAccess?.status === "ACCESS_REVOKED"
+            ? "Access revoked"
+            : null;
 
   useEffect(() => {
     let active = true;
@@ -144,7 +161,12 @@ function CourseCardContent({
     if (saving) return;
     setUndoSavedTo(null);
     if (!session) {
-      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to save this course",
+        description: "Create a free account or sign in to keep courses in your Saved list and access them across devices.",
+        courseTitle: course.title,
+      });
       return;
     }
     const previous = saved;
@@ -168,7 +190,7 @@ function CourseCardContent({
     } finally {
       setSaving(false);
     }
-  }, [course.id, navigate, onSavedChange, saved, saving, session]);
+  }, [course.id, course.title, location, onSavedChange, saved, saving, session]);
 
   const handleShare = useCallback(async () => {
     const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });
@@ -224,17 +246,6 @@ function CourseCardContent({
   };
 
   const displayOutcome = getCourseCardDescription(course);
-  const coverCategory = (course.category || "").toLowerCase();
-  const coverPalette = /data|analytics|sql|database/.test(coverCategory) ? "data"
-    : /design|ui|ux|art/.test(coverCategory) ? "design"
-      : /business|finance|marketing/.test(coverCategory) ? "business"
-        : /ai|machine|python|program/.test(coverCategory) ? "technology"
-          : "learning";
-  const CoverIcon = /data|analytics|sql|database/.test(coverCategory) ? Database
-    : /design|ui|ux|art/.test(coverCategory) ? Palette
-      : /business|finance|marketing/.test(coverCategory) ? BriefcaseBusiness
-        : /ai|machine|python/.test(coverCategory) ? BrainCircuit
-          : /program|software|web|code/.test(coverCategory) ? Code2 : GraduationCap;
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
   const navTargets = getCourseNavTargets({
@@ -256,7 +267,6 @@ function CourseCardContent({
     compact ? "bfs-course-card__compact" : "",
     horizontal ? "bfs-course-card__horizontal" : "",
   ].filter(Boolean).join(" ");
-
   return (
     <article className={rootClass} data-variant={variant}>
       <Link
@@ -268,15 +278,11 @@ function CourseCardContent({
         <span className="bfs-sr-only">{enrollmentState === "not-enrolled" ? "Open course details for " : "Continue learning "}{course.title}</span>
       </Link>
 
-      <div className={"bfs-course-card__media" + (course.generation?.mode === "ai" ? " bfs-course-card__media--generated" : "")}>
-        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course details for " + course.title} tabIndex={-1}>
-        {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
-          <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
-        ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
-        )}
+      <div className="bfs-course-card__media">
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" tabIndex={-1}>
+          <CourseThumbnail {...getCourseThumbnailProps(course)} />
+          <span className="bfs-sr-only">View course details for {course.title}</span>
         </Link>
-        {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
         <button
           type="button"
           className="bfs-course-card__save"
@@ -307,7 +313,13 @@ function CourseCardContent({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
-        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={displayOutcome} aria-label={"View course details and learning outcomes for " + course.title}>{displayOutcome}</Link>}
+        {variant !== "recommended" && (course.ranking?.reasons?.length || 0) > 0 && (
+          <p className="bfs-course-card__reason" title={"Course ranking: " + course.ranking!.reasons.join("; ")}>
+            <Sparkles size={14} aria-hidden="true" />
+            <span><strong>Why this course:</strong> {course.ranking!.reasons.slice(0, 2).join(" · ")}</span>
+          </p>
+        )}
+        {displayOutcome && <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" aria-label={displayOutcome + " — View course details and learning outcomes for " + course.title}>{displayOutcome}</Link>}
         <Link
           to={routes.course(course.id) + "?tab=reviews#reviews"}
           className="bfs-course-card__rating bfs-course-card__rating-link"
@@ -324,7 +336,7 @@ function CourseCardContent({
               </>
             : <span>No ratings yet · Be the first to review</span>}
         </Link>
-        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof">
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
           {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
@@ -336,9 +348,17 @@ function CourseCardContent({
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
-        <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}
-          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{formatCurrencyAmount(crossedOutPrice, course.pricing?.currency || "INR")}</del>}
+        <span className={"bfs-course-card__price" + ((isFree || (accessPriceLabel && accessPriceLabel !== "Access revoked")) ? " bfs-course-card__price--free" : "") + ((includedInPlan || includedInTrial) ? " bfs-course-card__price--included" : "")}>
+          {session?.user?.id && courseState.loading
+            ? "Checking access…"
+            : accessPriceLabel
+              ? <>
+                  <span>{accessPriceLabel}</span>
+                  {(includedInPlan || includedInTrial) && effectivePrice !== null && effectivePrice > 0 && <del>{formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}</del>}
+                </>
+              : effectivePrice === null ? "Price unavailable" : isFree ? "Free" : formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}
+          {!accessPriceLabel && effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{formatCurrencyAmount(crossedOutPrice, course.pricing?.currency || "INR")}</del>}
+          {cardAccess?.status === "ACCESS_EXPIRED" && <span className="bfs-course-card__access-note">Plan access expired</span>}
         </span>
         <CourseActionButton
           state={actionState}

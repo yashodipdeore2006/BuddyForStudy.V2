@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { routes } from "@/lib/routes";
+import { getAuthDestination, readAuthNavigationState, toAuthNavigationState } from "@/lib/authNavigation";
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, profile, signIn, signInWithGoogle } = useAuth();
+  const googleProfileRedirect = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,26 +19,31 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
+  const authFlow = useMemo(() => readAuthNavigationState(location.state), [location.state]);
+  const destination = useMemo(() => getAuthDestination(authFlow, routes.home()), [authFlow]);
 
   useEffect(() => {
     if (session && profile) {
       if (profile.role === 'admin') {
         navigate(routes.adminHome(), { replace: true });
-      } else if (from) {
-        navigate(from, { replace: true });
+      } else if (googleProfileRedirect.current) {
+        googleProfileRedirect.current = false;
+        navigate(routes.profile(), { replace: true, state: toAuthNavigationState(authFlow) });
       } else {
-        navigate(routes.home(), { replace: true });
+        navigate(destination.to, { replace: true, state: destination.state });
       }
     }
-  }, [session, profile, navigate, from]);
+  }, [session, profile, navigate, authFlow, destination]);
 
   const handleGoogle = async (credential: string) => {
+    // Keep users with a protected destination or resumable action on that destination.
+    googleProfileRedirect.current = !authFlow.from && !authFlow.resumeIntent && !authFlow.resumeContext;
     setError(null);
     setLoading(true);
     try {
       await signInWithGoogle(credential);
     } catch (err) {
+      googleProfileRedirect.current = false;
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);
@@ -51,7 +58,7 @@ export default function Login() {
     try {
       const result = await signIn(email, password);
       if ("requiresOtp" in result) {
-        navigate(routes.verifyLogin(), { replace: true, state: { email: result.email, from } });
+        navigate(routes.verifyLogin(), { replace: true, state: toAuthNavigationState(authFlow, { email: result.email }) });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
@@ -69,7 +76,7 @@ export default function Login() {
       footer={
         <>
           Don't have an account?{' '}
-          <Link to={routes.register()} className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.register()} state={toAuthNavigationState(authFlow)} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign up
           </Link>
 
@@ -135,7 +142,7 @@ export default function Login() {
         {needsVerification && (
           <Link
             to={routes.verifyEmail()}
-            state={{ email }}
+            state={toAuthNavigationState(authFlow, { email })}
             className="block rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700 hover:bg-blue-100"
           >
             Verify your email

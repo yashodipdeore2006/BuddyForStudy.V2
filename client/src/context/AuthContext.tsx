@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
 import { syncBrowserPushSubscription, logoutBrowserPush } from '@/lib/pushNotifications';
+import { subscribeToProgressSyncRequests } from '@/lib/serviceWorker';
+import { syncPendingProgressForAccount } from '@/lib/progressSyncClient';
 import type { Profile } from '@/types';
 
 export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; authProvider: 'local'|'google'|'local_google'; profileImage?: string; phoneNumber?: string; }; }
@@ -34,6 +36,7 @@ type AuthUser = {
   phoneNumber?: string;
   phoneNumberVerified?: boolean;
   city?: string;
+  address?: Profile["address"];
   learningGoal?: string;
   profileSetupSkippedAt?: string | null;
   marketingEmailConsent?: boolean;
@@ -43,7 +46,7 @@ function profileFromUser(u: AuthUser):Profile {
     id:u.id,name:u.name,role:u.role,auth_provider:u.authProvider,is_active:u.isActive,
     created_at:new Date().toISOString(),updated_at:new Date().toISOString(),
     phone_number:u.phoneNumber || "",phone_number_verified:u.phoneNumberVerified === true,
-    city:u.city || "",learning_goal:u.learningGoal || "",
+    city:u.city || "",address:u.address || {},learning_goal:u.learningGoal || "",
     profile_setup_skipped_at:u.profileSetupSkippedAt || null,
     marketing_email_consent:u.marketingEmailConsent === true
   };
@@ -83,6 +86,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('bfs:session-expired', handleExpiredSession);
     return () => window.removeEventListener('bfs:session-expired', handleExpiredSession);
   }, []);
+
+  useEffect(() => {
+    const accountId = session?.user.id;
+    if (!accountId) return;
+
+    let cancelled = false;
+    let syncInFlight = false;
+    let rerunRequested = false;
+
+    const runSync = () => {
+      if (cancelled || syncInFlight || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+        if (syncInFlight) rerunRequested = true;
+        return;
+      }
+      syncInFlight = true;
+      void syncPendingProgressForAccount(accountId).catch(() => {
+        // A local storage/browser failure must not disrupt authentication.
+      }).finally(() => {
+        syncInFlight = false;
+        if (rerunRequested && !cancelled) {
+          rerunRequested = false;
+          runSync();
+        }
+      });
+    };
+
+    const unsubscribe = subscribeToProgressSyncRequests(runSync);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") runSync();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Flush on authenticated app startup. The same handler is used for
+    // connectivity restoration, Service Worker wake-ups and manual retries.
+    runSync();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [session?.user.id]);
 
   useEffect(() => {
     const userId = session?.user.id;

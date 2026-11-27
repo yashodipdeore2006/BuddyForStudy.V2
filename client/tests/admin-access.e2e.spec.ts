@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
@@ -595,6 +596,55 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
   });
 
+  test("admin navigation groups and labels make the main workspaces easy to locate", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "analytics.read",
+        "users.read", "courses.read", "ai.manage",
+        "plans.read", "trials.manage", "pricing.manage", "billing.read", "coupons.read",
+        "operations.read", "communications.send", "notifications.read",
+        "audit.read", "settings.read", "legal.manage", "admin_roles.manage",
+      ],
+    });
+    await page.goto(baseURL + "/admin");
+
+    const navigation = page.getByRole("navigation", { name: "Admin navigation" });
+    await expect(navigation.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    const groupHeadings = await navigation.locator(".admin-nav-heading").allTextContents();
+    expect(groupHeadings.map((heading) => heading.trim())).toEqual([
+      "Overview",
+      "Learning & content",
+      "Growth & monetization",
+      "Operations",
+      "Governance & access",
+    ]);
+
+    const groups = navigation.locator(".admin-nav-group");
+    await expect(groups.nth(1).getByRole("link", { name: "AI & content controls" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Subscription plans" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Trial campaigns & grants" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Course Pricing Studio" })).toBeVisible();
+    await expect(groups.nth(2).getByRole("link", { name: "Billing & refunds" })).toBeVisible();
+    await expect(groups.nth(3).getByRole("link", { name: "Payment and access cases" })).toBeVisible();
+    await expect(groups.nth(4).getByRole("link", { name: "Administrator roles" })).toBeVisible();
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }));
+    });
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await search.fill("Trial campaigns & grants");
+    const trialResult = dialog.getByRole("option", { name: /Trial campaigns & grants/ });
+    await expect(trialResult).toBeVisible();
+    await trialResult.click();
+
+    await expect(page).toHaveURL(new RegExp("/admin/trials$"));
+    await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Trial campaigns & grants");
+  });
+
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {
     await mockAdminApi(page, {
       user: analystUser,
@@ -701,6 +751,7 @@ test.describe("administrator route and permission UX", () => {
 
   test("[ADM-PRICING-APPLY-FAILURE-001] pricing apply failure preserves preview and reason for retry", async ({ page }) => {
     let previewRequests = 0;
+    let previewPayload: Record<string, unknown> | null = null;
     let applyRequests = 0;
     let coursePrice = 799;
     let applyPayload: Record<string, unknown> | null = null;
@@ -738,6 +789,7 @@ test.describe("administrator route and permission UX", () => {
     } }));
     await page.route("**/api/admin/pricing/preview", async (route) => {
       previewRequests += 1;
+      previewPayload = route.request().postDataJSON() as Record<string, unknown>;
       return json(route, {
         previewId: "pricing-preview-fixture",
         kind: "bulk",
@@ -767,16 +819,22 @@ test.describe("administrator route and permission UX", () => {
 
     await page.goto(baseURL + "/admin/pricing");
     await expect(page.getByRole("heading", { name: "Course Pricing Studio" })).toBeVisible();
-    await expect(page.getByText("Backend Fundamentals", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Preview bulk change" }).click();
-    await expect(page.getByText("Preview ready. No prices have changed yet.")).toBeVisible();
+    await page.getByRole("tab", { name: "Course catalogue" }).click();
+    const catalogueTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Base price" }) });
+    await expect(catalogueTable.getByText("Backend Fundamentals", { exact: true })).toBeVisible();
+    await page.getByRole("checkbox", { name: "Select Backend Fundamentals" }).check();
+    await page.getByRole("button", { name: "Continue to bulk pricing" }).click();
+    await expect(page.getByRole("heading", { name: "Bulk price editor" })).toBeVisible();
+    await page.getByRole("button", { name: "Generate bulk preview" }).click();
+    await expect(page.getByText("Preview generated. No course prices have changed.")).toBeVisible();
     await expect(page.getByText("Matched", { exact: true })).toBeVisible();
     const previewTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Proposed" }) });
     await expect(previewTable.getByRole("row", { name: /Backend Fundamentals/ })).toContainText("₹499");
     expect(previewRequests).toBe(1);
+    expect(previewPayload).toMatchObject({ selection: { mode: "selected", courseIds: ["pricing-course-fixture"] } });
     expect(applyRequests).toBe(0);
 
-    const reason = page.getByLabel(/Reason for change/);
+    const reason = page.getByLabel(/Reason for pricing change/);
     await reason.fill("Standardize the published beginner course price for the next term.");
     await page.getByRole("button", { name: "Confirm and apply preview" }).click();
     await expect(page.getByRole("alert")).toContainText("Pricing service is temporarily unavailable.");
@@ -786,10 +844,59 @@ test.describe("administrator route and permission UX", () => {
     expect(applyPayload).toMatchObject({ previewId: "pricing-preview-fixture", reason: "Standardize the published beginner course price for the next term." });
 
     await page.getByRole("button", { name: "Confirm and apply preview" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped. Stale courses were left unchanged." })).toBeVisible();
-    const catalogueTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Base price" }) });
+    await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped." })).toBeVisible();
+    await page.getByRole("tab", { name: "Course catalogue" }).click();
     await expect(catalogueTable.getByRole("row", { name: /Backend Fundamentals/ })).toContainText("₹499");
     expect(applyRequests).toBe(2);
+  });
+
+  test("[ADM-PLANS-WORKSPACES-001] subscription plan workspaces show checkout and default free-plan status", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: ["dashboard.read", "plans.read", "plans.manage"],
+    });
+    await page.route("**/api/admin/plans", async (route) => json(route, {
+      plans: [
+        { _id: "plan-free-first", name: "Free Starter", slug: "free", description: "Starter learning access", price: 0, currency: "INR", billingInterval: "monthly", features: ["Access published courses"], limits: { ai_course_builds_per_month: 0 }, isActive: true, isDefaultFree: true, isPopular: false, sortOrder: 10, createdAt: "2026-01-01T00:00:00.000Z" },
+        { _id: "plan-free-second", name: "Zero Price Legacy", slug: "legacy-free", description: "Older free offer", price: 0, currency: "INR", billingInterval: "monthly", features: [], limits: {}, isActive: true, isDefaultFree: false, isPopular: false, sortOrder: 20, createdAt: "2026-01-02T00:00:00.000Z" },
+        { _id: "plan-pro", name: "Pro", slug: "pro", description: "Paid recurring access", price: 199, currency: "INR", billingInterval: "monthly", features: ["Build with AI"], limits: { ai_course_builds_per_month: 10 }, isActive: true, isPopular: true, sortOrder: 30, providerPlanId: "razorpay-pro-plan", createdAt: "2026-01-03T00:00:00.000Z" },
+        { _id: "plan-hidden", name: "Hidden Annual", slug: "hidden-annual", description: "Inactive plan", price: 999, currency: "INR", billingInterval: "yearly", features: [], limits: {}, isActive: false, sortOrder: 40, createdAt: "2026-01-04T00:00:00.000Z" },
+      ],
+      availableFeatures: [{ key: "published_courses", label: "Access published courses" }, { key: "build_with_ai", label: "Build with AI" }],
+    }));
+    await page.route("**/api/billing/plans", async (route) => json(route, { paymentsEnabled: false, plans: [] }));
+
+    await page.goto(baseURL + "/admin/plans");
+    await expect(page.getByRole("heading", { name: "Subscription plans" })).toBeVisible();
+    await expect(page.getByText("Paid checkout disabled")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Default free-assignment plan" })).toBeVisible();
+    await expect(page.getByText("Free Starter", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Explicit default selected", { exact: true })).toBeVisible();
+    await expect(page.getByText("1 other active zero-priced plan(s) remain available but are not used for default assignment.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set as default" })).toBeVisible();
+
+    await page.getByRole("tab", { name: /Catalogue/ }).click();
+    await expect(page.getByText("Hidden Annual", { exact: true })).toBeVisible();
+    await page.getByLabel("Search plans").fill("pro");
+    await expect(page.getByText("Pro", { exact: true })).toBeVisible();
+    await expect(page.getByText("Free Starter", { exact: true })).toHaveCount(0);
+    await page.getByLabel("Search plans").fill("");
+
+    const proCard = page.locator(".admin-card").filter({ has: page.getByRole("heading", { name: "Pro", exact: true }) });
+    await proCard.getByRole("button", { name: "Manage plan" }).click();
+    await expect(page.getByRole("heading", { name: "1. Plan details and billing" })).toBeVisible();
+    await expect(page.getByLabel("Plan price for Pro")).toBeDisabled();
+    await expect(page.getByLabel("Billing interval for Pro")).toBeDisabled();
+    await expect(page.getByRole("heading", { name: "2. Feature access" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "3. Monthly usage limits" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "4. Availability and catalogue display" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Create plan" }).click();
+    await expect(page.getByText("Create subscription plan · Step 1 of 4", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Basics" })).toBeVisible();
+    await expect(page.getByLabel("Plan name")).toBeVisible();
   });
 
   test("[ADM-TRIAL-GRANT-PREVIEW-001] group trial preview includes all filtered eligible learners", async ({ page }) => {
@@ -851,7 +958,7 @@ test.describe("administrator route and permission UX", () => {
       },
     });
 
-    await page.getByRole("checkbox").check();
+    await page.getByRole("checkbox", { name: /I confirm granting the Free/ }).check();
     await page.getByRole("button", { name: "Confirm and grant trial" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Trial grants processed: 241 granted, 1 skipped. No autopay was initiated." })).toBeVisible();
     expect(grantPayload).toMatchObject({
@@ -1127,8 +1234,17 @@ test.describe("admin responsive viewport regressions", () => {
       ],
     });
 
-    const viewports = [360, 768, 1440];
-    const routes = ["/admin", "/admin/users", "/admin/courses"];
+    const viewports = [360, 768, 1024, 1440];
+    const routes = [
+      "/admin",
+      "/admin/users",
+      "/admin/courses",
+      "/admin/plans",
+      "/admin/trials",
+      "/admin/pricing",
+      "/admin/billing",
+      "/admin/settings",
+    ];
     for (const width of viewports) {
       await page.setViewportSize({ width, height: 900 });
       for (const path of routes) {
@@ -1145,5 +1261,85 @@ test.describe("admin responsive viewport regressions", () => {
         ).toBeLessThanOrEqual(dimensions.viewport);
       }
     }
+  });
+});
+
+test.describe("administrator WCAG 2.2 AA accessibility scans", () => {
+  test("core admin workspaces have no WCAG A/AA violations", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "users.read", "users.manage", "users.pii.reveal",
+        "courses.read", "courses.manage", "courses.publish", "pricing.manage",
+        "billing.read", "refunds.manage", "trials.manage", "communications.manage",
+        "audit.read", "analytics.read", "operations.read", "notifications.read",
+      ],
+    });
+
+    const routes = [
+      "/admin",
+      "/admin/users",
+      "/admin/courses",
+      "/admin/plans",
+      "/admin/trials",
+      "/admin/pricing",
+      "/admin/billing",
+      "/admin/settings",
+    ];
+    const violations: Array<Record<string, unknown>> = [];
+
+    for (const path of routes) {
+      await page.goto(baseURL + path);
+      await expect(page.locator("main.admin-main")).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+
+      if (results.violations.length) {
+        violations.push({
+          path,
+          violations: results.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.map((node) => ({
+              target: node.target,
+              summary: node.failureSummary,
+            })),
+          })),
+        });
+      }
+    }
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
+  test("admin command palette opens and closes with keyboard while restoring focus", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "users.read", "users.manage", "users.pii.reveal",
+        "courses.read", "courses.manage", "courses.publish", "pricing.manage",
+        "billing.read", "refunds.manage", "trials.manage", "communications.manage",
+        "audit.read", "analytics.read", "operations.read", "notifications.read",
+      ],
+    });
+    await page.goto(baseURL + "/admin");
+    const trigger = page.getByRole("button", { name: "Search pages and actions" });
+    await expect(trigger).toBeVisible();
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await expect(dialog).toBeVisible();
+    await expect(search).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 });

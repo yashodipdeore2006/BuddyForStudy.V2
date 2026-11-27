@@ -138,6 +138,40 @@ test("subscription checkout sends the selected plan price, currency, interval an
   }
 });
 
+test("subscription checkout rejects a zero-priced plan before acquiring a lock or calling Razorpay", async () => {
+  const planId = "507f1f77bcf86cd799439012";
+  let lockAttempts = 0;
+  let providerCalls = 0;
+  let paymentWrites = 0;
+  const plan = {
+    _id: planId,
+    name: "Free",
+    price: 0,
+    currency: "INR",
+    billingInterval: "monthly",
+    isActive: true
+  };
+  const res = makeResponse();
+
+  await createSubscriptionOrder({
+    body: { planId },
+    user: { userId: "507f1f77bcf86cd799439099" }
+  }, res, (error) => assert.fail(error), {
+    SubscriptionPlan: { findOne: async () => plan },
+    acquireCheckoutLock: async () => { lockAttempts += 1; return "lock-token"; },
+    releaseCheckoutLock: async () => {},
+    createSubscriptionPlan: async () => { providerCalls += 1; return { id: "unexpected-plan" }; },
+    createSubscription: async () => { providerCalls += 1; return { id: "unexpected-subscription" }; },
+    Payment: { create: async () => { paymentWrites += 1; } }
+  });
+
+  assert.equal(res.result.statusCode, 400);
+  assert.match(res.result.body.message, /price greater than zero/i);
+  assert.equal(lockAttempts, 0);
+  assert.equal(providerCalls, 0);
+  assert.equal(paymentWrites, 0);
+});
+
 test("concurrent subscription checkout is rejected before subscription eligibility or payment writes", async () => {
   const planId = "507f1f77bcf86cd799439012";
   const userId = "507f1f77bcf86cd799439099";

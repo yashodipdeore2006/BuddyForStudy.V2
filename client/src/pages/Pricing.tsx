@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
 import { formatCurrencyAmount } from "@/lib/coursePricing";
 import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 type Plan = {
   _id: string;
@@ -50,6 +51,7 @@ type TrialConversionOffer = { _id: string; endsAt: string; conversionConsentStat
 
 export default function Pricing() {
   const { session } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const courseId = searchParams.get("courseId");
 
@@ -70,7 +72,9 @@ export default function Pricing() {
         // using raw price values: plans may have different currencies/periods.
         setPaymentsEnabled(data.paymentsEnabled !== false);
         const availablePlans = getCheckoutSubscriptionPlans<Plan>(data.plans);
-        setPlans(data.paymentsEnabled === false ? availablePlans.filter((plan) => Number(plan.price) === 0 || plan.name.toLowerCase() === "free") : availablePlans);
+        // Always render the public catalogue. Checkout availability is communicated
+        // separately by paymentsEnabled and enforced again by the API.
+        setPlans(availablePlans);
       })
       .catch(() => {
         setMessage({
@@ -105,6 +109,13 @@ export default function Pricing() {
     const plan = plans.find((item) => item._id === planId);
 
     if (!plan || Number(plan.price) === 0) return;
+    if (!paymentsEnabled) {
+      setMessage({
+        type: "info",
+        text: "Paid plan purchases are temporarily unavailable. You can still compare all available plans; no payment will be requested."
+      });
+      return;
+    }
     if (hasActiveSubscription && !convertTrial) {
       setMessage({ type: "info", text: "You already have an active subscription. Manage your current plan in Billing instead of purchasing another plan." });
       return;
@@ -115,7 +126,11 @@ export default function Pricing() {
     }
 
     if (!session) {
-      window.location.href = routes.login();
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to choose a plan",
+        description: "Create a free account or sign in to continue. You can review and confirm any payment separately after returning to Pricing.",
+      });
       return;
     }
 
@@ -225,6 +240,13 @@ export default function Pricing() {
           with no subscription required.
         </p>
       </div>
+
+      {!paymentsEnabled && (
+        <div role="status" aria-live="polite" className="mx-auto mt-6 max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900">
+          <p className="font-semibold">Paid checkout is temporarily unavailable.</p>
+          <p className="mt-1">You can still compare every available plan, including its price and features. Paid purchases will remain disabled until payments are re-enabled. Your free-plan access is not affected.</p>
+        </div>
+      )}
 
       {message && (
         <div

@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 
@@ -110,6 +111,9 @@ async function mockAppApi(page: Page, options: {
   reviewMutationFailure?: boolean;
   checkoutOrderFailure?: boolean;
   billingPlans?: Array<Record<string, unknown>>;
+  trialOffer?: Record<string, unknown>;
+  trialOfferDelayMs?: number;
+  trialClaimResponse?: Record<string, unknown>;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -125,6 +129,7 @@ async function mockAppApi(page: Page, options: {
     outcome: "Understand the foundations.",
   }];
   const roadmapProgress = options.roadmapProgress === undefined ? null : options.roadmapProgress;
+  let trialClaimed = false;
 
   if (options.authenticated) {
     await page.addInitScript(() => localStorage.setItem("bfs_token", "e2e-token"));
@@ -132,6 +137,22 @@ async function mockAppApi(page: Page, options: {
 
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+
+    if (pathname === "/api/trials/offer" && method === "GET") {
+      if (options.trialOfferDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.trialOfferDelayMs));
+      }
+      return json(route, trialClaimed
+        ? { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["PREVIOUS_TRIAL"], reasons: [] } }
+        : options.trialOffer || { available: false, offer: null, eligibility: { eligible: false, reasonCodes: ["NO_AVAILABLE_CAMPAIGN"], reasons: [] } });
+    }
+    if (/^\/api\/trials\/campaigns\/[^/]+\/claim$/.test(pathname) && method === "POST") {
+      trialClaimed = true;
+      return json(route, options.trialClaimResponse || {
+        claim: { status: "active", trialEndsAt: "2026-12-05T10:00:00.000Z" }
+      }, 201);
+    }
 
     if (pathname.endsWith("/api/auth/me")) {
       const currentPath = new URL(page.url()).pathname;
@@ -208,13 +229,47 @@ async function mockAppApi(page: Page, options: {
       const query = String(params.get("q") || "").trim().toLowerCase();
       const level = String(params.get("level") || "all").toLowerCase();
       const category = String(params.get("category") || "all").toLowerCase();
+      const domain = String(params.get("domain") || "all").toLowerCase();
+      const page = Math.max(1, Number(params.get("page") || 1) || 1);
+      const limit = Math.max(1, Math.min(50, Number(params.get("limit") || 12) || 12));
+      const sort = String(params.get("sort") || "best_match");
       const rows = (options.catalogCourses || []).filter((item) => {
-        const searchable = [item.title, item.description, item.category].map((value) => String(value || "").toLowerCase()).join(" ");
+        const searchable = [item.title, item.description, item.category, item.domain]
+          .map((value) => String(value || "").toLowerCase()).join(" ");
         return (!query || searchable.includes(query))
           && (level === "all" || String(item.level || "").toLowerCase() === level)
-          && (category === "all" || String(item.category || "").toLowerCase() === category);
+          && (category === "all" || String(item.category || "").toLowerCase() === category)
+          && (domain === "all" || String(item.domain || "").toLowerCase() === domain);
       });
-      return json(route, { courses: rows, ...(options.catalogDiscovery && query ? { discovery: options.catalogDiscovery } : {}) });
+      const ranking = (item: ReturnType<typeof courseFixture>) =>
+        (item as unknown as { ranking?: { score?: number; qualityScore?: number; components?: { confidenceAdjustedRating?: number }; rating?: { count?: number }; enrollmentCount?: number } }).ranking || {};
+      const byQuality = (a: ReturnType<typeof courseFixture>, b: ReturnType<typeof courseFixture>) =>
+        Number(ranking(b).qualityScore || 0) - Number(ranking(a).qualityScore || 0)
+        || Number(ranking(b).score || 0) - Number(ranking(a).score || 0);
+      const sorted = [...rows].sort((a, b) => {
+        if (sort === "quality") return byQuality(a, b);
+        if (sort === "popular") return Number(ranking(b).enrollmentCount || 0) - Number(ranking(a).enrollmentCount || 0) || byQuality(a, b);
+        if (sort === "highest_rated") {
+          return Number(ranking(b).components?.confidenceAdjustedRating || 0) - Number(ranking(a).components?.confidenceAdjustedRating || 0)
+            || Number(ranking(b).rating?.count || 0) - Number(ranking(a).rating?.count || 0)
+            || byQuality(a, b);
+        }
+        if (sort === "title") return String(a.title).localeCompare(String(b.title));
+        if (sort === "newest") {
+          const created = (item: ReturnType<typeof courseFixture>) => String((item as unknown as { createdAt?: string }).createdAt || "");
+          return created(b).localeCompare(created(a)) || byQuality(a, b);
+        }
+        return Number(ranking(b).score || 0) - Number(ranking(a).score || 0) || byQuality(a, b);
+      });
+      const total = sorted.length;
+      const pages = total ? Math.ceil(total / limit) : 0;
+      const courses = sorted.slice((page - 1) * limit, page * limit);
+      const includeDiscovery = params.get("includeDiscovery") !== "false";
+      return json(route, {
+        courses,
+        pagination: { page, limit, total, pages },
+        ...(options.catalogDiscovery && query && includeDiscovery ? { discovery: options.catalogDiscovery } : {}),
+      });
     }
     if (pathname === `/api/courses/${courseId}/roadmap`) {
       return json(route, {
@@ -249,6 +304,17 @@ async function mockAppApi(page: Page, options: {
     if (pathname === "/api/ai/practice-quiz" && route.request().method() === "POST" && options.practiceQuizFailure) {
       return json(route, { message: "Practice quiz generation is temporarily unavailable." }, 503);
     }
+    if (pathname === "/api/billing/me") {
+      return json(route, {
+        subscription: null,
+        effectivePlan: { id: "free-plan-fixture", name: "Free", isDefaultFree: true },
+        paymentsEnabled: false,
+      });
+    }
+    if (pathname === "/api/billing/payments") return json(route, { payments: [] });
+    if (pathname === "/api/billing/refunds") return json(route, { refunds: [] });
+    if (pathname === "/api/billing/issues") return json(route, { issues: [] });
+    if (pathname === "/api/billing/trial") return json(route, { trial: null });
     if (pathname === "/api/billing/plans") return json(route, { plans: options.billingPlans || [] });
     if (pathname === "/api/billing/entitlements") {
       return json(route, {
@@ -313,6 +379,89 @@ async function mockAppApi(page: Page, options: {
     // Keep unrelated optional widgets deterministic without introducing real services.
     return json(route, {});
   });
+}
+
+
+type EnrollmentResumeAuthOptions = {
+  loginRequiresOtp?: boolean;
+  loginRequiresEmailVerification?: boolean;
+  loginFailsOnce?: boolean;
+  verifyEmailFailsOnce?: boolean;
+  alreadyEnrolled?: boolean;
+  registrationRequiresVerification?: boolean;
+};
+
+async function mockEnrollmentResumeAuth(page: Page, options: EnrollmentResumeAuthOptions = {}) {
+  let authenticated = false;
+  let enrollmentPosts = 0;
+  let checkoutPosts = 0;
+  let loginAttempts = 0;
+  let emailVerificationAttempts = 0;
+
+  await page.route("**/api/auth/me", async (route) => authenticated
+    ? json(route, { user: learner })
+    : json(route, { message: "Authentication required" }, 401));
+
+  await page.route("**/api/auth/login", async (route) => {
+    loginAttempts += 1;
+    if (options.loginFailsOnce && loginAttempts === 1) {
+      return json(route, { message: "Invalid email or password." }, 401);
+    }
+    if (options.loginRequiresEmailVerification) {
+      return json(route, { message: "Email not verified. Please verify your email before signing in." }, 403);
+    }
+    if (options.loginRequiresOtp) {
+      return json(route, { requiresOtp: true, email: learner.email });
+    }
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/verify-login", async (route) => {
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/register", async (route) => json(route, {
+    requiresVerification: options.registrationRequiresVerification !== false,
+    email: learner.email,
+  }));
+
+  await page.route("**/api/auth/verify-email", async (route) => {
+    emailVerificationAttempts += 1;
+    if (options.verifyEmailFailsOnce && emailVerificationAttempts === 1) {
+      return json(route, { message: "The verification code is invalid or expired." }, 400);
+    }
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/auth/google", async (route) => {
+    authenticated = true;
+    return json(route, { token: "resume-e2e-token", user: learner });
+  });
+
+  await page.route("**/api/enrollments/course-fixture", async (route) => {
+    if (route.request().method() === "POST") {
+      enrollmentPosts += 1;
+      return json(route, { enrollment: { status: "active" } }, 201);
+    }
+    return json(route, { enrollment: options.alreadyEnrolled || enrollmentPosts ? { status: "active" } : null });
+  });
+
+  await page.route("**/api/enrollments/course/course-fixture", async (route) => {
+    return json(route, { enrollment: options.alreadyEnrolled || enrollmentPosts ? { status: "active" } : null });
+  });
+
+  await page.route("**/api/payments/course/order", async (route) => {
+    checkoutPosts += 1;
+    return json(route, { message: "Checkout fixture intentionally blocked." }, 503);
+  });
+
+  return {
+    enrollmentPosts: () => enrollmentPosts,
+    checkoutPosts: () => checkoutPosts,
+  };
 }
 
 test.describe("privacy and consent controls", () => {
@@ -538,16 +687,23 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/\/home$/);
   });
 
-  test("lesson player requires authentication", async ({ page }) => {
+  test("lesson player uses the shared authentication prompt", async ({ page }) => {
     await page.goto(baseURL + "/learn/course-fixture");
+    await expect(page).toHaveURL(/\/learn\/course-fixture$/);
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Sign in to access your learning space" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Sign in/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Create a free account/ })).toBeVisible();
+    await dialog.getByRole("button", { name: /Sign in/ }).click();
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("roadmap route renders its current journey experience", async ({ page }) => {
+  test("roadmap route renders its published course roadmap preview", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByRole("img", { name: /Journey roadmap for Course fixture, 1 stages/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Course roadmap explorer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "View course and enroll" })).toBeVisible();
   });
 
   test("Google sign-in explains missing backend configuration instead of silently disabling the button", async ({ page }) => {
@@ -788,9 +944,9 @@ test.describe("canonical learner navigation", () => {
   test("missing progress does not prevent the roadmap from rendering", async ({ page }) => {
     await mockAppApi(page, { authenticated: true, missingProgress: true });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByText("Roadmap not available yet.")).toHaveCount(0);
-    await expect(page.getByRole("img", { name: /Journey roadmap for Course fixture, 1 stages/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByText("No matching milestones")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Course roadmap explorer" })).toBeVisible();
   });
 
   test("roadmap Continue action navigates to the canonical player route", async ({ page }) => {
@@ -807,7 +963,7 @@ test.describe("canonical learner navigation", () => {
       },
     });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    const continueButton = page.getByRole("button", { name: /Continue: Lesson one/i });
+    const continueButton = page.getByRole("button", { name: "Continue learning", exact: true });
     await expect(continueButton).toBeVisible();
     await continueButton.click();
     await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-1$/);
@@ -819,16 +975,15 @@ test.describe("canonical learner navigation", () => {
       roadmapStages: [],
     });
     await page.goto(baseURL + "/courses/course-fixture/roadmap");
-    await expect(page.getByRole("heading", { name: "Journey roadmap" })).toBeVisible();
-    await expect(page.getByText("Roadmap not available yet.")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enroll to start your journey/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Course fixture", exact: true })).toBeVisible();
+    await expect(page.getByText("No matching milestones")).toBeVisible();
   });
 
   test("missing course gets a safe unavailable message without exposing the server response", async ({ page }) => {
     await mockAppApi(page, { courseId: "missing-course", missingCourse: true });
     await page.goto(baseURL + "/courses/missing-course/roadmap");
     await expect(page.getByRole("heading", { name: "Roadmap unavailable" })).toBeVisible();
-    await expect(page.getByText("This course is not available.")).toBeVisible();
+    await expect(page.getByText("This course is not available or may no longer be published.")).toBeVisible();
     await expect(page.getByText("The requested item could not be found.")).toHaveCount(0);
   });
 
@@ -837,6 +992,52 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/a-route-that-does-not-exist$/);
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Welcome back|Your learning/i })).toHaveCount(0);
+  });
+
+  test("guest landing is shown at / and /home without loading learner-only data", async ({ page }) => {
+    await mockAppApi(page);
+    const learnerDataRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        url.pathname === "/api/enrollments" ||
+        url.pathname === "/api/achievements/me" ||
+        (url.pathname === "/api/courses" && url.searchParams.get("limit") === "24") ||
+        url.pathname.startsWith("/api/progress/")
+      ) learnerDataRequests.push(url.pathname + url.search);
+    });
+
+    for (const path of ["/", "/home"]) {
+      await page.goto(baseURL + path);
+      await expect(page.getByRole("heading", { name: "Find your career path. Build skills with a clear learning roadmap." })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Explore courses", exact: true }).first()).toHaveAttribute("href", "/explore");
+      await expect(page.getByRole("link", { name: "Create a free account", exact: true })).toHaveAttribute("href", "/register");
+      await expect(page.getByRole("link", { name: "Pricing", exact: true }).first()).toHaveAttribute("href", "/pricing");
+      await expect(page.getByRole("link", { name: "How it works", exact: true }).first()).toHaveAttribute("href", "/#how-it-works");
+      await expect(page.getByRole("heading", { name: "A simple way to keep moving." })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Sign in", exact: true }).first()).toHaveAttribute("href", "/login");
+      await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Badges" })).toHaveCount(0);
+    }
+
+    expect(learnerDataRequests).toEqual([]);
+  });
+
+  test("authenticated learners receive the personalized dashboard at /", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/");
+    await expect(page.getByRole("heading", { name: "Welcome back, Learner" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your learning at a glance" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find your career path. Build skills with a clear learning roadmap." })).toHaveCount(0);
+  });
+
+  test("guest Explore, course details, login and registration routes remain public", async ({ page }) => {
+    await mockAppApi(page);
+    for (const path of ["/explore", "/courses/course-fixture", "/login", "/register"]) {
+      await page.goto(baseURL + path);
+      expect(new URL(page.url()).pathname).toBe(path);
+      await expect(page.locator("h1").first()).toBeVisible();
+    }
   });
 
   test("Home navigation is canonical", async ({ page }) => {
@@ -866,22 +1067,64 @@ test.describe("learner control and state regression", () => {
 
     await page.getByRole("textbox", { name: "Search courses" }).fill("linux");
     await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
+    await expect(page).toHaveURL(/q=linux/);
     await expect(page.getByRole("heading", { name: "Courses for “linux”" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toHaveCount(0);
     await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux")).toBe(true);
 
     await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
+    await expect(page).toHaveURL(/level=Advanced/);
     await page.getByRole("combobox", { name: "Filter by category" }).selectOption("Development");
+    await expect(page).toHaveURL(/category=Development/);
     await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux" && query.get("level") === "Advanced" && query.get("category") === "Development")).toBe(true);
 
     await page.getByRole("button", { name: /Clear filters/ }).click();
+    await expect(page).toHaveURL(/\/explore$/);
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
-    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
+    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category") && query.get("sort") === "best_match" && query.get("page") === "1")).toBe(true);
+  });
+
+  test("[EXP-SORT-LEGACY-001] legacy sort URLs migrate to canonical Explore modes", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/explore?sort=recent");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("newest");
+    await expect(page).toHaveURL(/sort=newest/);
+
+    await page.goto(baseURL + "/explore?sort=title");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("title");
+    await expect(page).toHaveURL(/sort=title/);
+  });
+
+  test("[EXP-SORT-MODES-001] Explore exposes supported sorts and preserves sort in URL and API requests", async ({ page }) => {
+    const catalogQueries: URLSearchParams[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/courses") catalogQueries.push(url.searchParams);
+    });
+    await mockAppApi(page);
+    await page.goto(baseURL + "/explore");
+    const sort = page.getByRole("combobox", { name: "Sort courses" });
+    await expect(sort).toHaveValue("best_match");
+    await expect(sort.locator("option")).toHaveText([
+      "Best match", "Highest quality", "Most popular", "Highest rated", "Newest", "Title A–Z"
+    ]);
+
+    for (const value of ["quality", "popular", "highest_rated", "newest", "title", "best_match"]) {
+      await sort.selectOption(value);
+      if (value === "best_match") {
+        await expect(page).not.toHaveURL(/sort=/);
+      } else {
+        await expect(page).toHaveURL(new RegExp("sort=" + value));
+      }
+      await expect(sort).toHaveValue(value);
+      await expect.poll(() => catalogQueries.some((query) => query.get("sort") === value)).toBe(true);
+    }
   });
 
   test("[BUILD-WITH-AI-FORM-001] course search opens the compact personalized course intake", async ({ page }) => {
@@ -1029,26 +1272,40 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("No BuddyForStudy or YouTube results found")).toHaveCount(0);
   });
 
-  test("[EXP-CATALOG-SORT-PAGE-001] catalog sort and pagination operate on the complete filtered result set", async ({ page }) => {
+  test("[EXP-CATALOG-SORT-PAGE-001] quality sort applies across server pages during infinite scrolling", async ({ page }) => {
     const titles = ["Zeta Course", "Alpha Course", ...Array.from({ length: 12 }, (_, index) => "Course " + String(index + 3).padStart(2, "0"))];
-    const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, { title, category: "Development", level: "Beginner" }));
+    const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, {
+      title,
+      category: "Development",
+      level: "Beginner",
+      ranking: {
+        version: "course-ranking-v1",
+        score: index === 1 ? 99 : index === 0 ? 20 : 70 - index,
+        qualityScore: index === 1 ? 99 : index === 0 ? 20 : 70 - index,
+        weights: { relevance: 35, catalogueCompleteness: 25, curriculumCoverage: 15, confidenceAdjustedRating: 15, popularity: 5, freshness: 5 },
+        components: { relevance: 50, catalogueCompleteness: 75, curriculumCoverage: 70, confidenceAdjustedRating: 80, popularity: 20, freshness: 50 },
+        rating: { score: 80, rawAverage: 4, count: 20, adjustedAverage: 3.9, confidence: 0.66, priorAverage: 3.5, priorStrength: 10 },
+        enrollmentCount: index,
+        reasonCodes: ["structured_curriculum"],
+        reasons: ["Structured learning path"]
+      }
+    }));
     await mockAppApi(page, { catalogCourses });
     await page.goto(baseURL + "/explore");
 
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
     const grid = page.locator(".bfs-course-results-grid").last();
-    await expect(grid.getByRole("heading")).toHaveCount(12);
-
-    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("quality");
     await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
-    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Next course page" }).click();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toBeVisible();
-    await expect(grid.getByRole("heading")).toHaveCount(2);
-    await page.getByRole("button", { name: "Previous course page" }).click();
-    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+
+    // The observer may prefetch page two before the explicit scroll because it
+    // uses a generous root margin. Assert the global order after all pages load.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(grid.getByRole("heading")).toHaveCount(14);
+    await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
+    await expect(grid.getByRole("heading").last()).toHaveText("Zeta Course");
+    await expect(grid.getByText("Why this course:")).toHaveCount(14);
+    await expect(page.getByText("You’ve reached the end of the course catalogue.", { exact: true })).toBeVisible();
   });
 
   test("[EXP-CATALOG-LOADING-001] course catalogue shows loading skeletons until the request settles", async ({ page }) => {
@@ -1063,6 +1320,7 @@ test.describe("learner control and state regression", () => {
 
     await page.goto(baseURL + "/explore");
     await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
+    await expect.poll(() => releaseCatalog !== undefined).toBe(true);
     await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
     releaseCatalog?.();
     await expect(page.getByRole("heading", { name: "Loaded after skeleton" })).toBeVisible();
@@ -2106,6 +2364,53 @@ test.describe("public platform pages and footer", () => {
     }
   });
 
+  test("Help Centre supports quick links, topic filtering and FAQ search", async ({ page }) => {
+    await page.route("**/api/public/faqs", (route) => json(route, {
+      faqs: [
+        {
+          id: "faq-courses",
+          question: "Where can I find courses?",
+          answer: "Open Explore to browse the courses currently available.",
+          category: "courses-learning",
+          displayOrder: 10,
+          featured: true,
+        },
+        {
+          id: "faq-plans",
+          question: "How do I find plans and prices?",
+          answer: "Visit the Pricing page to review the available plans.",
+          category: "plans-payments",
+          displayOrder: 20,
+        },
+      ],
+      categories: [
+        { value: "getting-started", label: "Getting started" },
+        { value: "accounts", label: "Accounts" },
+        { value: "courses-learning", label: "Courses & learning" },
+        { value: "plans-payments", label: "Plans & payments" },
+        { value: "technical-support", label: "Technical support" },
+        { value: "privacy-safety", label: "Privacy & safety" },
+        { value: "other", label: "Other" },
+      ],
+    }));
+    await page.goto(baseURL + "/faq");
+
+    await expect(page.getByRole("heading", { name: "What would you like to do?" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Discover courses/ })).toHaveAttribute("href", "/explore");
+    await expect(page.getByRole("heading", { name: "Choose a help topic" })).toBeVisible();
+
+    await page.getByRole("button", { name: /Plans & payments/ }).click();
+    await expect(page.getByText("How do I find plans and prices?")).toBeVisible();
+    await expect(page.getByText("Where can I find courses?")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /All topics/ }).click();
+    await page.getByLabel("Search frequently asked questions").fill("courses");
+    await expect(page.getByText("Where can I find courses?")).toBeVisible();
+    await expect(page.getByText("How do I find plans and prices?")).toHaveCount(0);
+    await page.getByText("Where can I find courses?").click();
+    await expect(page.getByText("Open Explore to browse the courses currently available.")).toBeVisible();
+  });
+
   test("public aliases redirect to canonical information pages", async ({ page }) => {
     const aliases = [
       { path: "/about-us", canonical: "/about", canonicalUrl: "https://buddyforstudy.example/about" },
@@ -2186,6 +2491,12 @@ test.describe("public platform pages and footer", () => {
 test.describe("push notification prompt", () => {
   test("offers an in-app opt-in after app entry without opening the browser prompt automatically", async ({ page }) => {
     await page.addInitScript(() => {
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+      }));
+    });
+    await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", {
         configurable: true,
         value: {
@@ -2197,12 +2508,6 @@ test.describe("push notification prompt", () => {
           },
         },
       });
-      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
-      Object.defineProperty(navigator, "serviceWorker", {
-        configurable: true,
-        value: { getRegistration: async () => null },
-      });
-      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     });
 
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
@@ -2221,6 +2526,12 @@ test.describe("push notification prompt", () => {
 
   test("shows recovery instructions when browser push permission has been blocked", async ({ page }) => {
     await page.addInitScript(() => {
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+      }));
+    });
+    await page.addInitScript(() => {
       Object.defineProperty(window, "Notification", {
         configurable: true,
         value: {
@@ -2232,12 +2543,6 @@ test.describe("push notification prompt", () => {
           },
         },
       });
-      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
-      Object.defineProperty(navigator, "serviceWorker", {
-        configurable: true,
-        value: { getRegistration: async () => null },
-      });
-      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     });
 
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
@@ -2328,10 +2633,15 @@ test.describe("learner responsive viewport regressions", () => {
     const viewports = [360, 390, 768, 1024, 1440];
     const routes = [
       "/home",
-      "/courses",
+      "/explore",
       "/courses/course-fixture",
       "/my-learning",
       "/learn/course-fixture",
+      "/pricing",
+      "/billing",
+      "/profile",
+      "/settings",
+      "/notifications",
     ];
 
     for (const width of viewports) {
@@ -2465,7 +2775,7 @@ test("[ROUTE-BILLING-ERROR-RETRY-001] billing failure never renders empty transa
   await expect(page.getByText("No transactions yet")).toHaveCount(0);
 
   await page.getByRole("button", { name: /retry/i }).click();
-  await expect(page.getByRole("heading", { name: "Billing & transactions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Purchases & payments" })).toBeVisible();
   expect(attempts).toBe(2);
 });
 
@@ -2661,4 +2971,853 @@ test("[A11Y-KEYBOARD-FOCUS-001] keyboard navigation exposes a visible focus indi
   }
 
   expect(failures, failures.join("\n")).toEqual([]);
+});
+
+
+const eligibleTrialOfferFixture = {
+  available: true,
+  offer: {
+    campaignId: "campaign-fixture",
+    title: "Enjoy 14 days of Premium",
+    description: "Explore premium learning resources and build momentum with a guided learning experience.",
+    startsAt: "2026-11-01T00:00:00.000Z",
+    endsAt: "2026-12-01T00:00:00.000Z",
+    durationDays: 14,
+    trialPlan: {
+      id: "trial-plan-fixture",
+      name: "Premium Trial",
+      description: "More room to learn and practise.",
+      features: ["Premium courses", "Guided roadmaps", "AI learning tools"],
+      limits: { monthlyRoadmaps: 20 },
+    },
+    conversion: {
+      requiresSeparateConsent: true,
+      plan: { id: "paid-plan-fixture", name: "Premium Monthly", price: 299, currency: "INR", billingInterval: "monthly" },
+    },
+    payment: { paymentMethodRequired: false, paymentOrderCreated: false, autopayAuthorized: false },
+  },
+  eligibility: { eligible: true, reasonCodes: [], reasons: [] },
+};
+
+test.describe("self-serve trial offer", () => {
+  test("Not now dismisses without claiming and suppresses the same offer for 24 hours", async ({ page }) => {
+    const claimRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/claim")) claimRequests.push(request.url());
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("No payment method required")).toBeVisible();
+    await expect(dialog.getByText(/does not create a payment order or authorize recurring payments/i)).toBeVisible();
+    await dialog.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(claimRequests).toHaveLength(0);
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
+
+  test("claim activates the trial, sends an idempotency key, and does not prompt again", async ({ page }) => {
+    const claimKeys: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/claim")) {
+        claimKeys.push(request.headers()["idempotency-key"] || "");
+      }
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Claim free trial", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your trial is active" })).toBeVisible();
+    await expect(page.getByText(/No payment method or recurring authorization was created/i)).toBeVisible();
+    await expect.poll(() => claimKeys.length).toBe(1);
+    expect(claimKeys[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,119}$/);
+    await page.getByRole("button", { name: "Continue learning", exact: true }).click();
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+  });
+
+  test("automatic trial popup is limited to the learner dashboard", async ({ page }) => {
+    const offerRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "GET" && new URL(request.url()).pathname === "/api/trials/offer") {
+        offerRequests.push(new URL(request.url()).pathname);
+      }
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toHaveCount(0);
+    expect(offerRequests).toHaveLength(0);
+
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("dialog", { name: "Enjoy 14 days of Premium" })).toBeVisible();
+    expect(offerRequests.length).toBeGreaterThan(0);
+  });
+
+  test("trial dialog traps keyboard focus and restores the element that opened it", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      trialOffer: eligibleTrialOfferFixture,
+      trialOfferDelayMs: 600,
+    });
+    await page.goto(baseURL + "/home");
+    await page.evaluate(() => {
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.id = "trial-offer-focus-origin";
+      trigger.textContent = "Focus origin";
+      document.body.appendChild(trigger);
+      trigger.focus();
+    });
+    const trigger = page.locator("#trial-offer-focus-origin");
+    await expect(trigger).toBeFocused();
+
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    const claimButton = dialog.getByRole("button", { name: "Claim free trial", exact: true });
+    await expect(claimButton).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Not now", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(claimButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("button", { name: "Close trial offer" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
+  test("trial popup waits for another modal to close instead of covering it", async ({ page }) => {
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const blocker = document.createElement("div");
+        blocker.id = "existing-modal-blocker";
+        blocker.setAttribute("role", "dialog");
+        blocker.setAttribute("aria-modal", "true");
+        blocker.setAttribute("aria-label", "Existing modal");
+        document.body.appendChild(blocker);
+      });
+    });
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const trialDialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(page.getByRole("dialog", { name: "Existing modal" })).toBeAttached();
+    await expect(trialDialog).toHaveCount(0);
+    await page.waitForTimeout(1800);
+    await expect(trialDialog).toHaveCount(0);
+
+    await page.locator("#existing-modal-blocker").evaluate((element) => element.remove());
+    await expect(trialDialog).toBeVisible({ timeout: 5000 });
+  });
+
+  test("Billing allows a dismissed learner to reopen the same trial offer and refreshes after claim", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true, trialOffer: eligibleTrialOfferFixture });
+    await page.goto(baseURL + "/home");
+    const dialog = page.getByRole("dialog", { name: "Enjoy 14 days of Premium" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await page.goto(baseURL + "/billing");
+    await expect(page.getByRole("heading", { name: "Enjoy 14 days of Premium" })).toBeVisible();
+    const reopenButton = page.getByRole("button", { name: "View trial offer", exact: true });
+    await expect(reopenButton).toBeVisible();
+    await reopenButton.click();
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Claim free trial", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your trial is active" })).toBeVisible();
+    await expect(reopenButton).toHaveCount(0);
+  });
+});
+
+test.describe("learner WCAG 2.2 AA accessibility scans", () => {
+  test("public and authenticated learner workspaces have no WCAG A/AA violations", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(courseFixture("course-fixture"), "in-progress")],
+    });
+
+    const routes = [
+      "/about",
+      "/home",
+      "/explore",
+      "/courses/course-fixture",
+      "/my-learning",
+      "/saved",
+      "/pricing",
+      "/billing",
+      "/profile",
+      "/settings",
+      "/notifications",
+    ];
+    const violations: Array<Record<string, unknown>> = [];
+
+    for (const path of routes) {
+      await page.goto(baseURL + path);
+      await expect(page.locator("body")).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+
+      if (results.violations.length) {
+        violations.push({
+          path,
+          violations: results.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.map((node) => ({
+              target: node.target,
+              html: node.html,
+              checks: node.any.map((check) => ({ id: check.id, message: check.message, data: check.data })),
+              summary: node.failureSummary,
+            })),
+          })),
+        });
+      }
+    }
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+});
+
+
+test.describe("guest enrollment authentication choice", () => {
+  test("guest enrollment offers login or free registration and preserves course intent for login", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Course fixture");
+    await expect(dialog.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Create a free account" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/login$/);
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(state).toMatchObject({
+      from: { pathname: "/courses/course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
+    });
+  });
+
+  test("guest enrollment preserves course intent when choosing account creation and switching auth methods", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
+    await dialog.getByRole("button", { name: "Create a free account" }).click();
+    await expect(page).toHaveURL(/register$/);
+    await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+    const registerState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(registerState).toMatchObject({
+      from: { pathname: "/courses/course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
+    });
+    await page.getByRole("main").getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/login$/);
+    const loginState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(loginState).toMatchObject({
+      from: { pathname: "/courses/course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
+    });
+  });
+
+  test("closing guest enrollment options cancels without navigating or creating an enrollment", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Sign in to enroll" })).toBeVisible();
+    await page.getByRole("button", { name: "Close sign-in options" }).click();
+
+    await expect(page.getByRole("dialog", { name: "Sign in to enroll" })).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    expect(resume.enrollmentPosts()).toBe(0);
+    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true }).last()).toBeVisible();
+  });
+
+  test("enrollment choice dialog can be dismissed with Escape", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sign in to enroll" });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("button", { name: "Sign in to enroll", exact: true }).last()).toBeVisible();
+  });
+});
+
+
+test.describe("authenticated enrollment intent resumption", () => {
+  test("reloading the login page preserves the pending course enrollment intent", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/login");
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("login failure can be retried without losing the selected course intent", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginFailsOnce: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("incorrect-password");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Invalid email or password");
+    await expect(page).toHaveURL((url) => url.pathname === "/login");
+    expect(resume.enrollmentPosts()).toBe(0);
+
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("invalid email verification keeps the course intent and never enrolls before verification succeeds", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, {
+      loginRequiresEmailVerification: true,
+      verifyEmailFailsOnce: true,
+    });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await page.getByRole("link", { name: "Verify your email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
+
+    await page.getByPlaceholder("000000").fill("000001");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page.getByText("The verification code is invalid or expired.")).toBeVisible();
+    expect(resume.enrollmentPosts()).toBe(0);
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
+
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("an existing enrollment is detected after login and is never posted again", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { alreadyEnrolled: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect(page.getByText("Your learning progress", { exact: true })).toBeVisible();
+    expect(resume.enrollmentPosts()).toBe(0);
+  });
+
+  test("completes a free individual enrollment once after password login and does not replay after refresh", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+    await expect(page.getByText("Your learning progress", { exact: true })).toBeVisible();
+    const state = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(state).toBeNull();
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the selected course through email verification reached from an unverified login", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginRequiresEmailVerification: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page.getByRole("link", { name: "Verify your email" })).toBeVisible();
+    await page.getByRole("link", { name: "Verify your email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/verify-email");
+    const verificationState = await page.evaluate(() => (window.history.state as { usr?: unknown } | null)?.usr);
+    expect(verificationState).toMatchObject({
+      from: { pathname: "/courses/course-fixture" },
+      resumeIntent: { type: "enroll", courseId: "course-fixture", accessPreference: "individual" },
+      email: learner.email,
+    });
+
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+
+    await page.reload();
+    await expect(page).toHaveURL((url) => url.pathname === "/courses/course-fixture");
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the intended course through login OTP verification before enrolling", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page, { loginRequiresOtp: true });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL(/\/verify-login$/);
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify & Sign In" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("keeps the intended course through registration email verification before enrolling", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Create a free account" }).click();
+    await page.getByLabel("Full Name").fill("New Learner");
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("textbox", { name: "Confirm Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Create Account" }).click();
+    await expect(page).toHaveURL(/\/verify-email$/);
+    await page.getByPlaceholder("000000").fill("123456");
+    await page.getByRole("button", { name: "Verify Email" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("resumes enrollment after Google sign-in without detouring through profile", async ({ page }) => {
+    await mockAppApi(page);
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.route("**/api/auth/google/config", async (route) => json(route, {
+      enabled: true,
+      clientId: "test-web-client.apps.googleusercontent.com",
+    }));
+    await page.route("https://accounts.google.com/gsi/client", async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: `
+        window.google = {
+          accounts: {
+            id: {
+              initialize(config) { window.__bfsGoogleResumeCallback = config.callback; },
+              renderButton(container) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = "Mock Continue with Google";
+                button.addEventListener("click", () => window.__bfsGoogleResumeCallback?.({ credential: "google-resume-token" }));
+                container.appendChild(button);
+              }
+            }
+          }
+        };
+      `,
+    }));
+
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Enroll individually/ }).check();
+    await page.getByRole("button", { name: "Sign in to enroll", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Mock Continue with Google" }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect.poll(resume.enrollmentPosts).toBe(1);
+  });
+
+  test("returns to the selected paid course but waits for an explicit Buy action before checkout", async ({ page }) => {
+    await mockAppApi(page, {
+      course: courseFixture("course-fixture", { pricing: { mode: "paid", price: 499, currency: "INR" } }),
+    });
+    const resume = await mockEnrollmentResumeAuth(page);
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("radio", { name: /Buy individual course/ }).check();
+    await page.getByRole("main").getByRole("button", { name: "Sign in to buy", exact: true }).last().click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill(learner.email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("correct-horse-battery");
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/courses\/course-fixture$/);
+    await expect(page.getByRole("radio", { name: /Buy individual course/ })).toBeChecked();
+    await expect(page.getByRole("status").filter({ hasText: "No payment has been started" })).toBeVisible();
+    expect(resume.checkoutPosts()).toBe(0);
+    await page.getByRole("main").getByRole("button", { name: /Buy for/ }).click();
+    await expect.poll(resume.checkoutPosts).toBe(1);
+  });
+});
+
+
+test.describe("Explore result restoration", () => {
+  test("restores cached results and scroll when returning from course details", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 30 }, (_, index) => courseFixture(
+      "restore-" + index,
+      { title: "Restoration Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    let catalogueRequests = 0;
+    await mockAppApi(page, { catalogCourses });
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/courses") catalogueRequests += 1;
+    });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const previousScroll = await page.evaluate(() => window.scrollY);
+    await page.getByRole("link", { name: /Open course details for Restoration Course/ }).last().evaluate((link) => (link as HTMLAnchorElement).click());
+    await expect(page).toHaveURL(/\/courses\/restore-\d+$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/explore$/);
+    await expect(page.getByRole("heading", { name: "Restoration Course 01" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.max(0, previousScroll - 4));
+    expect(catalogueRequests).toBeGreaterThanOrEqual(2);
+  });
+
+  test("persists the latest Explore snapshot on reload and restores cached results and scroll before revalidation", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 30 }, (_, index) => courseFixture(
+      "reload-restore-" + index,
+      { title: "Reload Restoration Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    const refreshedCourse = courseFixture("reload-refreshed", {
+      title: "Freshly revalidated after reload",
+      level: "Advanced",
+      category: "Development",
+    });
+
+    // Disable the browser's native scroll restoration so this test verifies the
+    // application's own session snapshot rather than browser-managed scroll state.
+    await page.addInitScript(() => { history.scrollRestoration = "manual"; });
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Reload");
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, 420));
+    const previousScroll = await page.evaluate(() => window.scrollY);
+    expect(previousScroll).toBeGreaterThan(0);
+
+    let releaseRefresh: () => void = () => undefined;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await refreshGate;
+      return json(route, { courses: [refreshedCourse] });
+    });
+
+    await page.reload();
+    await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.max(0, previousScroll - 4));
+    await expect(page.getByRole("heading", { name: "Freshly revalidated after reload" })).toHaveCount(0);
+
+    releaseRefresh();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated after reload" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reload Restoration Course 01" })).toHaveCount(0);
+  });
+
+  test("renders cached Explore results immediately while Back navigation revalidation is pending", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "cache-" + index,
+      { title: "Cached Course " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Development" }
+    ));
+    const refreshedCourse = courseFixture("cache-refreshed", {
+      title: "Freshly revalidated catalogue result",
+      level: "Beginner",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Cached");
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 420));
+    await page.getByRole("link", { name: "Open course details for Cached Course 01" }).click();
+    await expect(page).toHaveURL(/\/courses\/cache-0$/);
+
+    let releaseRefresh: () => void = () => undefined;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await refreshGate;
+      return json(route, { courses: [refreshedCourse] });
+    });
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/explore\?q=Cached$/);
+    await expect.poll(() => refreshRequests).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toHaveCount(0);
+
+    releaseRefresh();
+    await expect(page.getByRole("heading", { name: "Freshly revalidated catalogue result" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cached Course 01" })).toHaveCount(0);
+  });
+
+  test("keeps cached Explore results visible when catalogue revalidation fails after returning from details", async ({ page }) => {
+    const catalogCourse = courseFixture("preserved-on-error", {
+      title: "Previously loaded Explore result",
+      level: "Intermediate",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [catalogCourse] });
+    await page.goto(baseURL + "/explore?q=Previously");
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Open course details for Previously loaded Explore result" }).click();
+    await expect(page).toHaveURL(/\/courses\/preserved-on-error$/);
+
+    let releaseFailure: () => void = () => undefined;
+    const failureGate = new Promise<void>((resolve) => { releaseFailure = resolve; });
+    let failedRevalidationRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      if (new URL(route.request().url()).pathname !== "/api/courses") return route.continue();
+      failedRevalidationRequests += 1;
+      await failureGate;
+      await route.abort("internetdisconnected");
+    });
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/explore\?q=Previously$/);
+    await expect.poll(() => failedRevalidationRequests).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+    releaseFailure();
+    await expect(page.getByRole("alert")).toContainText("Course catalogue unavailable");
+    await expect(page.getByRole("heading", { name: "Previously loaded Explore result" })).toBeVisible();
+  });
+
+  test("ignores expired Explore snapshots and loads the fresh catalogue", async ({ page }) => {
+    const freshCourse = courseFixture("fresh-after-expiry", {
+      title: "Fresh course after snapshot expiry",
+      level: "Beginner",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [freshCourse] });
+    await page.goto(baseURL + "/explore?q=Expiry");
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+    await page.getByRole("link", { name: "Open course details for Fresh course after snapshot expiry" }).click();
+    await expect(page).toHaveURL(/\/courses\/fresh-after-expiry$/);
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+
+    await page.addInitScript(() => {
+      const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v2:")));
+      const matchingKeys = keys.filter((key) => {
+        try {
+          const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
+          return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
+        } catch { return false; }
+      });
+      for (const storageKey of matchingKeys) {
+        const snapshot = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
+        snapshot.savedAt = Date.now() - 6 * 60 * 1000;
+        snapshot.courses = snapshot.courses.map((course: { title?: string }) => ({ ...course, title: "Expired snapshot must not render" }));
+        window.sessionStorage.setItem(storageKey, JSON.stringify(snapshot));
+      }
+      window.sessionStorage.setItem("bfs-test-expired-snapshot-injected", String(matchingKeys.length));
+    });
+
+    let releaseFreshResponse: () => void = () => undefined;
+    const freshResponseGate = new Promise<void>((resolve) => { releaseFreshResponse = resolve; });
+    let refreshRequests = 0;
+    await page.route("**/api/courses**", async (route) => {
+      refreshRequests += 1;
+      await freshResponseGate;
+      return json(route, { courses: [freshCourse] });
+    });
+
+    await page.reload();
+    await expect.poll(() => refreshRequests).toBe(1);
+    await expect.poll(() => page.evaluate(() => Number(window.sessionStorage.getItem("bfs-test-expired-snapshot-injected") || "0"))).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "Expired snapshot must not render" })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Loading courses" })).toBeVisible();
+    releaseFreshResponse();
+    await expect(page.getByRole("heading", { name: "Fresh course after snapshot expiry" })).toBeVisible();
+  });
+
+  test("ignores malformed Explore snapshots without breaking catalogue loading", async ({ page }) => {
+    const freshCourse = courseFixture("fresh-after-malformed", {
+      title: "Catalogue recovered from malformed snapshot",
+      level: "Beginner",
+      category: "Development",
+    });
+    await mockAppApi(page, { catalogCourses: [freshCourse] });
+    await page.goto(baseURL + "/explore?q=Malformed");
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+    await page.getByRole("link", { name: "Open course details for Catalogue recovered from malformed snapshot" }).click();
+    await expect(page).toHaveURL(/\/courses\/fresh-after-malformed$/);
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+
+    await page.addInitScript(() => {
+      const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index))
+        .filter((key): key is string => Boolean(key && key.startsWith("bfs-explore-snapshot:v2:")));
+      const matchingKeys = keys.filter((key) => {
+        try {
+          const snapshot = JSON.parse(window.sessionStorage.getItem(key) || "null");
+          return snapshot?.pathname === "/explore" && snapshot?.search === window.location.search;
+        } catch { return false; }
+      });
+      matchingKeys.forEach((key) => window.sessionStorage.setItem(key, "{ malformed Explore snapshot"));
+      window.sessionStorage.setItem("bfs-test-malformed-snapshot-injected", String(matchingKeys.length));
+    });
+
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => Number(window.sessionStorage.getItem("bfs-test-malformed-snapshot-injected") || "0"))).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "Catalogue recovered from malformed snapshot" })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+});
+
+test.describe("Explore canonical URL state", () => {
+  test("changing filters after loading more courses resets the Explore result set", async ({ page }) => {
+    const advancedCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "page-reset-advanced-" + index,
+      { title: "Advanced Development " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    const beginnerCourses = Array.from({ length: 13 }, (_, index) => courseFixture(
+      "page-reset-beginner-" + index,
+      { title: "Beginner Data " + String(index + 1).padStart(2, "0"), level: "Beginner", category: "Data" }
+    ));
+    await mockAppApi(page, { catalogCourses: [...advancedCourses, ...beginnerCourses] });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "Advanced Development 01" })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Advanced Development 14" })).toBeVisible();
+
+    await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Beginner");
+    await expect(page).toHaveURL(/level=Beginner/);
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(page.getByRole("heading", { name: "Beginner Data 01" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Advanced Development 01" })).toHaveCount(0);
+  });
+
+  test("deep links restore search, filters and sorting after reload", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "deep-link-" + index,
+      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore?q=Linux&level=Advanced&category=Development&sort=quality");
+
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
+    await expect(page.getByRole("heading", { name: "Linux Course 01" })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("quality");
+    await expect(page.getByRole("heading", { name: "Linux Course 01" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Linux Course 14" })).toBeVisible();
+  });
+
+  test("search, filters and sorting restore every state through Back and Forward", async ({ page }) => {
+    const catalogCourses = Array.from({ length: 14 }, (_, index) => courseFixture(
+      "history-" + index,
+      { title: "Linux Course " + String(index + 1).padStart(2, "0"), level: "Advanced", category: "Development" }
+    ));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore");
+
+    await page.getByRole("textbox", { name: "Search courses" }).fill("Linux");
+    await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
+    await expect(page).toHaveURL(/q=Linux/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+
+    await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
+    await expect(page).toHaveURL(/level=Advanced/);
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+
+    await page.getByRole("combobox", { name: "Filter by category" }).selectOption("Development");
+    await expect(page).toHaveURL(/category=Development/);
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("highest_rated");
+    await expect(page).toHaveURL(/sort=highest_rated/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(page.getByRole("heading", { name: "Linux Course 14" })).toBeVisible();
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/sort=highest_rated/);
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("best_match");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/category=Development/);
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
+
+    await page.goBack();
+    await expect(page).not.toHaveURL(/level=Advanced/);
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/explore$/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("");
+
+    await page.goForward();
+    await expect(page).toHaveURL(/q=Linux/);
+    await expect(page.getByRole("textbox", { name: "Search courses" })).toHaveValue("Linux");
+    await page.goForward();
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("Advanced");
+    await page.goForward();
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("Development");
+    await page.goForward();
+    await expect(page.getByRole("combobox", { name: "Sort courses" })).toHaveValue("highest_rated");
+  });
+
 });

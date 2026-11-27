@@ -1,24 +1,53 @@
+For the implemented public pages, admin scope, real content placeholders and outstanding CMS requirements, see [the Public Pages Release Handover](PUBLIC_PAGES_RELEASE_HANDOVER.md).
+
+## 1. Render static frontend (recommended low-cost deployment)
+
+The V2.2 Blueprint includes a free Render Static Site so the frontend can deploy without relying on the current Vercel build quota. Render static sites are served through a global CDN and do not require a continuously running Node process.
+
+| Setting | Value |
+|---|---|
+| Service | `buddyforstudy-web` |
+| Branch | `buddy-for-study-v2.2` |
+| Root directory | `client` |
+| Runtime | Static |
+| Build command | `npm ci && npm run build && npm run write:release-manifest` |
+| Publish directory | `dist` |
+
+Set these build-time variables on the static site in Render:
+
+| Variable | Value |
+|---|---|
+| `VITE_API_URL` | Required public HTTPS origin of the Render API, without a trailing slash |
+| `VITE_PUBLIC_SITE_URL` | Required canonical frontend HTTPS origin |
+| `VITE_GOOGLE_CLIENT_ID` | The matching Google OAuth Web Client ID |
+| `VITE_INTENT_V2` | `false` for the initial release |
+| `VITE_ASYNC_ROADMAP` | `false` for the initial release |
+
+Vite embeds `VITE_*` values into the static bundle at build time. These values are public; never put secrets in them. Changing an API URL or public client ID requires a new frontend build. The build generates route-specific HTML for the public pages plus `robots.txt` and `sitemap.xml`. Render maps `/about`, `/contact`, `/faq`, `/explore`, `/pricing` and `/legal` to those generated HTML files before applying the general SPA fallback. Hashed assets keep immutable caching. Attach the custom domain to this Render Static Site and verify its DNS/TLS status before switching production traffic.
+
+Render documents static sites as free to deploy, subject to workspace bandwidth and pipeline usage. The API remains a separate web service; a free API instance can spin down after inactivity and is not a production-grade always-on service. Treat this combined free deployment as staging/preview or a constrained launch only when the API's sleep and background-job limitations are acceptable. For reliable production service, use an always-on API plan and verify the selected MongoDB region, backups, alerts, and rollback process.
+
 # Production deployment — Vercel + Render
 
-This repository includes deployment configuration for a Vite SPA on Vercel and a Node.js API plus continuously running worker on Render.
+This repository includes deployment configuration for a Vite SPA on Render Static Sites (with Vercel as an optional alternative) and a Node.js API on Render. The V2.2 Blueprint deploys the frontend as a Render Static Site and the API with bounded inline background execution; a dedicated standalone worker is an optional upgrade.
 
 - Vercel configuration: `vercel.json`
-- Render Blueprint: `render.yaml`
+- Render Blueprint: `render.yaml` (one API service; `BACKGROUND_WORKER_MODE=inline`)
 - Backend production preflight: `cd server && npm run validate:production-config`
 - Deployed smoke test: `cd server && npm run verify:deployment`
 
-The Blueprint targets the `main` branch and sets Render's `autoDeployTrigger: checksPass`. Render will deploy a Git-backed service only after the linked commit's checks pass. This is a deployment gate, not a substitute for GitHub branch protection or a release approval process.
+The V2.2 release Blueprint targets the `buddy-for-study-v2.2` branch but sets `autoDeployTrigger: off` for both Render services. This prevents V2.2 pushes from automatically deploying the API or static site. CI remains a verification gate only; deploy manually when the release operator has approved the exact candidate.
 
-## 1. Vercel frontend
+## 2. Vercel frontend (optional alternative)
 
-Import the repository into Vercel and set the project root to `client/`. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
+Import the repository into Vercel and set the project root to `client/`. **While the old version is live, leave the Vercel Production Branch and existing production domains unchanged.** Let `buddy-for-study-v2.2` produce a Preview deployment (or use a separate preview project) for review. Do not select V2.2 as the Production Branch or promote its deployment until the release operator is ready to replace the live version. The repository's `vercel.json` controls build and routing, not the Git deployment branch. The frontend package manifest, lockfile, and `vercel.json` are inside `client/`; the repository root intentionally has no npm package manifest.
 
 | Setting | Value |
 |---|---|
 | Framework preset | Vite |
-| Production branch | `main` |
+| Production branch | `buddy-for-study-v2.2` |
 | Install command | `npm ci` (runs in `client/`) |
-| Build command | `npm run build` (runs in `client/`) |
+| Build command | `npm run build && npm run write:release-manifest` (runs in `client/`) |
 | Output directory | `dist` |
 
 Set these Vercel environment variables for Production (and separately for Preview/Staging):
@@ -33,36 +62,59 @@ Set these Vercel environment variables for Production (and separately for Previe
 | `VITE_INTENT_V2` | Keep unset or `false` until the server-side `INTENT_V2` rollout is staged |
 | `VITE_ASYNC_ROADMAP` | Keep unset or `false` until the server-side `ASYNC_ROADMAP` endpoints are deployed and smoke-tested |
 
-The checked-in `vercel.json` configures the Vite SPA fallback so direct requests to client routes (for example, `/login`, `/learn/:courseId`, and `/admin`) serve `index.html`. It also applies long-lived immutable caching only to Vite's hashed `/assets/` output.
+The checked-in `vercel.json` maps the generated public HTML routes (`/about`, `/contact`, `/faq`, `/explore`, `/pricing` and `/legal`) to their route-specific `dist/<route>/index.html` files before the general SPA fallback. Other client routes (for example, `/login`, `/learn/:courseId` and `/admin`) continue to use `index.html`. It also applies long-lived immutable caching only to Vite's hashed `/assets/` output.
 
 Attach the production domain to the Vercel project. A domain being verified at the registrar is not sufficient: it must be assigned to this project and show a valid deployment. Verify both the root domain and `www` behavior in Vercel.
 
-## 2. Render API and worker
+## 3. Render API and background execution
 
-Use Render **New → Blueprint** and connect this repository. Render reads the root `render.yaml` and defines two separate long-running services:
+Use Render **New → Blueprint** and connect this repository. The root `render.yaml` defines one API service and one static frontend:
 
-| Service | Root directory | Build command | Start command | Purpose |
+| Service | Plan | Root directory | Build command | Start command / publish path | Purpose |
 |---|---|---|---|---|
-| `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API |
-| `buddyforstudy-worker` | `server` | `npm ci` | `npm run worker` | Background retries, reminders, reconciliation, expiry and curation maintenance |
+| `buddyforstudy-api` | Free (staging/preview only) | `server` | `npm ci` | `npm run start` | HTTP API plus bounded inline maintenance |
+| `buddyforstudy-web` | Free static site | `client` | `npm ci && npm run build` | `dist` | Vite frontend served through Render CDN |
 
-Both use Node.js 24 (the server package engine), the Singapore region, and `main`. The Singapore region is an initial default, not a verified optimal choice: before the first Blueprint sync, compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Render service region changes after creation require a new service and migration plan. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected. The worker is configured with a 300-second shutdown window so it can drain in-flight maintenance before exiting.
+The API Blueprint uses Node.js 24, the Singapore region, and `buddy-for-study-v2.2`; the static frontend is served globally. The Singapore region is an initial default, not a verified optimal choice: compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected.
 
-The worker is mandatory for scheduled reminders, delivery retries, billing reconciliation, subscription/trial expiry maintenance and the worker heartbeat used by operations monitoring. Do not deploy only the HTTP API.
+### Background execution modes
+
+The Blueprint explicitly sets `BACKGROUND_WORKER_MODE=inline`. This is the recommended initial configuration when a separate worker service is not affordable.
+
+| Mode | Deployment | Behavior and limitations |
+|---|---|---|
+| `inline` | API service only | Runs bounded maintenance and announcement batches inside the API process. Uses MongoDB leases to avoid duplicate execution across API replicas. Jobs pause while the host sleeps, restarts, or is unavailable. |
+| `standalone` | API plus a separate worker service | API does not schedule jobs; the worker runs the full maintenance workload, including learning-reminder scans, subscription-expiry reminders, and nightly YouTube curation refreshes. |
+| `disabled` | API service only | Intentionally pauses scheduled background processing. Use only for maintenance or controlled testing. |
+
+Inline mode covers the bounded work documented in [the hybrid background-work architecture](BACKGROUND_WORK_HYBRID_ARCHITECTURE.md): expiry updates, audit outbox recovery, bounded email/push delivery, purchase/subscription notification reconciliation, and scheduled-announcement batches. It deliberately does **not** run learning-reminder scans, subscription-expiry reminder scans, or nightly YouTube stale-video/resource-prior refreshes. It is best-effort, not a guarantee of exact scheduled delivery. Payment verification, entitlement checks, authentication, enrollment, and progress writes remain authoritative in API request/webhook paths and must not depend on the scheduler.
+
+### When a standalone worker is justified
+
+Add a separate Render worker only when the omitted scheduled work or its delivery guarantees justify the additional service cost:
+
+1. Set `BACKGROUND_WORKER_MODE=standalone` on the API service.
+2. Create a Render Worker service with root directory `server`, build command `npm ci`, and start command `npm run worker`.
+3. Set the same `BACKGROUND_WORKER_MODE=standalone` on the worker and share the API's MongoDB URI, JWT secret, provider credentials, and other required runtime variables.
+4. Confirm the API and worker report the same configured mode and a current heartbeat in Admin → Operations.
+
+Do not run API-inline and standalone scheduling against the same environment. Change modes through a controlled maintenance window: stop the previous scheduler, let it drain and release/expire its leases, confirm health, then start the new mode. The standalone worker is not part of the default Blueprint and is not required for the initial inline deployment.
 
 ### Required production variables
 
-Render's Blueprint deliberately does not commit credentials. Complete every `sync: false` field on the API service in the Render Dashboard. The worker references the corresponding API environment variables, including the generated JWT secret, so both processes use the same database and runtime credentials.
+Render's Blueprint deliberately does not commit credentials. Complete every `sync: false` field on the API service in the Render Dashboard. Never copy production credentials into this repository, Vercel, browser-exposed variables, CI fixtures, or chat messages.
 
 | Variable | Requirement |
 |---|---|
+| `BACKGROUND_WORKER_MODE` | Required explicitly in production. The Blueprint sets `inline`; use `standalone` only when adding the dedicated worker service, or `disabled` only for a controlled pause. |
 | `MONGO_URI` | MongoDB Atlas URI with a database name, authenticated database user and TLS. Use `mongodb+srv://` or explicit TLS. URL-encode special characters in credentials. |
-| `JWT_SECRET` | Render generates a random value for the API service. Keep it stable across API restarts and shared with the worker. Never rotate it casually: existing sessions may be invalidated. |
+| `JWT_SECRET` | Render generates a random value for the API service. Keep it stable across API restarts. If you later add a worker, share the same value with it. Never rotate it casually: existing sessions may be invalidated. |
 | `CLIENT_URL` | Exact public frontend origin, including HTTPS and no path. |
 | `API_URL` | Exact public API origin, including HTTPS and no path. |
 | `TRUST_PROXY_HOPS` | Blueprint sets `1` for the Render proxy topology. Confirm the actual trusted proxy chain before changing it; do not use blanket trust. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. Verify the sender/domain and TLS mode with the chosen mail provider. |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Required live-mode credentials. `RAZORPAY_KEY_ID` must be a live key. Never use test credentials in the production environment. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. `SMTP_PORT` must be explicitly configured. Verify the sender/domain and TLS mode with the chosen mail provider. |
+| `PAYMENTS_ENABLED` | Keep `false` until payment-provider onboarding and payment flows are ready. |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Add these API environment variables only when `PAYMENTS_ENABLED=true`. Use live-mode credentials in production; never use test credentials in the production environment. |
 | `GOOGLE_CLIENT_ID` | Google OAuth Web Client ID. Add the exact frontend origin to Authorized JavaScript origins in Google Cloud Console. |
 | `GEMINI_API_KEY` | Required for live Gemini-backed generation; keep it server-side. |
 | `YOUTUBE_API_KEY` | Required for live YouTube search/curation; restrict it to the YouTube Data API and monitor quota. |
@@ -70,23 +122,25 @@ Render's Blueprint deliberately does not commit credentials. Complete every `syn
 | `SENTRY_DSN` | Optional error monitoring DSN. |
 | `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` | Optional, but configure all three together. The private key is server-side only. Generate with `cd server && npm run generate:web-push-keys`. |
 
-After the first Render Blueprint sync, add or review all environment values in the Render Dashboard. The Blueprint's `sync: false` values are initial prompts; adding new secrets to an existing Blueprint requires adding them to the deployed service's environment manually. Never copy production credentials into this repository, Vercel, browser-exposed variables, CI fixtures, or chat messages.
+**Render Free SMTP limitation — release blocker for standard SMTP setups:** Render Free web services block outbound traffic on SMTP ports `25`, `465`, and `587`. BuddyForStudy currently sends OTP and notification email through Nodemailer SMTP, so a provider that requires one of those ports will not work from the free API service. The Blueprint therefore asks for `SMTP_PORT` explicitly instead of silently selecting `587`. A free API deployment can send mail only if the selected provider documents a supported TLS/STARTTLS submission port outside the blocked list (some providers offer `2525`); verify that exact provider/port from the deployed service with a real signup OTP and password-reset email before relying on it. Render documentation does not guarantee every alternative port or provider route. If the provider only supports ports `25`, `465`, or `587`, use paid API compute or implement and test an HTTPS email-provider integration; the current code does not include an HTTP email adapter. Until mail delivery is verified end-to-end, email signup/login recovery is not production-cleared.
+
+After the first Render Blueprint sync, add or review all environment values in the Render Dashboard. The Blueprint's `sync: false` values are initial prompts; adding new secrets to an existing Blueprint requires adding them to the deployed service's environment manually. Never expose server secrets through `VITE_*` variables or frontend build output.
 
 The following flags are explicitly off in the Blueprint: `USE_CURATION_ENGINE_FOR_AI`, `INTENT_V2`, `ASYNC_ROADMAP`, `YT_COMBINED_SEARCH`, `ENABLE_TRUSTED_CHANNELS`, `ENABLE_CURATION_COMPLIANCE_WORKERS`, and `AI_PRIVATE_COURSES_SKIP_REVIEW`. Keep them off for the first production deployment. Follow [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md) to stage each capability separately. Do not enable `AI_PRIVATE_COURSES_SKIP_REVIEW` as a routine rollout switch.
 
-## 3. Provider callbacks and access configuration
+## 4. Provider callbacks and access configuration
 
 After the API has a stable HTTPS hostname:
 
 1. Set Vercel `VITE_API_URL` to that API origin and redeploy the frontend.
 2. Set Render `CLIENT_URL` to the final Vercel custom-domain origin and `API_URL` to the Render API origin.
 3. In Google Cloud Console, allow the exact frontend origin for the Web OAuth client; use the same client ID on frontend and API.
-4. In Razorpay, configure the webhook URL as `https://<api-host>/api/webhooks/razorpay`, subscribe to the payment/subscription/refund events implemented by the server, and store the webhook secret only in Render.
+4. When payments are enabled, configure the Razorpay webhook URL as `https://<api-host>/api/webhooks/razorpay`, subscribe to the payment/subscription/refund events implemented by the server, and store the webhook secret only in Render.
 5. Verify SMTP delivery with the provider's test message and the application's email OTP flow.
 6. Configure VAPID only when browser push is part of the launch scope. Keep the VAPID private key exclusively in Render.
 7. If Redis is enabled, use TLS and authentication. The production validator rejects non-TLS or unauthenticated Redis URLs.
 
-## 4. Pre-deploy verification
+## 5. Pre-deploy verification
 
 Run from a clean checkout of the exact release commit:
 
@@ -105,27 +159,35 @@ npm test
 npm run verify:deployment
 ```
 
-For `validate:production-config`, run with the intended production environment variables available to the process. Do not copy live secrets into logs. For the deployed smoke test, set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYMENT_URL` to the two public HTTPS origins; it checks API liveness/readiness, CORS, billing-plan and Google-config endpoints, and frontend deep-link responses.
+For `validate:production-config`, run with the intended production environment variables available to the process. Do not copy live secrets into logs.
 
-After deploy, verify:
+The deployment verifier is read-only. Set `DEPLOYMENT_URL` and `FRONTEND_DEPLOYMENT_URL` to the actual public HTTPS origins. It checks API liveness/readiness, exact frontend CORS origin, billing-plan and Google-config endpoint responses, and frontend deep links. API liveness currently returns `status: "ok"`; readiness returns `status: "ready"` only when MongoDB is connected. The verifier retries bounded transient network and 408/425/5xx responses.
 
-- `GET /health` returns healthy and `GET /api/health/ready` confirms MongoDB connected.
+For an exact release check, also set `EXPECTED_RELEASE_SHA` to the full 40-character candidate SHA. The API `/api/health` response exposes a validated `releaseSha`; the frontend build emits `/release.json` with its commit SHA. Strict deployment verification requires both to match the expected SHA. The Render Blueprint and Vercel build configuration call `npm run write:release-manifest` so the frontend manifest is generated from the hosting build's Git commit value; the API reads its corresponding hosting commit metadata. The manually dispatched staging-verification workflow sets `EXPECTED_RELEASE_SHA` from the exact GitHub candidate commit.
+
+For a strict staging operations check, configure the GitHub `staging` environment as described in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md), then manually dispatch **Staging operations verification** from the `buddy-for-study-v2.2` branch. Provide staging-only API/frontend URLs, the expected worker mode, the optional expected OAuth client ID and a short-lived administrator JWT through environment variables/secrets. This check reads `/api/health/operations` using GET and does not deploy or mutate provider/application data.
+
+For repository readiness, manually dispatch **Final repository readiness gate** from `buddy-for-study-v2.2` after exact-SHA CI has passed. It rechecks the latest CI run and required jobs for the dispatched SHA, then confirms the branch has not advanced. It does not contact staging or production services, require deployment secrets, approve a production release, or deploy. Your separate deployment procedure remains responsible for live verification, production approval, and making the new version live.
+
+After deployment, verify:
+
+- `GET /health` returns `status: "ok"` and `GET /api/health/ready` returns `status: "ready"` with `database: "connected"`.
 - Admin → Operations shows a recent worker heartbeat and no stale maintenance failure.
 - Signup, email OTP, login, Google OAuth, password reset and expired-session behavior work.
 - Public catalog, learner course enrollment, lesson completion, saved courses, notifications and admin permission boundaries work.
-- Razorpay sandbox/live-mode checkout and webhook signatures reconcile exactly once; test refunds only in the appropriate provider environment.
-- Email and (if enabled) browser push deliver successfully; worker retries and notification outbox reconciliation are visible.
+- When `PAYMENTS_ENABLED=true`, verify Razorpay sandbox/live-mode checkout and webhook signatures reconcile exactly once; test refunds only in the appropriate provider environment.
+- Email and (if enabled) browser push deliver successfully; scheduled retries and notification outbox reconciliation are visible.
 - Build with AI and YouTube quota behavior are checked with an intentionally conservative test budget before enabling any rollout flags.
 
-Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback.
+Use separate MongoDB databases, JWT/payment/SMTP/OAuth credentials and provider projects for staging and production. Never reuse staging credentials for production. Keep a known-good previous deployment available for rollback. Complete the backup/restore, monitoring, incident-owner and rollback-rehearsal evidence in [the Operations Readiness Runbook](OPERATIONS_READINESS_RUNBOOK.md) before calling the release production-ready.
 
-## 5. Release blockers that this configuration does not waive
+## 6. Release blockers that this configuration does not waive
 
 This configuration is not proof of a deployed environment. A production release is still blocked until all of the following have evidence:
 
 - GitHub branch protection/ruleset requires the frontend and backend CI checks and disallows bypass by default.
 - A staging environment has been deployed and exercised against real provider sandboxes.
-- Render API and worker are running with healthy database connections and a current worker heartbeat.
+- The Render API is running with a healthy database connection and a current heartbeat for the configured `BACKGROUND_WORKER_MODE`; when `standalone` mode is selected, the separate worker must also be healthy.
 - Data export/deletion/retention requirements have an approved policy and implemented, tested workflow.
 - Subscription upgrade/downgrade, grace-period and plan-change rules have an approved product/payment contract and matching integration tests.
 - Rollback owners, alert thresholds, and an actual rollback rehearsal are recorded.
@@ -133,6 +195,9 @@ This configuration is not proof of a deployed environment. A production release 
 See the [Production Readiness Master Checklist](PRODUCTION_READINESS_MASTER_CHECKLIST.md). Do not mark a task complete without evidence for the exact commit and environment.
  
 ## References
+
+- [Render Static Sites](https://render.com/docs/static-sites)
+- [Render free services](https://render.com/docs/free)
 
 - [Render Blueprint YAML reference](https://render.com/docs/blueprint-spec)
 - [Render health checks](https://render.com/docs/health-checks)

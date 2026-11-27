@@ -2,8 +2,17 @@ import { SavedCourse } from "../models/SavedCourse.js";
 import { Course } from "../models/Course.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { toPublicCoursePreview } from "../utils/coursePreview.js";
 
-const courseSelect = "title slug description category level duration thumbnail isPublished pricing";
+const courseSelect = "title slug description category domain tags level duration thumbnail isPublished pricing learningOutcomes modules.title modules.lessons.tutorial.videos.videoId modules.lessons.tutorial.videos.url modules.lessons.tutorial.videos.thumbnail modules.lessons.project.videos.videoId modules.lessons.project.videos.url modules.lessons.project.videos.thumbnail generation.mode generation.sourceResourceType generation.snapshot.modules.course.videoId generation.snapshot.modules.course.url generation.snapshot.modules.course.thumbnail";
+
+function toPublicSavedCourse(savedCourse) {
+  if (!savedCourse?.course) return savedCourse;
+  return {
+    ...savedCourse,
+    course: toPublicCoursePreview(savedCourse.course)
+  };
+}
 
 export async function mine(req, res, next) {
   try {
@@ -11,7 +20,7 @@ export async function mine(req, res, next) {
       .populate({ path: "course", select: courseSelect })
       .sort({ savedAt: -1 })
       .lean();
-    return success(res, { savedCourses });
+    return success(res, { savedCourses: savedCourses.map(toPublicSavedCourse) });
   } catch (e) {
     next(e);
   }
@@ -31,14 +40,14 @@ export async function save(req, res, next) {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).populate({ path: "course", select: courseSelect });
 
-    return success(res, { savedCourse }, "Course saved");
+    return success(res, { savedCourse: toPublicSavedCourse(savedCourse) }, "Course saved");
   } catch (e) {
     if (e?.code === 11000) {
       const savedCourse = await SavedCourse.findOne({
         user: req.user.userId,
         course: req.body.courseId
       }).populate({ path: "course", select: courseSelect });
-      return success(res, { savedCourse }, "Course saved");
+      return success(res, { savedCourse: toPublicSavedCourse(savedCourse) }, "Course saved");
     }
     next(e);
   }

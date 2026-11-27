@@ -10,6 +10,7 @@ import { useLearningStats } from '@/hooks/useLearningStats';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
+import GuestLanding from '@/components/GuestLanding';
 import '@/styles/user-home.css';
 
 import { routes } from "@/lib/routes";
@@ -117,7 +118,7 @@ function mapEnrollment(raw: RawHomeEnrollment): EnrollmentRecord | null {
   };
 }
 function SkeletonResume() {
-  return <div className="user-home__panel user-home__resume" aria-label="Loading your learning" aria-busy="true">
+  return <div className="user-home__panel user-home__resume" role="status" aria-label="Loading your learning" aria-busy="true">
     <div className="user-home__skeleton user-home__skeleton--cover" />
     <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
   </div>;
@@ -134,7 +135,7 @@ function Cover({ course, className = '' }: { course: Course; className?: string 
   return <div className={className}>
     {course.thumbnail && !failed
       ? <img src={course.thumbnail} alt="" loading="lazy" onError={() => setFailed(true)} />
-      : <div className={'user-home__image-fallback user-home__image-fallback--' + palette} aria-label={course.title}>
+      : <div className={'user-home__image-fallback user-home__image-fallback--' + palette} role="img" aria-label={course.title}>
           <BookOpen className="user-home__fallback-icon" aria-hidden="true" size={40} />
           <span className="user-home__fallback-title">{coverWords}</span>
         </div>}
@@ -271,7 +272,7 @@ export default function Home() {
     ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.next_lesson_id ? '/' + encodeURIComponent(resumeProgress.next_lesson_id) : '')
     : '/courses';
 
-  if (authLoading || loading) {
+  if (authLoading || (session && loading)) {
     return <main className="user-home" id="main-content"><div className="user-home__shell user-home__stack">
       <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
       <SkeletonResume />
@@ -279,6 +280,8 @@ export default function Home() {
       <CourseGridSkeleton count={4} />
     </div></main>;
   }
+  if (!session) return <GuestLanding />;
+
   if (error) {
     const accessError = fatalErrorStatus === 403 || fatalErrorStatus === 404;
     return <main className="user-home" id="main-content"><div className="user-home__shell">

@@ -7,6 +7,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps, getYouTubeVideoThumbnailUrl } from "@/lib/courseThumbnail";
 
 export default function PlaylistCourse() {
   const { playlistId } = useParams<{ playlistId: string }>();
@@ -154,12 +156,20 @@ export default function PlaylistCourse() {
       <main className="mx-auto max-w-6xl px-5 py-8">
         <div className="grid gap-8 lg:grid-cols-[1.3fr_.7fr]">
           <div>
-            <div className="overflow-hidden rounded-2xl bg-slate-100">
-              <img
-                src={course.thumbnail}
-                alt=""
-                className="aspect-video w-full object-cover"
-              />
+            <div className="overflow-hidden rounded-2xl bg-slate-950">
+              <CourseThumbnail {...getCourseThumbnailProps({
+                  id: String(course._id ?? course.id ?? playlistId ?? ""),
+                  title: String(course.title ?? "Learning playlist"),
+                  domain: String(course.domain ?? course.category ?? "Technology"),
+                  category: String(course.category ?? course.domain ?? "Technology"),
+                  tags: course.tags,
+                  level: String(course.level ?? "Intermediate"),
+                  modules: course.modules,
+                  learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                  thumbnail: course.thumbnail,
+                  cardMetadata: course.cardMetadata,
+                  lessons: course.lessons,
+                })} />
             </div>
 
             <h2 className="mt-6 text-3xl font-serif text-slate-900">
@@ -181,17 +191,33 @@ export default function PlaylistCourse() {
             </p>
 
             <div className="mt-4 space-y-2">
-              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => (
-                <div key={lesson.id} className="flex gap-3 rounded-xl bg-white p-3">
-                  <PlayCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">
-                      {lesson.order}. {lesson.title}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">{lesson.duration}</p>
+              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => {
+                const lessonThumbnail = getYouTubeVideoThumbnailUrl(lesson);
+                return (
+                  <div key={lesson.id} className="flex items-center gap-3 rounded-xl bg-white p-3">
+                    <span className="relative flex h-12 w-[76px] flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                      <PlayCircle className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                      {lessonThumbnail && (
+                        <img
+                          src={lessonThumbnail}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(event) => { event.currentTarget.style.display = "none"; }}
+                        />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        {lesson.order}. {lesson.title}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{lesson.duration}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </aside>
         </div>
@@ -200,11 +226,21 @@ export default function PlaylistCourse() {
       {showAudit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <img
-              src={course.thumbnail}
-              alt=""
-              className="aspect-video w-full object-cover"
-            />
+            <div className="overflow-hidden bg-slate-950">
+              <CourseThumbnail {...getCourseThumbnailProps({
+                  id: String(course._id ?? course.id ?? playlistId ?? ""),
+                  title: String(course.title ?? "Learning playlist"),
+                  domain: String(course.domain ?? course.category ?? "Technology"),
+                  category: String(course.category ?? course.domain ?? "Technology"),
+                  tags: course.tags,
+                  level: String(course.level ?? "Intermediate"),
+                  modules: course.modules,
+                  learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                  thumbnail: course.thumbnail,
+                  cardMetadata: course.cardMetadata,
+                  lessons: course.lessons,
+                })} />
+            </div>
 
             <div className="p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">

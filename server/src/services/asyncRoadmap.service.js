@@ -518,6 +518,7 @@ export async function getRoadmapPoll(draftId, userId) {
     (module.lessons || []).map((lesson, lessonIndex) => ({
       nodeId: String(lesson._id || lesson.id || `${moduleIndex}-${lessonIndex}`),
       title: lesson.title,
+      type: lesson.type || "lesson",
       state: lesson.buildState || (lesson.tutorial?.videos?.length ? (lesson.tutorial.videos.some((video) => video.state === "low_confidence") ? "low_confidence" : "ready") : "pending")
     }))
   );

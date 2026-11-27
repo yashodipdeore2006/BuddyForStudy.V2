@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
+import {
+  enqueueProgressOperation,
+  getBlockedProgressOperationCount,
+  getPendingProgressOperationCount,
+  listPendingProgressOperations,
+  requestProgressSync,
+  retryBlockedProgressOperations,
+  retryPendingProgressOperationsNow,
+  discardBlockedProgressOperations,
+  type ProgressQueueAction,
+  type ProgressQueueOperation
+} from "@/lib/offlineProgressQueue";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
@@ -140,6 +152,57 @@ function mapProgress(raw: RawPlayerProgress): Progress {
   } as Progress;
 }
 
+function applyQueuedProgressAction(
+  current: Progress | null,
+  operation: ProgressQueueOperation,
+  userId: string,
+  courseId: string,
+  lessonType: Course["modules"][number]["lessons"][number]["type"],
+  totalLessons: number
+): Progress {
+  const existing = current?.completed_lessons || [];
+  const alreadyCompleted = existing.some((item) => item.lessonId === operation.itemId);
+  let completedLessons = existing;
+
+  if (operation.action === "complete" && !alreadyCompleted) {
+    completedLessons = [
+      ...existing,
+      {
+        lessonId: operation.itemId,
+        type: lessonType,
+        completedAt: new Date(operation.createdAt).toISOString()
+      }
+    ];
+  } else if (operation.action === "uncomplete" && alreadyCompleted) {
+    completedLessons = existing.filter((item) => item.lessonId !== operation.itemId);
+  }
+
+  const total = Math.max(0, Number(current?.total_lessons) || totalLessons);
+  const completedCount = completedLessons.length;
+  const timestamp = new Date(operation.createdAt).toISOString();
+  return {
+    id: current?.id || "offline-" + courseId,
+    user_id: current?.user_id || userId,
+    course_id: current?.course_id || courseId,
+    completed_lessons: completedLessons,
+    completed_count: completedCount,
+    total_lessons: total,
+    percentage: total ? Math.min(100, Math.round((completedCount / total) * 100)) : 0,
+    last_lesson_id: operation.action === "complete"
+      ? operation.itemId
+      : current?.last_lesson_id || null,
+    last_accessed_at: timestamp,
+    created_at: current?.created_at || timestamp,
+    updated_at: timestamp
+  };
+}
+
+function isNetworkUnavailable(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /couldn't connect to BuddyForStudy|check your internet connection|failed to fetch|networkerror|network request failed/i.test(message);
+}
+
 export default function CoursePlayer() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId?: string }>();
   const navigate = useNavigate();
@@ -153,6 +216,9 @@ export default function CoursePlayer() {
   const [error, setError] = useState("");
   const [resourceRecoveryStatus, setResourceRecoveryStatus] = useState<"idle" | "loading" | "unavailable">("idle");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
+  const [pendingOfflineProgressCount, setPendingOfflineProgressCount] = useState(0);
+  const [blockedOfflineProgressCount, setBlockedOfflineProgressCount] = useState(0);
+  const [progressSyncNotice, setProgressSyncNotice] = useState("");
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState("");
   const [quizRetryCount, setQuizRetryCount] = useState(0);
@@ -280,28 +346,77 @@ export default function CoursePlayer() {
 
   useEffect(() => {
     if (!courseId) return;
+    const activeCourseId = courseId;
+    let cancelled = false;
     async function load() {
       try {
         const courseData = await apiFetch(`/api/courses/${courseId}/learn`);
-        setCourse(mapCourse(courseData.course));
+        if (cancelled) return;
+        const mappedCourse = mapCourse(courseData.course);
+        setCourse(mappedCourse);
 
         try {
           const progressData = await apiFetch(`/api/progress/${courseId}`);
-          setProgress(mapProgress(progressData.progress));
+          if (cancelled) return;
+          let loadedProgress = mapProgress(progressData.progress);
+          const accountId = session?.user.id;
+          if (accountId) {
+            let pendingOperations: ProgressQueueOperation[] = [];
+            try {
+              pendingOperations = await listPendingProgressOperations(accountId, {
+                courseId,
+                limit: 200,
+                includeDeferred: true
+              });
+              const [pendingCount, blockedCount] = await Promise.all([
+                getPendingProgressOperationCount(accountId, courseId),
+                getBlockedProgressOperationCount(accountId, courseId)
+              ]);
+              if (cancelled) return;
+              setPendingOfflineProgressCount(pendingCount);
+              setBlockedOfflineProgressCount(blockedCount);
+              if (pendingCount > 0) requestProgressSync(accountId, courseId);
+            } catch {
+              // IndexedDB availability must not turn a valid server progress response into a plan denial.
+            }
+            const lessonsById = new Map<string, Course["modules"][number]["lessons"][number]>(
+              mappedCourse.modules
+                .flatMap((module) => module.lessons)
+                .map((lesson) => [lesson.id, lesson] as const)
+            );
+            for (const operation of pendingOperations) {
+              if (operation.status !== "pending") continue;
+              if (typeof operation.itemId !== "string" || operation.itemId.length === 0) continue;
+              const targetLesson = lessonsById.get(operation.itemId);
+              if (!targetLesson) continue;
+              loadedProgress = applyQueuedProgressAction(
+                loadedProgress,
+                operation,
+                accountId,
+                activeCourseId,
+                targetLesson.type,
+                mappedCourse.modules.reduce((sum, module) => sum + module.lessons.length, 0)
+              );
+            }
+          }
+          if (cancelled) return;
+          setProgress(loadedProgress);
           setProgressUnavailable(false);
         } catch {
+          if (cancelled) return;
           // Progress is independently plan-controlled; do not block course access when disabled.
           setProgress(null);
           setProgressUnavailable(true);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load this course.");
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load this course.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     void load();
-  }, [courseId]);
+    return () => { cancelled = true; };
+  }, [courseId, session?.user.id]);
 
   useEffect(() => {
     if (!courseId || !lessonId || currentLesson?.lesson.type !== "tutorial") {
@@ -523,40 +638,217 @@ export default function CoursePlayer() {
     };
   }, [courseId, lessonId]);
 
+  const saveProgressActionOffline = async (
+    targetLessonId: string,
+    action: ProgressQueueAction,
+    lessonType: Course["modules"][number]["lessons"][number]["type"]
+  ) => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) throw new Error("Sign in again to save this progress action safely.");
+    const operation = await enqueueProgressOperation({
+      accountId,
+      courseId,
+      itemId: targetLessonId,
+      action
+    });
+    const totalLessons = allLessons.length;
+    setProgress((current) => applyQueuedProgressAction(
+      current,
+      operation,
+      accountId,
+      courseId,
+      lessonType,
+      totalLessons
+    ));
+    if (targetLessonId === lessonId) {
+      activeLessonCompletedRef.current = action === "complete";
+    }
+    const [pendingCount, blockedCount] = await Promise.all([
+      getPendingProgressOperationCount(accountId, courseId),
+      getBlockedProgressOperationCount(accountId, courseId)
+    ]);
+    setPendingOfflineProgressCount(pendingCount);
+    setBlockedOfflineProgressCount(blockedCount);
+    setProgressSyncNotice("Your progress is saved on this device and will sync when your connection returns.");
+    setError("");
+    requestProgressSync(accountId, courseId);
+  };
+
+  useEffect(() => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) {
+      setPendingOfflineProgressCount(0);
+      setBlockedOfflineProgressCount(0);
+      setProgressSyncNotice("");
+      return;
+    }
+    let cancelled = false;
+    const refreshPendingCount = () => {
+      void Promise.all([
+        getPendingProgressOperationCount(accountId, courseId),
+        getBlockedProgressOperationCount(accountId, courseId)
+      ])
+        .then(([count, blockedCount]) => {
+          if (cancelled) return;
+          setPendingOfflineProgressCount(count);
+          setBlockedOfflineProgressCount(blockedCount);
+          if (count === 0) setProgressSyncNotice("");
+        })
+        .catch(() => {
+          // Local queue status is supplemental and must not block course access.
+        });
+
+      // Rebuild the visible progress from the authoritative server snapshot
+      // plus only still-pending local actions. Blocked actions require explicit
+      // retry or dismissal and must not stay optimistically applied.
+      if (!course || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+      void apiFetch(`/api/progress/${courseId}`, { cache: "no-store" })
+        .then(async (data) => {
+          let refreshed = mapProgress(data.progress);
+          const remaining = await listPendingProgressOperations(accountId, {
+            courseId,
+            limit: 200,
+            includeDeferred: true
+          });
+          const lessonsById = new Map<string, Course["modules"][number]["lessons"][number]>(
+            course.modules.flatMap((module) => module.lessons).map((lesson) => [lesson.id, lesson] as const)
+          );
+          for (const operation of remaining) {
+            if (operation.status !== "pending") continue;
+            const lesson = lessonsById.get(operation.itemId);
+            if (!lesson) continue;
+            refreshed = applyQueuedProgressAction(
+              refreshed,
+              operation,
+              accountId,
+              courseId,
+              lesson.type,
+              course.modules.reduce((sum, module) => sum + module.lessons.length, 0)
+            );
+          }
+          if (!cancelled) setProgress(refreshed);
+        })
+        .catch(() => {
+          // Queue status still updates when the API is unavailable.
+        });
+    };
+    window.addEventListener("bfs:progress-queue-updated", refreshPendingCount);
+    // Initial course loading already fetched the authoritative progress snapshot
+    // and queue counts. Refresh from the server only after a queue mutation.
+    return () => {
+      cancelled = true;
+      window.removeEventListener("bfs:progress-queue-updated", refreshPendingCount);
+    };
+  }, [course, courseId, session?.user.id]);
+
+  const handleRetryProgressSync = async () => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) return;
+    try {
+      await retryBlockedProgressOperations(accountId, courseId);
+      await retryPendingProgressOperationsNow(accountId, courseId);
+      requestProgressSync(accountId, courseId);
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Unable to retry progress synchronization.");
+    }
+  };
+
+  const handleDismissBlockedProgress = async () => {
+    const accountId = session?.user.id;
+    if (!accountId || !courseId) return;
+    try {
+      await discardBlockedProgressOperations(accountId, courseId);
+    } catch (dismissError) {
+      setError(dismissError instanceof Error ? dismissError.message : "Unable to dismiss blocked progress actions.");
+    }
+  };
+
   const handleComplete = async () => {
     if (!courseId || !lessonId || !currentLesson || isLessonCompleted(progress?.completed_lessons || [], lessonId)) return;
     setCompleting(true);
     setError("");
     try {
+      if (navigator.onLine === false) {
+        await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
+        return;
+      }
+      let queuedCount = 0;
+      if (session?.user.id) {
+        try {
+          queuedCount = await getPendingProgressOperationCount(session.user.id, courseId);
+        } catch {
+          // A storage issue must not block normal online progress updates.
+        }
+      }
+      if (queuedCount > 0) {
+        await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
+        return;
+      }
       const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
       setProgress(mapProgress(data.progress));
       activeLessonCompletedRef.current = true;
+      setProgressSyncNotice("");
       const completedVideo = currentLesson.lesson.type === "tutorial" ? activeVideo : null;
       if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to mark lesson complete.");
+      if (isNetworkUnavailable(err)) {
+        try {
+          await saveProgressActionOffline(lessonId, "complete", currentLesson.lesson.type);
+        } catch (queueError) {
+          setError(queueError instanceof Error ? queueError.message : "Unable to save progress offline.");
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Unable to mark lesson complete.");
+      }
     } finally {
       setCompleting(false);
     }
   };
 
-
   const handleToggleLessonCompletion = async (targetLessonId: string) => {
     if (!courseId || !targetLessonId || progressUnavailable || togglingLessonIds.has(targetLessonId)) return;
     const wasCompleted = isLessonCompleted(progress?.completed_lessons || [], targetLessonId);
+    const targetLesson = course?.modules.flatMap((module) => module.lessons).find((lesson) => lesson.id === targetLessonId);
+    if (!targetLesson) return;
+    const action: ProgressQueueAction = wasCompleted ? "uncomplete" : "complete";
     setTogglingLessonIds((current) => new Set(current).add(targetLessonId));
     setError("");
     try {
+      if (navigator.onLine === false) {
+        await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
+        return;
+      }
+      let queuedCount = 0;
+      if (session?.user.id) {
+        try {
+          queuedCount = await getPendingProgressOperationCount(session.user.id, courseId);
+        } catch {
+          // A storage issue must not block normal online progress updates.
+        }
+      }
+      if (queuedCount > 0) {
+        await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
+        return;
+      }
       const method = wasCompleted ? "DELETE" : "POST";
       const data = await apiFetch(`/api/progress/${courseId}/items/${targetLessonId}/complete`, { method });
       setProgress(mapProgress(data.progress));
+      setProgressSyncNotice("");
       if (targetLessonId === lessonId) activeLessonCompletedRef.current = !wasCompleted;
       if (!wasCompleted && currentLesson?.lesson.id === targetLessonId && currentLesson.lesson.type === "tutorial") {
         const completedVideo = activeVideo;
         if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update lesson completion.");
+      if (isNetworkUnavailable(err)) {
+        try {
+          await saveProgressActionOffline(targetLessonId, action, targetLesson.type);
+        } catch (queueError) {
+          setError(queueError instanceof Error ? queueError.message : "Unable to save progress offline.");
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Unable to update lesson completion.");
+      }
     } finally {
       setTogglingLessonIds((current) => {
         const next = new Set(current);
@@ -1749,6 +2041,39 @@ export default function CoursePlayer() {
         </aside>
       </div>
 
+      {pendingOfflineProgressCount > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-4 z-40 max-w-[min(92vw,420px)] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 shadow-lg"
+        >
+          <div>{pendingOfflineProgressCount} progress {pendingOfflineProgressCount === 1 ? "action is" : "actions are"} waiting to sync.</div>
+          <div className="mt-1 font-medium">
+            {blockedOfflineProgressCount > 0
+              ? blockedOfflineProgressCount + " action(s) need attention. Restore course access or remove actions that are no longer valid."
+              : progressSyncNotice || "Saved on this device. Sync will resume when you are online."}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRetryProgressSync()}
+              disabled={typeof navigator !== "undefined" && navigator.onLine === false}
+              className="rounded-lg bg-amber-900 px-3 py-1.5 font-bold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Retry sync
+            </button>
+            {blockedOfflineProgressCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleDismissBlockedProgress()}
+                className="rounded-lg border border-amber-300 px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100"
+              >
+                Remove blocked actions
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {pageError && (
         <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-lg">
           {pageError}

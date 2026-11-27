@@ -1,0 +1,155 @@
+name: Final repository readiness gate
+
+run-name: Repository readiness — buddy-for-study-v2.2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-exact-commit-ci:
+    if: github.ref == 'refs/heads/buddy-for-study-v2.2'
+    name: Verify CI for the exact V2.2 candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      candidate_sha: ${{ steps.check.outputs.candidate_sha }}
+      ci_run_url: ${{ steps.check.outputs.ci_run_url }}
+    steps:
+      - name: Require successful backend, frontend and production-config CI for this SHA
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const { GITHUB_TOKEN, CANDIDATE_SHA, REPOSITORY } = process.env;
+          if (!GITHUB_TOKEN || !CANDIDATE_SHA || !REPOSITORY) {
+            throw new Error("Missing GitHub API verification context.");
+          }
+
+          async function githubJson(url) {
+            const response = await fetch(url, {
+              headers: {
+                Authorization: "Bearer " + GITHUB_TOKEN,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28"
+              }
+            });
+            if (!response.ok) {
+              throw new Error("GitHub API verification failed with HTTP " + response.status + ".");
+            }
+            return response.json();
+          }
+
+          const branchState = await githubJson(
+            "https://api.github.com/repos/" + REPOSITORY + "/branches/buddy-for-study-v2.2"
+          );
+          if (branchState.commit?.sha !== CANDIDATE_SHA) {
+            throw new Error("The V2.2 branch no longer points to the dispatched candidate SHA.");
+          }
+
+          const endpoint = new URL("https://api.github.com/repos/" + REPOSITORY + "/actions/runs");
+          endpoint.searchParams.set("head_sha", CANDIDATE_SHA);
+          endpoint.searchParams.set("per_page", "100");
+          const response = await githubJson(endpoint.toString());
+          const candidates = (response.workflow_runs || [])
+            .filter((run) =>
+              run.name === "BuddyForStudy CI" &&
+              run.head_sha === CANDIDATE_SHA
+            )
+            .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+
+          const ciRun = candidates[0];
+          if (!ciRun) {
+            throw new Error("No BuddyForStudy CI run was found for the exact candidate SHA.");
+          }
+          if (ciRun.status !== "completed" || ciRun.conclusion !== "success") {
+            throw new Error("The latest BuddyForStudy CI run for this SHA is not completed successfully.");
+          }
+
+          const jobsResponse = await githubJson(
+            "https://api.github.com/repos/" + REPOSITORY +
+            "/actions/runs/" + ciRun.id + "/jobs?per_page=100"
+          );
+          const jobs = jobsResponse.jobs || [];
+          const requiredJobs = ["backend", "frontend", "Production release gate"];
+          const failedJobs = requiredJobs.filter((name) => {
+            const job = jobs.find((candidate) => candidate.name === name);
+            return !job || job.status !== "completed" || job.conclusion !== "success";
+          });
+          if (failedJobs.length) {
+            throw new Error("Required exact-SHA CI jobs are missing or unsuccessful: " + failedJobs.join(", "));
+          }
+
+          const output = [
+            "candidate_sha=" + CANDIDATE_SHA,
+            "ci_run_url=" + ciRun.html_url
+          ].join("\n") + "\n";
+          const { appendFile } = await import("node:fs/promises");
+          await appendFile(process.env.GITHUB_OUTPUT, output);
+          await appendFile(
+            process.env.GITHUB_STEP_SUMMARY,
+            "## Exact-commit repository CI: PASS\n\n" +
+            "- Candidate: `" + CANDIDATE_SHA + "`\n" +
+            "- CI run: " + ciRun.html_url + "\n" +
+            "- Required jobs: backend, frontend, Production release gate\n"
+          );
+          NODE
+
+  record-repository-readiness:
+    if: github.ref == 'refs/heads/buddy-for-study-v2.2'
+    name: Recheck candidate and record repository readiness
+    needs: verify-exact-commit-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm V2.2 still points to the verified candidate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(
+            "https://api.github.com/repos/" + process.env.REPOSITORY + "/branches/buddy-for-study-v2.2",
+            {
+              headers: {
+                Authorization: "Bearer " + process.env.GITHUB_TOKEN,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28"
+              }
+            }
+          );
+          if (!response.ok) throw new Error("Unable to recheck the V2.2 branch head.");
+          const branch = await response.json();
+          if (branch.commit?.sha !== process.env.CANDIDATE_SHA) {
+            throw new Error("The V2.2 branch advanced while repository readiness was being verified.");
+          }
+          NODE
+
+      - name: Record repository readiness (not a deployment approval)
+        env:
+          CANDIDATE_SHA: ${{ needs.verify-exact-commit-ci.outputs.candidate_sha }}
+          CI_RUN_URL: ${{ needs.verify-exact-commit-ci.outputs.ci_run_url }}
+        shell: bash
+        run: |
+          {
+            echo "## V2.2 repository readiness: PASS"
+            echo
+            echo "- Candidate: \`$CANDIDATE_SHA\`"
+            echo "- Exact-SHA CI: [verified]($CI_RUN_URL)"
+            echo "- Required jobs: backend, frontend, Production release gate"
+            echo
+            echo "**Scope:** repository-level code, build, test and production-configuration CI evidence only."
+            echo
+            echo "**Not covered:** live staging/production hosts, DNS/TLS/CORS/OAuth, provider credentials/delivery, database backup/restore, monitoring, privacy/legal approvals, rollback rehearsal, production reviewer approval, or deployment."
+            echo
+            echo "**No deployment was performed.** The operator must complete environment-specific checks and separately deploy the approved SHA."
+          } >> "$GITHUB_STEP_SUMMARY"

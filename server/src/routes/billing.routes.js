@@ -15,34 +15,84 @@ import { createNotificationEvent, notifyActiveAdmins } from "../services/notific
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { sendBillingNotificationSafely } from "../services/billingNotification.service.js";
 import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
+import { getOrCreateFreePlanSubscription } from "../services/freePlanAssignment.service.js";
+import { expireUserTrialIfDue } from "../services/trialLifecycle.service.js";
+import { toLearnerTrialBillingSummary } from "../services/trialBillingSummary.service.js";
+import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 
 const router = Router();
 
 async function sendNotificationSafely(payload, context) {
   return sendBillingNotificationSafely(payload, context, createNotificationEvent);
 }
-router.get("/plans", async (_req,res,next)=>{ try {
-  const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();
-  const visiblePlans = env.paymentsEnabled ? plans : plans.filter((plan) => plan.slug === "free" || Number(plan.price) === 0);
-  return success(res,{plans:visiblePlans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)})),paymentsEnabled:env.paymentsEnabled});
-} catch(e){next(e)} });
+export async function listPublicPlans(_req, res, next, dependencies = {}) {
+  const PlanModel = dependencies.SubscriptionPlan || SubscriptionPlan;
+  const paymentsEnabled = dependencies.paymentsEnabled ?? env.paymentsEnabled;
+  const normalizeFeatures = dependencies.normalizeFeatures || normalizeSubscriptionFeatures;
+
+  try {
+    // Public catalogue visibility is controlled by the admin-managed active flag,
+    // not by checkout availability. Learners can compare paid plans while checkout
+    // is disabled; server-side order creation remains independently gated.
+    const plans = await PlanModel.find({ isActive: true })
+      .sort({ sortOrder: 1, createdAt: 1 })
+      .lean();
+
+    return success(res, {
+      plans: plans.map((plan) => ({
+        ...plan,
+        features: normalizeFeatures(plan.features)
+      })),
+      paymentsEnabled
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+router.get("/plans", listPublicPlans);
 router.use(authMiddleware);
+router.get("/payments/:paymentId", async (req, res, next) => {
+  try {
+    const paymentId = String(req.params.paymentId || "");
+    if (!isValidObjectId(paymentId)) return failure(res, "Invalid payment ID", 400);
+
+    // Always scope the lookup to the authenticated learner. A payment belonging
+    // to another account is indistinguishable from a missing transaction.
+    const payment = await Payment.findOne({ _id: paymentId, user: req.user.userId })
+      .select("_id amount currency status provider providerPaymentId providerOrderId course plan createdAt updatedAt paidAt")
+      .populate("course", "title")
+      .populate("plan", "name billingInterval")
+      .lean();
+    if (!payment) return failure(res, "Transaction not found", 404);
+
+    const [refunds, issues] = await Promise.all([
+      RefundRequest.find({ user: req.user.userId, payment: payment._id })
+        .select("_id amount status reason createdAt updatedAt processedAt adminNote")
+        .sort({ createdAt: -1 })
+        .lean(),
+      PaymentIssue.find({ user: req.user.userId, payment: payment._id })
+        .select("_id category description status adminNote createdAt updatedAt resolvedAt")
+        .sort({ createdAt: -1 })
+        .lean()
+    ]);
+
+    return success(res, { payment, refunds, issues });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try {
-  let subscription = await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean();
-  if (!subscription) {
-    const freePlan = await SubscriptionPlan.findOne({isActive:true,$or:[{slug:"free"},{price:0}]}).sort({sortOrder:1,createdAt:1}).lean();
-    if (freePlan) {
-      try {
-        const created = await UserSubscription.create({user:req.user.userId,plan:freePlan._id,status:"active",provider:"manual",currentPeriodStart:new Date(),currentPeriodEnd:null});
-        subscription = {...created.toObject(),plan:freePlan};
-      } catch (createError) {
-        if (createError?.code !== 11000) throw createError;
-        subscription = await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean();
-      }
-    }
-  }
-  return success(res,{subscription,paymentsEnabled:env.paymentsEnabled});
+  await expireUserTrialIfDue(req.user.userId, { now: new Date(), maxItems: 10 });
+  const subscription = await getOrCreateFreePlanSubscription(req.user.userId);
+  const effectivePlan = await getActivePlanForUser(req.user.userId);
+  return success(res,{subscription,effectivePlan: effectivePlan ? {
+    id: String(effectivePlan._id), name: effectivePlan.name, slug: effectivePlan.slug,
+    price: effectivePlan.price, currency: effectivePlan.currency, billingInterval: effectivePlan.billingInterval,
+    isDefaultFree: Boolean(effectivePlan.isDefaultFree)
+  } : null,paymentsEnabled:env.paymentsEnabled});
 } catch(e){next(e)} });
 router.get("/entitlements", async (req,res,next)=>{ try { const { SUBSCRIPTION_FEATURES } = await import("../config/subscriptionFeatures.js"); const { getActivePlanForUser, getEntitlement } = await import("../services/subscriptionEntitlement.service.js"); const plan = await getActivePlanForUser(req.user.userId); const features = {}; for (const { key } of SUBSCRIPTION_FEATURES) { const entitlement = await getEntitlement(req.user.userId, key); features[key] = Boolean(entitlement.allowed); } return success(res,{plan: plan ? { id: String(plan._id), name: plan.name, slug: plan.slug } : null, features}); } catch(e){next(e)} });
 
@@ -189,7 +239,7 @@ router.post("/issues", async (req,res,next)=>{ try {
   const payment = await Payment.findOne({ _id: paymentId, user: req.user.userId });
   if (!payment) return failure(res,"Transaction not found",404);
   const existing = await PaymentIssue.findOne({ user: req.user.userId, payment: payment._id, status: { $in: ["open", "in_review"] } });
-  if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Billing.",409);
+  if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Purchases & payments.",409);
   let issue;
   try {
     issue = await PaymentIssue.create({
@@ -201,14 +251,14 @@ router.post("/issues", async (req,res,next)=>{ try {
     });
   } catch (createError) {
     if (createError?.code === 11000) {
-      return failure(res, "An issue is already open for this transaction. You can track it in Billing.", 409);
+      return failure(res, "An issue is already open for this transaction. You can track it in Purchases & payments.", 409);
     }
     throw createError;
   }
   await sendNotificationSafely({
     userId: String(req.user.userId),
     title: "Payment issue reported",
-    message: "Your report has been received. You can track its status in Billing & transactions.",
+    message: "Your report has been received. You can track its status in Purchases & payments.",
     type: "billing",
     link: "/billing",
     eventKey: `payment-issue-reported:${issue._id}`,
@@ -252,7 +302,7 @@ router.post("/refunds", async (req,res,next)=>{ try {
     });
   } catch (createError) {
     if (createError?.code === 11000) {
-      return failure(res, "A refund request already exists for this payment. Refresh Billing to see its status.", 409);
+      return failure(res, "A refund request already exists for this payment. Refresh Purchases & payments to see its status.", 409);
     }
     throw createError;
   }
@@ -293,13 +343,21 @@ router.post("/refunds", async (req,res,next)=>{ try {
 router.get("/trial", async (req, res, next) => {
   try {
     const now = new Date();
-    const trial = await TrialGrant.findOne({
+    // Keep this endpoint correct when it is requested independently of /billing/me.
+    await expireUserTrialIfDue(req.user.userId, { now, maxItems: 10 });
+    const grant = await TrialGrant.findOne({
       user: req.user.userId,
-      status: "trialing",
-      startsAt: { $lte: now },
-      endsAt: { $gt: now }
-    }).populate("plan", "name features limits").populate("conversionPlan", "name price currency billingInterval").sort({ endsAt: -1 }).lean();
-    return success(res, { trial });
+      $or: [
+        { status: "trialing", startsAt: { $lte: now } },
+        { status: { $in: ["converted", "expired", "revoked"] } }
+      ]
+    })
+      .select("startsAt endsAt status conversionConsentStatus providerSubscriptionId plan conversionPlan")
+      .populate("plan", "name")
+      .populate("conversionPlan", "name price currency billingInterval")
+      .sort({ startsAt: -1, createdAt: -1 })
+      .lean();
+    return success(res, { trial: toLearnerTrialBillingSummary(grant), asOf: now.toISOString() });
   } catch (error) { next(error); }
 });
 

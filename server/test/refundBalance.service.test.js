@@ -210,7 +210,7 @@ test("refund requests enforce payment ownership, eligible status, balance limits
   assert.match(handler, /validateRefundAmount\(req\.body\?\.amount, remainingAmount, payment\.currency \|\| "INR"\)/);
   assert.match(handler, /activePaymentKey: payment\._id/);
   assert.match(handler, /createError\?\.code === 11000/);
-  assert.match(handler, /A refund request already exists for this payment\. Refresh Billing to see its status\./);
+  assert.match(handler, /A refund request already exists for this payment\. Refresh Purchases & payments to see its status\./);
 });
 
 test("fully refunded payment state removes individual paid-course access", () => {

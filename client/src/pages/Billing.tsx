@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import ErrorState from "@/components/ErrorState";
 import { apiFetch } from "@/lib/api";
 import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight, MessageSquareWarning } from "lucide-react";
 import { routes } from "@/lib/routes";
+import { formatTrialRemaining, getTrialStatusLabel, isTrialCurrentlyActive } from "@/lib/trialBilling";
 
 type RefundRequest = {
   _id: string;
@@ -58,13 +59,42 @@ function statusClass(status: string) {
   return styles[status] || "bg-slate-100 text-slate-700 ring-slate-500/15";
 }
 
-type TrialSummary = { _id: string; campaignName: string; startsAt: string; endsAt: string; conversionConsentStatus: string; plan?: { name?: string } | null; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string } | null };
+type TrialSummary = {
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  conversionConsentStatus: string;
+  plan?: { name?: string } | null;
+  conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string } | null;
+  payment?: { paymentMethodRequired: boolean; paymentOrderCreated: boolean; autopayAuthorized: boolean };
+};
 
 type SubscriptionSummary = {
   status: string;
-  plan?: { name?: string; billingInterval?: string } | null;
+  provider?: string;
+  plan?: { name?: string; slug?: string; price?: number; billingInterval?: string } | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
+};
+
+type EffectivePlanSummary = {
+  name?: string;
+  slug?: string;
+  price?: number;
+  billingInterval?: string;
+  isDefaultFree?: boolean;
+};
+
+type TrialOfferSummary = {
+  campaignId: string;
+  title: string;
+  description?: string;
+  durationDays: number;
+};
+
+type TrialOfferResponse = {
+  available?: boolean;
+  offer?: TrialOfferSummary | null;
 };
 
 export default function Billing() {
@@ -72,7 +102,10 @@ export default function Billing() {
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
+  const [effectivePlan, setEffectivePlan] = useState<EffectivePlanSummary | null>(null);
   const [trial, setTrial] = useState<TrialSummary | null>(null);
+  const [trialOffer, setTrialOffer] = useState<TrialOfferSummary | null>(null);
+  const [trialOfferMessage, setTrialOfferMessage] = useState("");
   const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -87,23 +120,78 @@ export default function Billing() {
   const [cancelling, setCancelling] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
-  async function loadBilling() {
+  const loadBilling = useCallback(async () => {
     setLoading(true);
     setLoadError("");
     try {
-      const [paymentData, subscriptionData, refundData, issueData, trialData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues"), apiFetch("/api/billing/trial")]);
+      // Synchronize a due trial before requesting its learner-facing status.
+      const subscriptionData = await apiFetch("/api/billing/me");
+      const [paymentData, refundData, issueData, trialData] = await Promise.all([
+        apiFetch("/api/billing/payments"),
+        apiFetch("/api/billing/refunds"),
+        apiFetch("/api/billing/issues"),
+        apiFetch("/api/billing/trial")
+      ]);
+      const nextEffectivePlan = subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null;
+      const nextTrial = trialData.trial || null;
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
-      setTrial(trialData.trial || null);
+      setEffectivePlan(subscriptionData.effectivePlan || subscriptionData.subscription?.plan || null);
+      setTrial(nextTrial);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
       setRefundMessage("");
+      setTrialOfferMessage("");
+      setTrialOffer(null);
+
+      // Offer discovery is optional. A campaign service failure must not hide
+      // billing history or turn a successful billing load into an error.
+      if (nextEffectivePlan?.isDefaultFree === true) {
+        try {
+          const offerData = await apiFetch<TrialOfferResponse>("/api/trials/offer", { cache: "no-store" });
+          const nextOffer = offerData.available === true ? offerData.offer : null;
+          setTrialOffer(nextOffer?.campaignId ? nextOffer : null);
+        } catch {
+          setTrialOfferMessage("Trial offers are temporarily unavailable. Your billing information is unaffected.");
+        }
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to load billing. Please try again.");
     } finally { setLoading(false); }
-  }
-  useEffect(() => { void loadBilling(); }, []);
+  }, []);
+
+  useEffect(() => { void loadBilling(); }, [loadBilling]);
+  useEffect(() => {
+    const handleOfferUnavailable = () => {
+      setTrialOffer(null);
+      setTrialOfferMessage("This trial offer is no longer available. Your account was not changed.");
+    };
+    const handleOfferCheckFailed = () => {
+      setTrialOfferMessage("We couldn't check this trial offer. Please try again.");
+    };
+    const handleOfferOpened = () => setTrialOfferMessage("");
+    const handleTrialClaimed = () => {
+      setTrialOffer(null);
+      void loadBilling();
+    };
+    window.addEventListener("bfs:trial-offer-unavailable", handleOfferUnavailable);
+    window.addEventListener("bfs:trial-offer-check-failed", handleOfferCheckFailed);
+    window.addEventListener("bfs:trial-offer-opened", handleOfferOpened);
+    window.addEventListener("bfs:trial-claimed", handleTrialClaimed);
+    return () => {
+      window.removeEventListener("bfs:trial-offer-unavailable", handleOfferUnavailable);
+      window.removeEventListener("bfs:trial-offer-check-failed", handleOfferCheckFailed);
+      window.removeEventListener("bfs:trial-offer-opened", handleOfferOpened);
+      window.removeEventListener("bfs:trial-claimed", handleTrialClaimed);
+    };
+  }, [loadBilling]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const filteredPayments = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -123,6 +211,9 @@ export default function Billing() {
     }, {});
   const pendingCount = payments.filter((p) => ["created", "pending"].includes(p.status)).length;
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
+  const trialIsActive = Boolean(trial && isTrialCurrentlyActive(trial.status, trial.endsAt, clockNow));
+  const trialStatusLabel = trial ? getTrialStatusLabel(trial.status, trial.endsAt, clockNow) : "";
+  const currentPlanIsFree = effectivePlan?.isDefaultFree === true;
 
   async function submitRefund(paymentId: string) {
     if (submittingRefund) return;
@@ -169,48 +260,123 @@ export default function Billing() {
   }
 
   if (!loading && loadError) {
-    return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"><PageHeader title="Billing & transactions" subtitle="Manage your subscription, review every payment attempt, and track refund requests." /><div className="mt-6"><ErrorState title="Couldn’t load billing information" description={loadError} onRetry={() => void loadBilling()} /></div></div>;
+    return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"><PageHeader title="Purchases & payments" subtitle="Manage your plan, review transactions, and track payment support requests." /><div className="mt-6"><ErrorState title="Couldn’t load billing information" description={loadError} onRetry={() => void loadBilling()} /></div></div>;
   }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageHeader title="Billing & transactions" subtitle="Manage your subscription, review every payment attempt, and track refund requests." />
-        <Link to={routes.profile()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"><ArrowUpRight className="h-4 w-4" />Back to profile</Link>
+        <PageHeader title="Purchases & payments" subtitle="Manage your plan, review transactions, and track payment support requests." />
+        <div className="flex flex-wrap items-center gap-2"><Link to={routes.profile()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Profile</Link><Link to={routes.settings()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Settings</Link></div>
       </div>
 
-      {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
+      <nav aria-label="Purchases and payments sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
+        <a href="#subscription" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Subscription</a>
+        <a href="#transactions" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Transactions</a>
+        <a href="#refund-requests" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Refunds</a>
+        <a href="#payment-issues" className="shrink-0 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Payment support</a>
+      </nav>
 
-      {trial && <section className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Free trial</p><h2 className="mt-1 text-lg font-extrabold text-slate-950">{trial.plan?.name || "Premium trial"}</h2><p className="mt-1 text-sm text-slate-700">Your trial ends {date(trial.endsAt)}. You will not be charged automatically unless you separately authorize recurring payments.</p></div>
-          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-700">Trial active</span>
+      {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
+      {trialOfferMessage && <div role="status" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{trialOfferMessage}</div>}
+      {trialOffer && currentPlanIsFree && !trialIsActive && <section aria-labelledby="trial-offer-reentry-heading" className="mt-6 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Available learner offer</p>
+          <h2 id="trial-offer-reentry-heading" className="mt-1 text-lg font-extrabold text-slate-950">{trialOffer.title}</h2>
+          <p className="mt-1 text-sm text-slate-700">{trialOffer.description || "Review the benefits and terms before deciding whether to claim this trial."}</p>
+          <p className="mt-2 text-xs font-semibold text-violet-800">{trialOffer.durationDays} days · No automatic payment</p>
         </div>
-        {trial.conversionPlan && trial.conversionConsentStatus === "pending_user_consent" && <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
+        <button type="button" onClick={() => {
+          setTrialOfferMessage("");
+          window.dispatchEvent(new Event("bfs:trial-offer-open"));
+        }} className="min-h-11 shrink-0 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700">
+          View trial offer
+        </button>
+      </section>}
+
+      {trial && <section aria-labelledby="trial-billing-heading" className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Trial summary</p>
+            <h2 id="trial-billing-heading" className="mt-1 text-lg font-extrabold text-slate-950">{trial.plan?.name || "Premium trial"}</h2>
+            <p className="mt-1 text-sm text-slate-700">
+              {trialIsActive
+                ? "Your trial access is active. Review the dates and remaining duration below."
+                : trial.status === "revoked"
+                  ? "This trial was revoked. Your current entitlement is shown in the Subscription section."
+                  : trial.status === "converted"
+                    ? "This trial was converted after a separate paid-subscription authorization."
+                    : currentPlanIsFree
+                      ? "Your trial has ended and your Free plan is now active."
+                      : "Your trial has ended. Your current entitlement is shown in the Subscription section."}
+            </p>
+          </div>
+          <span className={"rounded-full px-3 py-1.5 text-xs font-bold " + (trialStatusLabel === "Active" ? "bg-emerald-100 text-emerald-800" : trialStatusLabel === "Ending soon" ? "bg-amber-100 text-amber-800" : "bg-white text-violet-700")}>
+            {trialStatusLabel}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Start date</p>
+            <p className="mt-1 font-bold text-slate-900">{date(trial.startsAt)}</p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">End date</p>
+            <p className="mt-1 font-bold text-slate-900">{date(trial.endsAt)}</p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Remaining duration</p>
+            <p className="mt-1 font-bold text-slate-900">{trialIsActive ? formatTrialRemaining(trial.endsAt, clockNow) : trialStatusLabel}</p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold text-slate-900">Automatic payments</p>
+            <span className={"rounded-full px-2.5 py-1 text-xs font-bold " + (trial.payment?.autopayAuthorized ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800")}>
+              {trial.payment?.autopayAuthorized ? "Separately authorised" : "Auto-pay off"}
+            </span>
+          </div>
+          {trial.payment?.autopayAuthorized
+            ? <p className="mt-2 text-sm text-slate-600">A paid subscription was authorised separately. Review its current status in the Subscription section.</p>
+            : <p className="mt-2 text-sm text-slate-600">This trial did not require a payment method or create a payment order. Auto-pay is off, and trial expiry will not initiate a charge.</p>}
+        </div>
+        {trialIsActive && trial.conversionPlan && trial.conversionConsentStatus === "pending_user_consent" && <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
           <p className="font-bold text-slate-900">Optional renewal offer: {trial.conversionPlan.name}</p>
           <p className="mt-1 text-sm text-slate-600">{money(Number(trial.conversionPlan.price || 0), trial.conversionPlan.currency || "INR")} / {trial.conversionPlan.billingInterval || "billing period"}. This offer does not authorize payment.</p>
           <p className="mt-2 text-xs text-slate-500">To enable renewal, choose this plan on Pricing and complete the payment provider's subscription authorization. If you do nothing, this trial does not initiate a charge.</p>
-          <div className="mt-3 flex flex-wrap gap-2"><Link to={routes.pricing()} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800">Review plans and authorize</Link><button type="button" disabled={decliningConversion} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={async()=>{setDecliningConversion(true);try{await apiFetch("/api/billing/trial/decline-conversion",{method:"POST",body:JSON.stringify({})});setTrial({...trial,conversionConsentStatus:"declined"});setRefundMessage("You declined the paid conversion offer. No recurring payment has been authorized.");}catch(error){setRefundMessage(error instanceof Error?error.message:"Unable to decline the offer.");}finally{setDecliningConversion(false);}}}>{decliningConversion?"Saving…":"Decline offer"}</button></div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link to={routes.pricing()} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800">Review plans and authorize</Link>
+            <button type="button" disabled={decliningConversion} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={async () => {
+              setDecliningConversion(true);
+              try {
+                await apiFetch("/api/billing/trial/decline-conversion", { method: "POST", body: JSON.stringify({}) });
+                setTrial({ ...trial, conversionConsentStatus: "declined" });
+                setRefundMessage("You declined the paid conversion offer. No recurring payment has been authorized.");
+              } catch (error) {
+                setRefundMessage(error instanceof Error ? error.message : "Unable to decline the offer.");
+              } finally { setDecliningConversion(false); }
+            }}>{decliningConversion ? "Saving…" : "Decline offer"}</button>
+          </div>
         </div>}
-        {trial.conversionConsentStatus === "declined" && <p className="mt-3 text-sm font-semibold text-slate-700">You declined the paid conversion offer. No recurring payment has been authorized.</p>}
+        {trialIsActive && trial.conversionConsentStatus === "declined" && <p className="mt-3 text-sm font-semibold text-slate-700">You declined the paid conversion offer. No recurring payment has been authorized.</p>}
       </section>}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{subscription?.plan?.name || "Free"}</p><p className="mt-1 text-xs capitalize text-slate-500">{subscription?.status ? subscription.status.replace(/_/g, " ") : "No paid subscription"}</p></div>
+      <section id="billing-overview" aria-label="Billing overview" className="mt-6 scroll-mt-28 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{effectivePlan?.name || "No active plan"}</p><p className="mt-1 text-xs capitalize text-slate-500">{effectivePlan ? "Current entitlement" : "No active entitlement"}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid transactions</span><ReceiptText className="h-5 w-5 text-emerald-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{payments.filter((p) => ["paid", "partially_refunded", "refunded"].includes(p.status)).length}</p><p className="mt-1 text-xs text-slate-500">Recorded successful payments</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid amount</span><ShieldCheck className="h-5 w-5 text-violet-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{Object.entries(paidTotalsByCurrency).sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => money(amount, currency)).join(" · ") || money(0)}</p><p className="mt-1 text-xs text-slate-500">Gross paid value before refunds, shown separately by currency</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Needs attention</span><Clock3 className="h-5 w-5 text-amber-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{pendingCount + failedCount}</p><p className="mt-1 text-xs text-slate-500">{pendingCount} pending · {failedCount} failed/cancelled</p></div>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section id="subscription" aria-labelledby="subscription-heading" className="mt-6 scroll-mt-28 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-lg font-extrabold text-slate-950">Subscription</h2><p className="mt-1 text-sm text-slate-500">Review plan status and renewal settings.</p></div>
+          <div><h2 id="subscription-heading" className="text-lg font-extrabold text-slate-950">Subscription</h2><p className="mt-1 text-sm text-slate-500">Review plan status and renewal settings.</p></div>
           <Link to={routes.pricing()} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">Explore plans <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
         {subscription ? <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div><p className="font-bold text-slate-950">{subscription.plan?.name || "Subscription"}</p><p className="mt-1 text-sm capitalize text-slate-600">{subscription.status} · {subscription.plan?.billingInterval || "recurring"}</p>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-slate-500">Current period ends {date(subscription.currentPeriodEnd)}</p>}{subscription.cancelAtPeriodEnd && <p className="mt-1 text-xs font-semibold text-amber-700">Auto-renewal is scheduled to stop at period end.</p>}</div>
           <div className="flex flex-wrap items-center gap-2"><span className={"inline-flex rounded-full px-3 py-1.5 text-xs font-bold capitalize " + (subscription.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700")}>{subscription.status}</span>
-          {["trialing", "active", "past_due"].includes(subscription.status) && !subscription.cancelAtPeriodEnd && <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={cancelling} onClick={async () => {
+          {subscription.provider === "razorpay" && ["trialing", "active", "past_due"].includes(subscription.status) && !subscription.cancelAtPeriodEnd && <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={cancelling} onClick={async () => {
             if (!window.confirm("Cancel auto-renewal? Your plan access remains active through the current billing period.")) return;
             setCancelling(true);
             try { const data = await apiFetch("/api/billing/subscription/cancel", { method: "POST" }); setSubscription(data.subscription || subscription); setRefundMessage("Auto-renewal cancelled. Your access remains active through the current billing period."); }
@@ -220,8 +386,8 @@ export default function Billing() {
         </div> : <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-4"><div><p className="font-bold text-slate-900">You are on the Free plan</p><p className="mt-1 text-sm text-slate-500">Compare subscription plans to unlock additional learning features.</p></div><Link to={routes.pricing()} className="btn-primary">Explore plans</Link></div>}
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Reported payment issues</h2><p className="mt-1 text-sm text-slate-500">Track payment problems, including benefits that were not unlocked after a successful charge.</p></div>
+      <section id="payment-issues" aria-labelledby="payment-issues-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="payment-issues-heading" className="text-lg font-extrabold text-slate-950">Reported payment issues</h2><p className="mt-1 text-sm text-slate-500">Track payment problems, including benefits that were not unlocked after a successful charge.</p></div>
         {issues.length ? <div className="divide-y divide-slate-100">{issues.map((issue) => {
           const title = issue.payment?.plan?.name || issue.payment?.course?.title || "BuddyForStudy payment";
           const status = String(issue.status || "open").toLowerCase();
@@ -230,8 +396,8 @@ export default function Billing() {
           return <article key={issue._id} className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-bold text-slate-900">{title}</p><p className="mt-1 text-xs text-slate-500">{categoryLabels[issue.category] || "Payment issue"} · Reported {date(issue.createdAt)}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{issue.description}</p>{issue.adminNote && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">Support update: {issue.adminNote}</p>}</div><span className={"inline-flex h-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-bold capitalize " + (styles[status] || styles.open)}>{status.replace(/_/g, " ")}</span></div></article>;
         })}</div> : <p className="p-6 text-sm text-slate-500">No payment issues reported. If a payment succeeds but your course or plan benefits do not appear, report the transaction from the history below.</p>}
       </section>
-      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
+      <section id="refund-requests" aria-labelledby="refund-requests-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 id="refund-requests-heading" className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
         {refunds.length ? <div className="divide-y divide-slate-100">{refunds.map((refund) => {
           const refundStatus = String(refund.status || "pending").toLowerCase();
           const refundTitle = refund.payment?.plan?.name || refund.payment?.course?.title || "Payment refund";
@@ -240,9 +406,9 @@ export default function Billing() {
         })}</div> : <p className="p-6 text-sm text-slate-500">No refund requests yet. If you need help with an eligible payment, use Request refund in transaction history.</p>}
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section id="transactions" aria-labelledby="transactions-heading" className="mt-6 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">
-          <div><h2 className="text-lg font-extrabold text-slate-950">Transaction history</h2><p className="mt-1 text-sm text-slate-500">Search by item, status, payment reference, or transaction ID.</p></div>
+          <div><h2 id="transactions-heading" className="text-lg font-extrabold text-slate-950">Transaction history</h2><p className="mt-1 text-sm text-slate-500">Search by item, status, payment reference, or transaction ID.</p></div>
           <button type="button" onClick={exportCsv} disabled={!filteredPayments.length} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="h-4 w-4" />Export CSV</button>
         </div>
         <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[1fr_190px] sm:p-5">
@@ -262,6 +428,7 @@ export default function Billing() {
                   <p className="mt-2 break-all font-mono text-[11px] text-slate-400">Transaction: {payment._id}</p>
                   {payment.providerPaymentId && <p className="mt-1 break-all font-mono text-[11px] text-slate-400">Payment reference: {payment.providerPaymentId}</p>}
                   {payment.provider && <p className="mt-1 text-xs capitalize text-slate-500">Provider: {payment.provider}</p>}
+                  <Link to={routes.paymentDetails(payment._id)} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:underline">View transaction details <ArrowUpRight className="h-3 w-3" /></Link>
                 </div>
                 <div className="sm:min-w-36 sm:text-right"><p className="text-lg font-extrabold text-slate-950">{money(Number(payment.amount || 0), payment.currency || "INR")}</p>
                   {["paid", "partially_refunded"].includes(status) && !refunds.some((refund) => String(refund.payment?._id || "") === payment._id && ["pending", "approved", "processed"].includes(String(refund.status).toLowerCase())) && <button type="button" className="mt-2 block text-xs font-bold text-rose-700 hover:underline" onClick={() => { setRefundId(refundId === payment._id ? null : payment._id); setIssueId(null); setRefundReason(""); setRefundMessage(""); }}>Request refund</button>}

@@ -77,9 +77,14 @@ function validateSmtp(config, errors) {
     errors.push("SMTP_HOST must be a remote hostname, not a URL or loopback host");
   }
 
-  const port = Number(config.SMTP_PORT || 587);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    errors.push("SMTP_PORT must be an integer between 1 and 65535");
+  const rawPort = String(config.SMTP_PORT ?? "").trim();
+  if (!rawPort) {
+    errors.push("SMTP_PORT must be explicitly set in production");
+  } else {
+    const port = Number(rawPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      errors.push("SMTP_PORT must be an integer between 1 and 65535");
+    }
   }
 
   const secureValue = String(config.SMTP_SECURE ?? "false").trim().toLowerCase();
@@ -155,6 +160,10 @@ export function getProductionConfigErrors(config = {}) {
   validateHttpsUrl(config.CLIENT_URL, "CLIENT_URL", errors);
   validateHttpsUrl(config.API_URL, "API_URL", errors);
   validateTrustProxyHops(config, errors);
+  const backgroundWorkerMode = String(config.BACKGROUND_WORKER_MODE || "").trim().toLowerCase();
+  if (!["inline", "standalone", "disabled"].includes(backgroundWorkerMode)) {
+    errors.push("BACKGROUND_WORKER_MODE must be explicitly set to inline, standalone, or disabled in production");
+  }
   validateMongoUri(config.MONGO_URI, errors);
   validateSmtp(config, errors);
   validateOptionalWebPush(config, errors);

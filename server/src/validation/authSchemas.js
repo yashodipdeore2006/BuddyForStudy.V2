@@ -51,8 +51,25 @@ export const resetPasswordSchema = z.object({
   newPassword: bcryptCompatiblePassword
 });
 
+const addressSchema = z.object({
+  line1: z.string().trim().max(160).optional(),
+  line2: z.string().trim().max(160).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  postalCode: z.string().trim().max(20).optional(),
+  country: z.string().trim().max(100).optional(),
+  formatted: z.string().trim().max(500).optional()
+});
+
 export const profileSchema = z.object({
-  name: z.string().trim().min(2).max(100)
+  name: z.string().trim().min(2).max(100).optional(),
+  phoneNumber: z.string().trim().max(32).optional(),
+  city: z.string().trim().max(100).optional(),
+  address: addressSchema.optional()
+}).refine((value) => Object.keys(value).length > 0, "At least one profile field is required.");
+
+export const googleContactImportSchema = z.object({
+  accessToken: z.string().min(20).max(4096)
 });
 
 export const changePasswordSchema = z.object({

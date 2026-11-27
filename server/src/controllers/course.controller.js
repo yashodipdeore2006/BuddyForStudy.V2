@@ -3,16 +3,20 @@ import * as courseService from "../services/course.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { toPublicQuiz } from "../utils/quizSecurity.js";
 import { Enrollment } from "../models/Enrollment.js";
+import { Course } from "../models/Course.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { canAccessCourse, getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
 import { recoverMissingTutorialResources } from "../services/courseResourceRecovery.service.js";
+import { isCourseDomainId } from "../utils/courseTaxonomy.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
   slug: z.string().trim().min(2).optional(),
   description: z.string().trim().min(2),
   category: z.string().trim().min(1),
+  domain: z.string().refine(isCourseDomainId, "Invalid course domain").nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   level: z.enum(["Beginner", "Intermediate", "Advanced"]),
   duration: z.union([z.string(), z.number()]),
   thumbnail: z.string().optional(),
@@ -33,6 +37,20 @@ const courseSchema = z.object({
 
 export async function list(req, res, next) {
   try {
+    if (req.query.domain && !isCourseDomainId(req.query.domain)) return failure(res, "Invalid course domain", 400);
+    const sortAliases = {
+      recent: "newest",
+      title: "title",
+      best_match: "best_match",
+      quality: "quality",
+      popular: "popular",
+      highest_rated: "highest_rated",
+      newest: "newest"
+    };
+    const requestedSort = String(req.query.sort || "best_match");
+    if (!Object.hasOwn(sortAliases, requestedSort)) {
+      return failure(res, "Invalid course sort. Choose best_match, quality, popular, highest_rated, newest, or title.", 400);
+    }
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
     const result = await courseService.listPublished({
@@ -40,8 +58,10 @@ export async function list(req, res, next) {
       limit,
       search: req.query.q,
       category: req.query.category,
+      domain: req.query.domain,
       level: req.query.level,
-      sort: req.query.sort === "popular" ? "popular" : "recent"
+      sort: sortAliases[requestedSort],
+      includeDiscovery: page === 1 && String(req.query.includeDiscovery ?? "true").toLowerCase() !== "false"
     });
     const courses = result.courses || [];
     const courseIds = courses.map((course) => course?._id).filter(Boolean);
@@ -50,12 +70,65 @@ export async function list(req, res, next) {
       { $group: { _id: "$course", count: { $sum: 1 } } }
     ]) : [];
     const countsByCourseId = new Map(enrollmentCounts.map((entry) => [String(entry._id), Number(entry.count) || 0]));
+    // Course catalogue aggregation deliberately excludes module documents. Fetch
+    // only the fields required for safe public card projections and verified
+    // YouTube runtime; quiz answers, project briefs and lesson content stay out.
+    const includeLongFormMetadata = String(req.query.includeLongFormMetadata || "").toLowerCase() === "true";
+    // Course catalogue aggregation deliberately excludes module documents. When
+    // the landing showcase opts in, fetch only the fields needed for its safe
+    // public preview and verified YouTube runtime; never return raw resources.
+    const thumbnailResourceFields = [
+      "modules.lessons.tutorial.videos.videoId",
+      "modules.lessons.tutorial.videos.url",
+      "modules.lessons.tutorial.videos.thumbnail",
+      "modules.lessons.project.videos.videoId",
+      "modules.lessons.project.videos.url",
+      "modules.lessons.project.videos.thumbnail",
+      "generation.snapshot.modules.course.videoId",
+      "generation.snapshot.modules.course.url",
+      "generation.snapshot.modules.course.thumbnail"
+    ];
+    const longFormResourceFields = [
+      "modules._id", "modules.title", "modules.order",
+      "modules.lessons._id", "modules.lessons.title", "modules.lessons.type",
+      "modules.lessons.order", "modules.lessons.durationSeconds",
+      "modules.lessons.tutorial.videos.title", "modules.lessons.tutorial.videos.channelTitle",
+      "modules.lessons.tutorial.videos.channelUrl", "modules.lessons.tutorial.videos.channel_url",
+      "modules.lessons.tutorial.videos.channelId", "modules.lessons.tutorial.videos.durationSeconds",
+      "modules.lessons.tutorial.videos.duration",
+      "modules.lessons.project.videos.title", "modules.lessons.project.videos.channelTitle",
+      "modules.lessons.project.videos.channelUrl", "modules.lessons.project.videos.channel_url",
+      "modules.lessons.project.videos.channelId", "modules.lessons.project.videos.durationSeconds",
+      "modules.lessons.project.videos.duration",
+      "generation.mode", "generation.sourceResourceType", "generation.query",
+      "generation.snapshot.modules.course.title", "generation.snapshot.modules.course.channelTitle",
+      "generation.snapshot.modules.course.channelUrl", "generation.snapshot.modules.course.channel_url",
+      "generation.snapshot.modules.course.channelId", "generation.snapshot.modules.course.durationSeconds",
+      "generation.snapshot.modules.course.duration", "generation.snapshot.modules.course.score",
+      "generation.snapshot.modules.course.viewCount", "generation.snapshot.modules.course.likeCount"
+    ];
+    const previewResourceFields = includeLongFormMetadata
+      ? [...new Set([...thumbnailResourceFields, ...longFormResourceFields])]
+      : thumbnailResourceFields;
+    const previewResourceCourses = courseIds.length ? await Course.find({ _id: { $in: courseIds } })
+      .select(previewResourceFields.join(" "))
+      .lean() : [];
+    const previewResourcesByCourseId = new Map(previewResourceCourses.map((course) => [String(course._id), course]));
+    const taxonomy = await courseService.getPublicCourseTaxonomy();
     return success(res, {
       ...result,
-      courses: courses.map((course) => toPublicCoursePreview({
-        ...course,
-        enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
-      }))
+      taxonomy,
+      courses: courses.map((course) => {
+        const previewResources = previewResourcesByCourseId.get(String(course._id)) || {};
+        return toPublicCoursePreview({
+          ...course,
+          ...(includeLongFormMetadata ? previewResources : {}),
+          moduleCount: Number.isFinite(Number(course.moduleCount))
+            ? Number(course.moduleCount)
+            : Array.isArray(previewResources.modules) ? previewResources.modules.length : 0,
+          enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
+        }, { thumbnailSource: previewResources });
+      })
     });
   } catch (e) { next(e); }
 }
@@ -272,6 +345,18 @@ export async function learningItem(req, res, next) {
 
     const progress = await (await import("../models/Progress.js")).Progress.findOne({ user: req.user.userId, course: courseId });
     const completed = !!progress?.completedLessons.some(x => x.lessonId.toString() === itemId);
-    return success(res, { item: sanitizeLearningLesson(located.item), completed });
+    return success(res, {
+      item: sanitizeLearningLesson(located.item),
+      completed,
+      module: {
+        title: String(located.module.title || ""),
+        description: String(located.module.description || ""),
+        resources: (located.module.resources || []).map((resource) => ({
+          title: String(resource.title || ""),
+          url: String(resource.url || ""),
+          type: String(resource.type || "link")
+        }))
+      }
+    });
   } catch (e) { next(e); }
 }

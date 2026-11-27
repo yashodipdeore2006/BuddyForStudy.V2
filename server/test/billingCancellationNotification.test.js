@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { sendBillingNotificationSafely } from "../src/services/billingNotification.service.js";
+import { cancelSubscription } from "../src/services/razorpay.service.js";
 
 test("billing notification failures are swallowed after a durable transition", async () => {
   const context = "subscription-cancellation";
@@ -55,4 +56,45 @@ test("successful billing notification dispatch returns the queued event", async 
     return event;
   });
   assert.equal(result, event);
+});
+
+
+test("provider cancellation remains available after new checkout is disabled", async () => {
+  const calls = [];
+  const RazorpayClient = class {
+    constructor(credentials) {
+      calls.push({ type: "client", credentials });
+      this.subscriptions = {
+        cancel: async (subscriptionId, cancelAtCycleEnd) => {
+          calls.push({ type: "cancel", subscriptionId, cancelAtCycleEnd });
+          return { id: subscriptionId, status: "cancelled", end_at: 1792324800 };
+        }
+      };
+    }
+  };
+  const result = await cancelSubscription("sub_existing", true, {
+    config: {
+      paymentsEnabled: false,
+      razorpayKeyId: "rzp_test_key",
+      razorpayKeySecret: "test_key_secret"
+    },
+    RazorpayClient
+  });
+
+  assert.equal(result.status, "cancelled");
+  assert.deepEqual(calls[1], {
+    type: "cancel",
+    subscriptionId: "sub_existing",
+    cancelAtCycleEnd: true
+  });
+
+  const source = readFileSync(new URL("../src/routes/billing.routes.js", import.meta.url), "utf8");
+  const start = source.indexOf('router.post("/subscription/cancel"');
+  const end = source.indexOf('router.get("/refunds"', start);
+  assert.ok(start >= 0 && end > start, "Expected existing subscription cancellation route");
+  const route = source.slice(start, end);
+  assert.match(route, /razorpay\.cancelSubscription\(subscription\.providerSubscriptionId,\s*true\)/);
+  assert.match(route, /await subscription\.save\(\)/);
+  assert.doesNotMatch(route, /paymentsEnabled|requirePaymentsEnabled/,
+    "New-checkout availability must not gate an existing subscription cancellation");
 });

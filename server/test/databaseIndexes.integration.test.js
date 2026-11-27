@@ -7,6 +7,7 @@ import { RoadmapAdmissionRateWindow } from "../src/models/RoadmapAdmissionRateWi
 import { ApiRateLimit } from "../src/models/ApiRateLimit.js";
 import { AdminInvitation } from "../src/models/AdminInvitation.js";
 import { RoadmapTemplate } from "../src/models/RoadmapTemplate.js";
+import { ProgressSyncOperation } from "../src/models/ProgressSyncOperation.js";
 
 const models = [
   { model: RoadmapAdmissionLease, required: {
@@ -22,6 +23,10 @@ const models = [
   { model: ApiRateLimit, required: {
     key_1: { key: { key: 1 }, unique: true },
     expiresAt_1: { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+  } },
+  { model: ProgressSyncOperation, required: {
+    progress_sync_user_operation_unique: { key: { user: 1, operationId: 1 }, unique: true },
+    progress_sync_claim_recovery: { key: { status: 1, leaseUntil: 1 }, unique: false },
   } },
 ];
 

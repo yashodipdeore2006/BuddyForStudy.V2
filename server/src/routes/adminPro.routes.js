@@ -10,6 +10,8 @@ import * as adminInvitationsController from "../controllers/adminInvitations.con
 import * as adminOperationsController from "../controllers/adminOperations.controller.js";
 import * as aiPromptController from "../controllers/aiPrompt.controller.js";
 import * as privacyController from "../controllers/privacyRequests.controller.js";
+import * as siteSettingsController from "../controllers/siteSettings.controller.js";
+import * as faqController from "../controllers/faq.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -111,6 +113,15 @@ router.put("/message-templates/:templateId", adminPermissionMiddleware("communic
 router.post("/message-templates/:templateId/preview", adminPermissionMiddleware("communications.manage"), messageTemplateController.previewMessageTemplate);
 router.post("/message-templates/:templateId/test-send", adminPermissionMiddleware("communications.manage"), messageTemplateController.testSendMessageTemplate);
 router.delete("/message-templates/:templateId", adminPermissionMiddleware("communications.manage"), messageTemplateController.deleteMessageTemplate);
+
+router.get("/faqs", adminPermissionMiddleware("faqs.read"), faqController.listAdmin);
+router.post("/faqs", adminPermissionMiddleware("faqs.manage"), faqController.createFaq);
+router.put("/faqs/:faqId", adminPermissionMiddleware("faqs.manage"), faqController.updateFaq);
+router.patch("/faqs/:faqId/status", adminPermissionMiddleware("faqs.manage"), faqController.updateFaqStatus);
+router.post("/faqs/import-starter", adminPermissionMiddleware("faqs.manage"), faqController.importStarterFaqs);
+
+router.get("/site-settings", adminPermissionMiddleware("settings.read"), siteSettingsController.getAdminSiteSettings);
+router.put("/site-settings", adminPermissionMiddleware("site_settings.manage"), siteSettingsController.updateAdminSiteSettings);
 
 router.get("/settings", adminPermissionMiddleware("settings.read"), controller.settings);
 router.put("/settings", adminPermissionMiddleware("settings.manage"), controller.upsertSetting);

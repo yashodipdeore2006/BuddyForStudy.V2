@@ -25,10 +25,11 @@ export async function mine(req, res, next) {
 export async function byCourse(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const enrollment = await service.getForCourse(req.user.userId, req.params.courseId);
+    const result = await service.getCourseAccessForUser(req.user.userId, req.params.courseId);
     // A learner who has not enrolled yet is a normal course-details state, not
-    // a missing API resource. Keep the lookup successful and make absence explicit.
-    return success(res, { enrollment: enrollment || null });
+    // a missing API resource. Return eligible access routes without creating
+    // an enrollment as a side effect of opening course details.
+    return success(res, { enrollment: result.enrollment, access: result.access });
   } catch (e) { next(e); }
 }
 

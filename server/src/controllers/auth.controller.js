@@ -4,6 +4,8 @@ import * as authService from "../services/auth.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 import { authErrorResponse } from "../utils/authErrorResponse.js";
+import { googleContactImportSchema } from "../validation/authSchemas.js";
+import { importGoogleContactData } from "../services/googleContactImport.service.js";
 
 export async function register(req, res) {
   try {
@@ -28,7 +30,21 @@ export async function login(req, res) {
 }
 
 export function googleConfig(_req, res) {
-  return success(res, { enabled: Boolean(env.googleClientId), clientId: env.googleClientId });
+  return success(res, {
+    enabled: Boolean(env.googleClientId),
+    clientId: env.googleClientId
+  });
+}
+
+export async function importGoogleContacts(req, res) {
+  try {
+    const input = googleContactImportSchema.parse(req.body);
+    const result = await importGoogleContactData(req.user.user, input.accessToken);
+    return success(res, result, "Google contact suggestions loaded");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return authErrorResponse(res, error);
+  }
 }
 
 export async function googleLogin(req, res) {
@@ -178,6 +194,7 @@ export async function me(req, res) {
       phoneNumber: req.user.user.phoneNumber || "",
       phoneNumberVerified: req.user.user.phoneNumberVerified === true,
       city: req.user.user.city || "",
+      address: req.user.user.address || {},
       learningGoal: req.user.user.learningGoal || "",
       profileSetupSkippedAt: req.user.user.profileSetupSkippedAt || null,
       termsAcceptedVersion: req.user.user.termsAcceptedVersion || "",

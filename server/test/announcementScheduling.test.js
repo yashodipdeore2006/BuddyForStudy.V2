@@ -34,6 +34,7 @@ test("audience preview masks sample emails and reports channel reach after prefe
 test("announcements require a preview token and reason, then queue or schedule instead of sending in the request", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
   const worker = await read("../src/jobs/worker.js");
+  const orchestrator = await read("../src/jobs/maintenanceOrchestrator.js");
   const service = await read("../src/services/announcement.service.js");
   const notificationService = await read("../src/services/notification.service.js");
   const send = controller.slice(controller.indexOf("export async function sendAnnouncement"), controller.indexOf("export async function listAnnouncements"));
@@ -42,13 +43,14 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(send, /status = scheduledAt \? "scheduled" : "sending"/);
   assert.match(send, /Announcement\.create/);
   assert.doesNotMatch(send, /createNotificationEvent/);
-  assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), 30 \* 1000\)/);
-  assert.match(worker, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
-  assert.match(worker, /await deliverPendingNotificationEmails\(100\)/);
-  assert.match(worker, /await deliverPendingNotificationPush\(100\)/);
-  assert.match(worker, /for \(let batch = 0; batch < 5; batch \+= 1\)/);
-  assert.match(worker, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
-  assert.match(worker, /Drain each newly queued batch before claiming more recipients/);
+  assert.match(worker, /const announcementIntervalMs = 30 \* 1000/);
+  assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), announcementIntervalMs\)/);
+  assert.match(worker, /orchestrator\.runAnnouncementBatches\(\{\s*shouldContinue\s*\}\)/);
+  assert.match(orchestrator, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
+  assert.match(orchestrator, /await deliverPendingNotificationEmails\(safeDeliveryLimit\)/);
+  assert.match(orchestrator, /await deliverPendingNotificationPush\(safeDeliveryLimit\)/);
+  assert.match(orchestrator, /for \(let batch = 0; batch < safeMaxBatches; batch \+= 1\)/);
+  assert.match(orchestrator, /Drain each newly queued batch before claiming more recipients/);
   assert.match(service, /eventKey: "announcement:" \+ announcement\._id \+ ":" \+ userId/);
   assert.match(service, /deferDispatch: true/);
   assert.match(service, /batchLockToken/);

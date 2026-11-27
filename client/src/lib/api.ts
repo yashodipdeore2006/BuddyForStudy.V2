@@ -27,7 +27,9 @@ function cacheKey(path: string, token: string | null) {
 }
 
 function invalidateRelatedGetCache(path: string) {
-  const prefixes = path.startsWith('/api/saved-courses')
+  const prefixes = path.startsWith('/api/progress')
+    ? ['/api/progress']
+    : path.startsWith('/api/saved-courses')
     ? ['/api/saved-courses']
     : path.startsWith('/api/enrollments')
       ? ['/api/enrollments']
@@ -37,7 +39,9 @@ function invalidateRelatedGetCache(path: string) {
           ? ['/api/courses', '/api/reviews']
           : path.startsWith('/api/billing') || path.startsWith('/api/payments')
             ? ['/api/billing', '/api/ai/usage']
-            : [];
+            : path.startsWith('/api/trials')
+              ? ['/api/trials', '/api/billing']
+              : [];
   if (!prefixes.length) return;
   for (const key of getResponseCache.keys()) {
     if (prefixes.some((prefix) => key.includes(`:${prefix}`) || key.endsWith(prefix))) getResponseCache.delete(key);
@@ -46,6 +50,18 @@ function invalidateRelatedGetCache(path: string) {
 
 export function getToken() {
   return localStorage.getItem("bfs_token");
+}
+
+export function getStoredUserId(): string | null {
+  try {
+    const raw = localStorage.getItem("bfs_user");
+    if (!raw) return null;
+    const user = JSON.parse(raw) as { id?: unknown; _id?: unknown };
+    const id = user?.id ?? user?._id;
+    return typeof id === "string" && id.trim() ? id.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function setAuth(token: string, user: unknown) {
@@ -78,13 +94,16 @@ export class ApiError extends Error {
   }
 }
 
-type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean };
+type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean; expectedAccountId?: string };
 // API response shapes vary by endpoint; callers can provide a stricter generic when needed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ApiResponse = any;
 
 export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { showFeatureUpgrade = false, ...requestOptions } = options;
+  const { showFeatureUpgrade = false, expectedAccountId, ...requestOptions } = options;
+  if (expectedAccountId && getStoredUserId() !== expectedAccountId) {
+    throw new ApiError("The signed-in account changed. Sign in again before synchronizing saved progress.", 401);
+  }
   const token = getToken();
   const method = (requestOptions.method || 'GET').toUpperCase();
   const isGet = method === 'GET';

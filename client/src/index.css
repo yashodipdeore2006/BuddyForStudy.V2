@@ -17,7 +17,7 @@
   --bfs-ink-deep: #191a35;
   --bfs-ink: #292a40;
   --bfs-muted: #666980;
-  --bfs-muted-soft: #8588a0;
+  --bfs-muted-soft: #626579;
   --bfs-line: #dfe1eb;
   --bfs-line-soft: #e9eaf2;
   --bfs-success: #15803d;
@@ -106,7 +106,7 @@ button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm font-bold transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm font-bold transition-all duration-200 focus:outline-none disabled:cursor-not-allowed;
     border-radius: var(--bfs-radius-pill); background: var(--bfs-ink-button); color: #fff;
   }
   .btn-primary:hover { background: #2b2d30; }
@@ -245,7 +245,7 @@ button:active:not(:disabled), [role="button"]:active { transform: translateY(1px
 }
 @keyframes bfs-spin { to { transform: rotate(360deg); } }
 @keyframes bfs-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-@keyframes bfs-fade-up { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bfs-fade-up { from { opacity: 1; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .bfs-enter { animation: bfs-fade-up 220ms var(--bfs-ease-out) both; }
 .bfs-interactive-card {
   transition: border-color var(--bfs-motion-control) var(--bfs-ease-out), box-shadow var(--bfs-motion-control) var(--bfs-ease-out), transform var(--bfs-motion-control) var(--bfs-ease-out);
@@ -302,7 +302,7 @@ button:active:not(:disabled), [role="button"]:active { transform: translateY(1px
   --bfs-ink-deep: #191a35;
   --bfs-ink: #292a40;
   --bfs-muted: #666980;
-  --bfs-muted-soft: #8588a0;
+  --bfs-muted-soft: #626579;
   --bfs-line: #dfe1eb;
   --bfs-line-soft: #e9eaf2;
   --bfs-success: #087f5b;
@@ -762,7 +762,7 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 }
 .bfs-course-results-grid > * { min-width: 0; }
 .bfs-course-card { min-width: 0; }
-.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+.bfs-course-card__media { height: 168px; min-height: 168px; }
 @media (min-width: 1500px) {
   .bfs-course-results-grid { grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); }
 }
@@ -794,7 +794,7 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 }
 .bfs-course-grid > * { min-width: 0; }
 .bfs-course-card { min-width: 0; }
-.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+.bfs-course-card__media { height: 168px; min-height: 168px; }
 @media (max-width: 520px) {
   .bfs-shell { padding-inline: 12px; }
   .bfs-course-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }

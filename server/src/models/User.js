@@ -92,6 +92,15 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100
     },
+    address: {
+      line1: { type: String, default: "", trim: true, maxlength: 160 },
+      line2: { type: String, default: "", trim: true, maxlength: 160 },
+      city: { type: String, default: "", trim: true, maxlength: 100 },
+      state: { type: String, default: "", trim: true, maxlength: 100 },
+      postalCode: { type: String, default: "", trim: true, maxlength: 20 },
+      country: { type: String, default: "", trim: true, maxlength: 100 },
+      formatted: { type: String, default: "", trim: true, maxlength: 500 }
+    },
     learningGoal: {
       type: String,
       default: "",

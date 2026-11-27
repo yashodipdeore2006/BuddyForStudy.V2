@@ -7,9 +7,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   Bookmark, GraduationCap, Info, Map,
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
-  Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users, Star, Share2,
+  Sparkles, Eye, Users, Star, Share2,
 } from "lucide-react";
-import type { Course, Enrollment } from "@/types";
+import type { Course, CourseAccessSummary, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
@@ -17,11 +17,13 @@ import { getAllLessonsFlat } from "@/lib/courseUtils";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
 type LearningProgress = { completedCount: number; totalLessons: number; percentage: number; nextLessonId: string | null; lastLessonId: string | null; lastAccessedAt: string | null };
-type LearningEnrollment = Enrollment & { course: Course; learningStatus: LearningTab; learningProgress: LearningProgress };
+type LearningEnrollment = Enrollment & { course: Course; courseAccess?: CourseAccessSummary; learningStatus: LearningTab; learningProgress: LearningProgress };
 
 function mapCourse(raw: LearningApiRecord): Course {
   const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: LearningApiRecord) => ({
@@ -44,6 +46,8 @@ function mapCourse(raw: LearningApiRecord): Course {
     slug: String(raw?.slug ?? ""),
     description: String(raw?.description ?? ""),
     category: String(raw?.category ?? ""),
+    domain: raw?.domain ?? null,
+    tags: Array.isArray(raw?.tags) ? raw.tags : [],
     level: raw?.level ?? "Beginner",
     duration: String(raw?.duration ?? ""),
     thumbnail: raw?.thumbnail ?? null,
@@ -92,6 +96,8 @@ function mapEnrollment(raw: LearningApiRecord): LearningEnrollment {
     created_at: raw?.createdAt ?? raw?.created_at ?? "",
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? "",
     course,
+    accessSource: raw?.accessSource,
+    courseAccess: raw?.courseAccess && typeof raw.courseAccess === "object" ? raw.courseAccess as CourseAccessSummary : undefined,
     learningStatus,
     learningProgress: {
       completedCount,
@@ -121,7 +127,6 @@ function CourseLearningCard({
   const [saveError, setSaveError] = useState("");
   const [shareNotice, setShareNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const lessons = getAllLessonsFlat(course.modules);
   const totalLessons = state.totalLessons || lessons.length;
   const hasRoadmap = lessons.length > 0;
@@ -145,21 +150,14 @@ function CourseLearningCard({
   const isFree = course.pricing?.mode === "free";
   const effectivePrice = getEffectiveCoursePrice(course.pricing);
   const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
+  const courseAccess = enrollment.courseAccess;
+  const includedInTrial = course.pricing?.mode === "paid" && courseAccess?.source === "trial" &&
+    (courseAccess.status === "TRIAL_INCLUDED" || courseAccess.status === "COMPLETED");
+  const includedInPlan = courseAccess?.source === "subscription" &&
+    (courseAccess.status === "PLAN_INCLUDED" || courseAccess.status === "COMPLETED");
+  const individuallyPurchased = courseAccess?.source === "individual" &&
+    (courseAccess.status === "PURCHASED" || courseAccess.status === "COMPLETED");
   const description = getCourseCardDescription(course);
-  const category = (course.category || "").toLowerCase();
-  const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
-    : /design|ui|ux|art/.test(category) ? "design"
-      : /business|finance|marketing|entrepreneur/.test(category) ? "business"
-        : /ai|machine|python|program|software|web|code/.test(category) ? "technology"
-          : "learning";
-  const CoverIcon = /data|analytics|sql|database/.test(category) ? Database
-    : /design|ui|ux|art/.test(category) ? Palette
-      : /business|finance|marketing|entrepreneur/.test(category) ? BriefcaseBusiness
-        : /ai|machine|python/.test(category) ? BrainCircuit
-          : /program|software|web|code|javascript|development/.test(category) ? Code2
-            : GraduationCap;
-  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
-  const generatedCover = course.generation?.mode === "ai";
   const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
 
   const handleSave = async () => {
@@ -190,18 +188,11 @@ function CourseLearningCard({
 
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
-      <div className={"bfs-course-card__media" + (generatedCover ? " bfs-course-card__media--generated" : "")}>
-        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course information for " + course.title}>
-          {!generatedCover && course.thumbnail && !thumbnailFailed ? (
-            <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
-          ) : (
-            <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}>
-              <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
-              <span className="bfs-course-card__fallback-title">{coverWords}</span>
-            </div>
-          )}
+      <div className="bfs-course-card__media">
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link">
+          <CourseThumbnail {...getCourseThumbnailProps(course)} />
+          <span className="bfs-sr-only">View course information for {course.title}</span>
         </Link>
-        {course.level && <span className={"bfs-course-chip bfs-course-card__level" + (course.level === "Beginner" ? " bfs-course-chip--beginner" : course.level === "Intermediate" ? " bfs-course-chip--intermediate" : course.level === "Advanced" ? " bfs-course-chip--advanced" : "")}>{course.level}</span>}
         <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
@@ -225,7 +216,7 @@ function CourseLearningCard({
           <Link to={routes.course(course.id)} className="bfs-course-card__detail-link">{course.title}</Link>
         </h2>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
-        <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={description} aria-label={"View course information for " + course.title}>{description}</Link>
+        <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={description} aria-label={description + " — View course information for " + course.title}>{description}</Link>
 
         {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && (
           <Link to={routes.course(course.id) + "?tab=reviews#reviews"} className="bfs-course-card__rating bfs-course-card__rating-link" aria-label={"View ratings and reviews for " + course.title}>
@@ -235,7 +226,7 @@ function CourseLearningCard({
           </Link>
         )}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
-          <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+          <div className="bfs-course-card__social-proof">
             {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
             {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
             {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
@@ -249,9 +240,19 @@ function CourseLearningCard({
       {shareNotice && <p className="bfs-course-card__status" role="status">{shareNotice}</p>}
 
       <div className="bfs-course-card__action-row">
-        <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
-          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
+        <span className={"bfs-course-card__price" + ((isFree || includedInPlan || includedInTrial || individuallyPurchased) ? " bfs-course-card__price--free" : "") + ((includedInPlan || includedInTrial) ? " bfs-course-card__price--included" : "")}>
+          {includedInTrial
+            ? "Included in your trial"
+            : includedInPlan
+              ? "Included in " + (courseAccess?.planName || "your plan")
+            : individuallyPurchased
+              ? "Purchased"
+              : courseAccess?.status === "ACCESS_REVOKED"
+                ? "Access revoked"
+                : effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
+          {(includedInPlan || includedInTrial) && effectivePrice !== null && effectivePrice > 0 && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}</del>}
+          {!includedInPlan && !individuallyPurchased && effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
+          {courseAccess?.status === "ACCESS_EXPIRED" && <span className="bfs-course-card__access-note">Plan access expired</span>}
         </span>
         <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
           <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
@@ -513,7 +514,7 @@ export default function MyCourses() {
 
       <section className="mt-6" aria-live="polite">
         {loading || (!loadError && !statusesReady) ? (
-          <div className="bfs-course-grid" aria-label="Loading your courses">
+          <div className="bfs-course-grid" role="status" aria-label="Loading your courses">
             {Array.from({ length: 3 }, (_, index) => <article key={index} className="bfs-course-card animate-pulse" aria-hidden="true"><div className="aspect-video bg-[var(--surface-2)]" /><div className="space-y-3 p-4"><div className="h-4 w-1/3 rounded bg-[var(--surface-2)]" /><div className="h-5 w-4/5 rounded bg-[var(--surface-2)]" /><div className="h-10 rounded bg-[var(--surface-2)]" /></div></article>)}
           </div>
         ) : loadError ? (

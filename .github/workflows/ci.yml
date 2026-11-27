@@ -9,7 +9,7 @@ permissions:
 
 on:
   push:
-    branches: ["main", "test"]
+    branches: ["main", "test", "buddy-for-study-v2.2"]
   pull_request:
     branches: ["main"]
 
@@ -45,9 +45,9 @@ jobs:
           VITE_INTENT_V2: "false"
           VITE_ASYNC_ROADMAP: "false"
         run: npm run build
-      - name: Install Playwright for browser smoke tests
+      - name: Install Playwright and axe for browser quality tests
         run: |
-          npm install --no-save @playwright/test
+          npm install --no-save @playwright/test @axe-core/playwright@4.14.0
           npx playwright install --with-deps chromium
       - name: Start production preview
         run: |
@@ -62,26 +62,16 @@ jobs:
           cat /tmp/buddy-preview.log
           exit 1
       - name: Browser navigation smoke tests
-        run: npx playwright test tests/navigation.e2e.spec.ts tests/admin-access.e2e.spec.ts tests/google-auth.e2e.spec.ts tests/auth-accessibility.e2e.spec.ts
+        run: npx playwright test tests/navigation.e2e.spec.ts tests/admin-access.e2e.spec.ts tests/google-auth.e2e.spec.ts tests/auth-accessibility.e2e.spec.ts tests/public-pages-quality.e2e.spec.ts
 
   backend:
     runs-on: ubuntu-latest
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     defaults:
       run:
         working-directory: server
     env:
       NODE_ENV: test
-      MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test
+      MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test?replicaSet=rs0
       JWT_SECRET: ci-test-secret
       RAZORPAY_KEY_ID: rzp_test_ci
     steps:
@@ -97,6 +87,26 @@ jobs:
         working-directory: client
         run: npm ci
       - run: npm ci
+      - name: Start and verify MongoDB replica set
+        run: |
+          docker run --detach --name buddyforstudy-mongodb --publish 27017:27017 mongo:7 mongod --replSet rs0 --bind_ip_all
+          for attempt in $(seq 1 30); do
+            if docker exec buddyforstudy-mongodb mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec buddyforstudy-mongodb mongosh --quiet --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "127.0.0.1:27017"}]})'
+          for attempt in $(seq 1 30); do
+            if docker exec buddyforstudy-mongodb mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' > /dev/null 2>&1; then
+              echo "MongoDB replica set rs0 is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs buddyforstudy-mongodb
+          echo "::error::MongoDB replica set did not elect a writable primary."
+          exit 1
       - name: Audit backend dependency vulnerabilities
         run: npm audit --audit-level=moderate
       - name: Backend lint
@@ -109,6 +119,7 @@ jobs:
           CLIENT_URL: "https://buddyforstudy.example"
           API_URL: "https://api.buddyforstudy.example"
           TRUST_PROXY_HOPS: "1"
+          BACKGROUND_WORKER_MODE: "inline"
           RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef"
           RAZORPAY_KEY_SECRET: "ci-only-provider-secret-0123456789"
           RAZORPAY_WEBHOOK_SECRET: "ci-only-webhook-secret-0123456789abcdef0123456789"

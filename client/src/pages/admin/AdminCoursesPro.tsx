@@ -40,6 +40,8 @@ type CourseMetaForm = {
   title: string;
   description: string;
   category: string;
+  domain: string;
+  tags: string;
   level: "Beginner" | "Intermediate" | "Advanced";
   duration: string;
   thumbnail: string;
@@ -118,6 +120,8 @@ type AdminCourseRecord = {
   slug?: string;
   description?: string;
   category?: string;
+  domain?: string | null;
+  tags?: string[];
   level?: CourseMetaForm["level"];
   duration?: string | number;
   thumbnail?: string | null;
@@ -150,6 +154,8 @@ type CourseReadiness = {
 
 export default function AdminCoursesPro() {
   const [courses, setCourses] = useState<AdminCourseRecord[]>([]);
+  const [courseDomains, setCourseDomains] = useState<Array<{ id: string; label: string }>>([]);
+  const [courseCategories, setCourseCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
@@ -191,6 +197,8 @@ export default function AdminCoursesPro() {
       if (query.trim()) params.set("q", query.trim());
       const data = await adminFetch("/api/admin/courses?" + params.toString());
       setCourses(data.courses || []);
+      setCourseDomains(Array.isArray(data.taxonomy?.domains) ? data.taxonomy.domains : []);
+      setCourseCategories(Array.isArray(data.taxonomy?.categories) ? data.taxonomy.categories : []);
       setTotal(Number(data.total || 0));
       setPages(Math.max(1, Number(data.pages || 1)));
     } catch (error) {
@@ -324,6 +332,8 @@ export default function AdminCoursesPro() {
       title: course.title || "",
       description: course.description || "",
       category: course.category || "",
+      domain: course.domain || "",
+      tags: Array.isArray(course.tags) ? course.tags.join(", ") : "",
       level: course.level || "Beginner",
       duration: course.duration || "",
       thumbnail: course.thumbnail || "",
@@ -361,6 +371,8 @@ export default function AdminCoursesPro() {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category.trim(),
+          domain: form.domain || null,
+          tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
           level: form.level,
           duration: form.duration.trim(),
           thumbnail: form.thumbnail.trim(),
@@ -938,7 +950,15 @@ export default function AdminCoursesPro() {
                               <>
                                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                                   <input className="input-field" placeholder="Course title" value={meta.title} onChange={(e) => patch({ title: e.target.value })} />
-                                  <input className="input-field" placeholder="Category" value={meta.category} onChange={(e) => patch({ category: e.target.value })} />
+                                  <input className="input-field" placeholder="Category" list={"admin-course-categories-" + course._id} value={meta.category} onChange={(e) => patch({ category: e.target.value })} />
+                                  <datalist id={"admin-course-categories-" + course._id}>
+                                    {courseCategories.map((category) => <option key={category} value={category} />)}
+                                  </datalist>
+                                  <select className="input-field" value={meta.domain} onChange={(e) => patch({ domain: e.target.value })} aria-label="Course domain">
+                                    <option value="">Unclassified (legacy category mapping)</option>
+                                    {courseDomains.map((domain) => <option key={domain.id} value={domain.id}>{domain.label}</option>)}
+                                  </select>
+                                  <input className="input-field" placeholder="Tags, comma separated (up to 20)" value={meta.tags} onChange={(e) => patch({ tags: e.target.value })} />
                                   <select className="input-field" value={meta.level} onChange={(e) => patch({ level: e.target.value as CourseMetaForm["level"] })}>
                                     <option value="Beginner">Beginner</option>
                                     <option value="Intermediate">Intermediate</option>

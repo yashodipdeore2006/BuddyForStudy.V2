@@ -5,6 +5,9 @@ import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { buildCourseDomainFilter, COURSE_DOMAIN_IDS, filterCoursesByInferredDomain, filterLearningResourcesByInferredDomain, getCourseTaxonomy, inferCourseDomain, resolveCourseDomain } from "../utils/courseTaxonomy.js";
+import { getCachedCourseTaxonomy, setCachedCourseTaxonomy, invalidateCourseTaxonomyCache } from "./courseTaxonomyCache.service.js";
+import { addCourseRankingMetadata, rankCoursesForSearch } from "../utils/courseRanking.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -28,6 +31,31 @@ const COURSE_RATING_FIELDS_STAGE = {
   $addFields: {
     ratingAverage: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.average", 0] }, 0] },
     ratingCount: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.count", 0] }, 0] }
+  }
+};
+const COURSE_ENROLLMENT_LOOKUP_STAGE = {
+  $lookup: {
+    from: "enrollments",
+    let: { courseId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$course", "$courseId"] },
+              { $in: ["$status", ["active", "completed"]] }
+            ]
+          }
+        }
+      },
+      { $count: "count" }
+    ],
+    as: "enrollmentStats"
+  }
+};
+const COURSE_ENROLLMENT_FIELDS_STAGE = {
+  $addFields: {
+    enrollmentCount: { $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0] }
   }
 };
 const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
@@ -93,7 +121,8 @@ function buildDirectCourseSearchFilter(search) {
       { title: regex },
       { description: regex },
       { category: regex },
-      { learningOutcomes: regex }
+      { learningOutcomes: regex },
+      { tags: regex }
     ]
   };
 }
@@ -170,6 +199,8 @@ function standaloneCourseFromModule(parent, module) {
       ? String(module.description)
       : "Standalone " + title + " course extracted from the " + parentTitle + " curriculum.",
     category: parent.category || "Learning",
+    domain: parent.domain || null,
+    tags: parent.tags || [],
     level: parent.level || "Beginner",
     duration: "Self-paced",
     thumbnail: firstVideo?.thumbnail || parent.thumbnail || "",
@@ -208,18 +239,21 @@ function standaloneCourseFromModule(parent, module) {
   };
 }
 
-async function getStandaloneModuleCourses(search, { category, level } = {}) {
+async function getStandaloneModuleCourses(search, { category, domain, level, searchDomain } = {}) {
   const searchTokens = normalizeSearchTokens(search);
   if (!searchTokens.length) {
     return { courses: [], sourceCourseIds: [], standaloneIds: [] };
   }
 
+  const candidateConditions = [PUBLICATION_APPROVAL_FILTER];
+  const selectedDomainFilter = domain ? buildCourseDomainFilter(domain) : null;
+  if (selectedDomainFilter) candidateConditions.push(selectedDomainFilter);
   const candidateFilter = {
     isPublished: true,
     deletedAt: null,
     status: { $ne: "archived" },
     "generation.mode": { $ne: "module" },
-    $and: [PUBLICATION_APPROVAL_FILTER],
+    $and: candidateConditions,
     ...(category ? { category } : {}),
     ...(level ? { level } : {}),
     $or: [
@@ -235,11 +269,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
   };
 
   const parents = await Course.find(candidateFilter)
-    .select("title description category level duration thumbnail pricing enrollmentEnabled certificateEnabled modules")
+    .select("title description category domain tags level duration thumbnail pricing enrollmentEnabled certificateEnabled modules")
     .lean();
 
   const matches = [];
-  for (const parent of parents) {
+  for (const parent of filterCoursesByInferredDomain(parents, searchDomain)) {
     for (const module of parent.modules || []) {
       if (moduleMatchesSearch(module, searchTokens)) {
         matches.push({ parent, module });
@@ -265,8 +299,15 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
     };
 
     const existing = await Course.findOne(matchFilter).lean();
+    const inheritParentTaxonomy = (course) => ({
+      ...course,
+      domain: course.domain || parent.domain || null,
+      tags: Array.isArray(course.tags) && course.tags.length ? course.tags : (parent.tags || [])
+    });
     if (existing) {
-      if (existing.isPublished && !existing.deletedAt && existing.status !== "archived" && isApprovedForPublication(existing)) courses.push(existing);
+      if (existing.isPublished && !existing.deletedAt && existing.status !== "archived" && isApprovedForPublication(existing)) {
+        courses.push(inheritParentTaxonomy(existing));
+      }
       continue;
     }
 
@@ -283,11 +324,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created?.isPublished && !created.deletedAt && created.status !== "archived" && isApprovedForPublication(created)) courses.push(created);
+      if (created?.isPublished && !created.deletedAt && created.status !== "archived" && isApprovedForPublication(created)) courses.push(inheritParentTaxonomy(created));
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate?.isPublished && !duplicate.deletedAt && duplicate.status !== "archived" && isApprovedForPublication(duplicate)) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt && duplicate.status !== "archived" && isApprovedForPublication(duplicate)) courses.push(inheritParentTaxonomy(duplicate));
         else throw error;
       } else {
         throw error;
@@ -431,6 +472,136 @@ function courseContentCountsStage() {
   };
 }
 
+function boundedRatioExpression(numerator, denominator) {
+  return { $min: [1, { $max: [0, { $divide: [numerator, denominator] }] }] };
+}
+
+function courseRankingSortStages(sort, now = new Date()) {
+  const descriptionLength = { $strLenCP: { $trim: { input: { $ifNull: ["$description", ""] } } } };
+  const titleLength = { $strLenCP: { $trim: { input: { $ifNull: ["$title", ""] } } } };
+  const categoryLength = { $strLenCP: { $trim: { input: { $ifNull: ["$category", ""] } } } };
+  const domainLength = { $strLenCP: { $trim: { input: { $ifNull: ["$domain", ""] } } } };
+  const durationLength = { $strLenCP: { $trim: { input: { $ifNull: ["$duration", ""] } } } };
+  const outcomeCount = { $size: { $ifNull: ["$learningOutcomes", []] } };
+  const tagCount = { $size: { $ifNull: ["$tags", []] } };
+  const validRating = {
+    $and: [
+      { $gt: ["$ratingCount", 0] },
+      { $gte: ["$ratingAverage", 1] },
+      { $lte: ["$ratingAverage", 5] }
+    ]
+  };
+  const validCount = { $cond: [validRating, "$ratingCount", 0] };
+  const validAverage = { $cond: [validRating, "$ratingAverage", 3.5] };
+  const adjustedRating = {
+    $divide: [
+      { $add: [{ $multiply: [validAverage, validCount] }, 35] },
+      { $add: [validCount, 10] }
+    ]
+  };
+  const ratingScore = {
+    $round: [{ $multiply: [{ $divide: [{ $subtract: [adjustedRating, 1] }, 4] }, 100] }, 2]
+  };
+  const ageDays = {
+    $max: [0, {
+      $divide: [
+        { $subtract: [now, { $ifNull: ["$createdAt", new Date(0)] }] },
+        86400000
+      ]
+    }]
+  };
+  const popularityScore = {
+    $round: [{
+      $min: [100, {
+        $multiply: [
+          { $divide: [{ $ln: { $add: ["$enrollmentCount", 1] } }, Math.log(1001)] },
+          100
+        ]
+      }]
+    }, 2]
+  };
+  const completeness = {
+    $round: [{ $add: [
+      { $cond: [{ $gt: [titleLength, 0] }, 5, 0] },
+      { $multiply: [15, boundedRatioExpression(descriptionLength, 300)] },
+      { $cond: [{ $gt: [categoryLength, 0] }, 5, 0] },
+      { $cond: [{ $gt: [domainLength, 0] }, 5, 0] },
+      { $cond: [{ $gt: [durationLength, 0] }, 5, 0] },
+      { $multiply: [5, boundedRatioExpression(tagCount, 3)] },
+      { $multiply: [20, boundedRatioExpression(outcomeCount, 5)] },
+      { $multiply: [15, boundedRatioExpression("$moduleCount", 4)] },
+      { $multiply: [25, boundedRatioExpression("$lessonCount", 16)] }
+    ] }, 2]
+  };
+  const curriculumCoverage = {
+    $round: [{ $add: [
+      { $multiply: [35, boundedRatioExpression(outcomeCount, 5)] },
+      { $multiply: [25, boundedRatioExpression("$moduleCount", 5)] },
+      { $multiply: [40, boundedRatioExpression("$lessonCount", 20)] }
+    ] }, 2]
+  };
+  const freshnessScore = {
+    $round: [{
+      $multiply: [100, {
+        $exp: {
+          $divide: [{ $multiply: [-1, ageDays] }, 730]
+        }
+      }]
+    }, 2]
+  };
+  const qualityScore = {
+    $round: [{ $add: [
+      { $multiply: [completeness, 0.45] },
+      { $multiply: [curriculumCoverage, 0.25] },
+      { $multiply: [ratingScore, 0.30] }
+    ] }, 2]
+  };
+  const rankingScore = {
+    $round: [{ $add: [
+      { $multiply: [completeness, 0.25] },
+      { $multiply: [curriculumCoverage, 0.15] },
+      { $multiply: [ratingScore, 0.15] },
+      { $multiply: [popularityScore, 0.05] },
+      { $multiply: [freshnessScore, 0.05] }
+    ] }, 2]
+  };
+
+  let primarySort;
+  if (sort === "title") primarySort = { title: 1 };
+  else if (sort === "quality") primarySort = { _qualityScore: -1, _rankingScore: -1 };
+  else if (sort === "popular") primarySort = { enrollmentCount: -1, _qualityScore: -1 };
+  else if (sort === "highest_rated") primarySort = { _ratingScore: -1, _validRatingCount: -1, _qualityScore: -1 };
+  else if (sort === "newest") primarySort = { createdAt: -1, _rankingScore: -1, _qualityScore: -1 };
+  else primarySort = { _rankingScore: -1, _qualityScore: -1 };
+
+  return [
+    { $addFields: {
+      _validRatingCount: validCount,
+      _ratingScore: ratingScore,
+      _qualityScore: qualityScore,
+      _rankingScore: rankingScore
+    } },
+    { $sort: { ...primarySort, createdAt: -1, _id: 1 } },
+    { $unset: ["_validRatingCount", "_ratingScore", "_qualityScore", "_rankingScore"] }
+  ];
+}
+
+async function attachCourseRankingStats(courses) {
+  if (!Array.isArray(courses) || !courses.length) return [];
+  const ids = courses.map((course) => course?._id).filter(Boolean);
+  const stats = await Course.aggregate([
+    { $match: { _id: { $in: ids } } },
+    COURSE_ENROLLMENT_LOOKUP_STAGE,
+    COURSE_ENROLLMENT_FIELDS_STAGE,
+    COURSE_RATING_LOOKUP_STAGE,
+    COURSE_RATING_FIELDS_STAGE,
+    { $project: { _id: 1, enrollmentCount: 1, ratingAverage: 1, ratingCount: 1 } }
+  ]);
+  const byId = new Map(stats.map((entry) => [String(entry._id), entry]));
+  return courses.map((course) => ({ ...course, ...(byId.get(String(course._id)) || {}) }));
+}
+
+
 function effectiveDiscoveryPricingPreview(pricing = {}) {
   const currency = String(pricing.currency || "INR").toUpperCase();
   if (pricing.mode === "free") return { mode: "free", price: 0, currency };
@@ -496,76 +667,88 @@ async function getDiscoveryPricingPreviews(resources, level) {
   });
 }
 
-export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
+export async function listPublished({ page = 1, limit = 20, search, category, domain, level, sort = "best_match", includeDiscovery = true }) {
+  const normalizedSort = ["best_match", "quality", "popular", "highest_rated", "newest", "title"].includes(sort)
+    ? sort
+    : "best_match";
   const filter = { isPublished: true, deletedAt: null, status: { $ne: "archived" }, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
   if (level) filter.level = level;
+  const selectedDomainFilter = domain ? buildCourseDomainFilter(domain) : null;
+  if (selectedDomainFilter) filter.$and.push(selectedDomainFilter);
 
   const normalizedSearch = String(search || "").trim();
 
   if (normalizedSearch) {
+    const inferredSearchDomain = inferCourseDomain(normalizedSearch);
     const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
-    const directCandidates = directFilter
+    const rawDirectCandidates = directFilter
       ? await Course.aggregate([
           { $match: { ...filter, ...directFilter } },
           courseContentCountsStage(),
-          { $project: { modules: 0 } },
+          COURSE_ENROLLMENT_LOOKUP_STAGE,
+          COURSE_ENROLLMENT_FIELDS_STAGE,
+          { $project: { modules: 0, enrollmentStats: 0 } },
           COURSE_RATING_LOOKUP_STAGE,
           COURSE_RATING_FIELDS_STAGE,
           { $project: { courseRatingStats: 0 } },
-          { $sort: { createdAt: -1 } }
+          { $sort: { createdAt: -1, _id: 1 } }
         ])
       : [];
+    const directCandidates = filterCoursesByInferredDomain(rawDirectCandidates, inferredSearchDomain);
+    const nonModuleDirectCourses = directCandidates.filter((course) => course.generation?.mode !== "module");
+    const rankedDirectCourses = rankCoursesForSearch(nonModuleDirectCourses, normalizedSearch, { sort: normalizedSort });
+    let localTotal = rankedDirectCourses.length;
+    let localCourses = rankedDirectCourses.slice((page - 1) * limit, page * limit);
 
-    const nonModuleDirectCourses = directCandidates.filter(
-      (course) => course.generation?.mode !== "module"
-    );
-    let localCourses = nonModuleDirectCourses.slice(
-      (page - 1) * limit,
-      page * limit
-    );
-
-    if (!localCourses.length) {
+    if (!rankedDirectCourses.length) {
       const standalone = await getStandaloneModuleCourses(normalizedSearch, {
         category,
-        level
+        domain,
+        level,
+        searchDomain: inferredSearchDomain
       });
-
-      localCourses = standalone.courses.slice(
-        (page - 1) * limit,
-        page * limit
-      );
+      const enrichedStandalone = await attachCourseRankingStats(standalone.courses);
+      const rankedStandaloneCourses = rankCoursesForSearch(enrichedStandalone, normalizedSearch, { sort: normalizedSort });
+      localTotal = rankedStandaloneCourses.length;
+      localCourses = rankedStandaloneCourses.slice((page - 1) * limit, page * limit);
     }
 
-    let curation;
-    let youtubeError;
-
-    try {
-      curation = await curateNormalSearch(normalizedSearch, { category, level });
-      curation.resources = await getDiscoveryPricingPreviews(
-        curation.resources || [],
-        curation?.meta?.intent?.level || level
-      );
-      youtubeError = String(curation?.meta?.youtubeError || "");
-    } catch (error) {
-      youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
-      console.error("Course Curation Decision Engine failed", {
-        query: normalizedSearch,
-        message: youtubeError
-      });
-      curation = {
-        resources: [],
-        meta: {
-          version: "course-curation-decision-engine-v1",
-          resultsShown: 0,
-          error: youtubeError
+    let discovery;
+    if (includeDiscovery) {
+      let curation;
+      let youtubeError;
+      try {
+        curation = await curateNormalSearch(normalizedSearch, { category, level });
+        const curationDomain = domain || inferredSearchDomain;
+        if (curationDomain) {
+          curation.resources = filterLearningResourcesByInferredDomain(curation.resources || [], curationDomain);
         }
+        curation.resources = await getDiscoveryPricingPreviews(
+          curation.resources || [],
+          curation?.meta?.intent?.level || level
+        );
+        youtubeError = String(curation?.meta?.youtubeError || "");
+      } catch (error) {
+        youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
+        console.error("Course Curation Decision Engine failed", { query: normalizedSearch, message: youtubeError });
+        curation = {
+          resources: [],
+          meta: { version: "course-curation-decision-engine-v1", resultsShown: 0, error: youtubeError }
+        };
+      }
+      discovery = {
+        mode: "youtube_supplementary",
+        query: normalizedSearch,
+        courseRecommendations: [],
+        curatedResources: curation.resources || [],
+        curationMeta: curation.meta || null,
+        youtubeError,
+        hasLocalResults: localCourses.length > 0
       };
     }
 
-    const localTotal = nonModuleDirectCourses.length || localCourses.length;
     const hasLocalResults = localCourses.length > 0;
-
     return {
       courses: localCourses,
       pagination: {
@@ -574,82 +757,27 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
         total: hasLocalResults ? localTotal : 0,
         pages: hasLocalResults ? Math.ceil(localTotal / limit) : 0
       },
-      discovery: {
-        mode: "youtube_supplementary",
-        query: normalizedSearch,
-        courseRecommendations: [],
-        curatedResources: curation.resources || [],
-        curationMeta: curation.meta || null,
-        youtubeError,
-        hasLocalResults
-      }
+      ...(discovery ? { discovery } : {})
     };
   }
 
-  if (sort === "popular") {
-    const [courses, total] = await Promise.all([
-      Course.aggregate([
-        { $match: filter },
-        {
-          $lookup: {
-            from: "enrollments",
-            let: { courseId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$course", "$$courseId"] },
-                      { $in: ["$status", ["active", "completed"]] }
-                    ]
-                  }
-                }
-              },
-              { $count: "count" }
-            ],
-            as: "enrollmentStats"
-          }
-        },
-        {
-          $addFields: {
-            enrollmentCount: {
-              $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
-            }
-          }
-        },
-        courseContentCountsStage(),
-        { $project: { modules: 0, enrollmentStats: 0 } },
-        COURSE_RATING_LOOKUP_STAGE,
-        COURSE_RATING_FIELDS_STAGE,
-        { $project: { courseRatingStats: 0 } },
-        { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
-        { $skip: (page - 1) * limit },
-        { $limit: limit }
-      ]),
-      Course.countDocuments(filter)
-    ]);
-
-    return {
-      courses,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-    };
-  }
-
-  const [courses, total] = await Promise.all([
+  const [rawCourses, total] = await Promise.all([
     Course.aggregate([
       { $match: filter },
       courseContentCountsStage(),
-      { $project: { modules: 0 } },
+      COURSE_ENROLLMENT_LOOKUP_STAGE,
+      COURSE_ENROLLMENT_FIELDS_STAGE,
+      { $project: { modules: 0, enrollmentStats: 0 } },
       COURSE_RATING_LOOKUP_STAGE,
       COURSE_RATING_FIELDS_STAGE,
       { $project: { courseRatingStats: 0 } },
-      { $sort: { createdAt: -1 } },
+      ...courseRankingSortStages(normalizedSort),
       { $skip: (page - 1) * limit },
       { $limit: limit }
     ]),
     Course.countDocuments(filter)
   ]);
-
+  const courses = addCourseRankingMetadata(rawCourses, "", { sort: normalizedSort });
   return {
     courses,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }
@@ -771,6 +899,48 @@ export async function getAny(courseId) {
   return Course.findById(courseId);
 }
 
+export async function invalidatePublicCourseTaxonomyCache() {
+  await invalidateCourseTaxonomyCache();
+}
+
+export async function getPublicCourseTaxonomy() {
+  const cached = await getCachedCourseTaxonomy();
+  if (cached?.domains && Array.isArray(cached.categories)) return cached;
+
+  const categoryRows = await Course.aggregate([
+    {
+      $match: {
+        isPublished: true,
+        deletedAt: null,
+        status: { $ne: "archived" },
+        $and: [PUBLICATION_APPROVAL_FILTER]
+      }
+    },
+    { $group: { _id: { category: "$category", domain: "$domain" } } }
+  ]);
+  const categories = [...new Set(categoryRows
+    .map((row) => String(row?._id?.category || "").trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const categoriesByDomain = Object.fromEntries(COURSE_DOMAIN_IDS.map((domainId) => [domainId, []]));
+  categoriesByDomain.unclassified = [];
+  const seenCategoriesByDomain = new Set();
+  for (const row of categoryRows) {
+    const categoryValue = String(row?._id?.category || "").trim();
+    if (!categoryValue) continue;
+    const domainId = resolveCourseDomain(row?._id?.domain) || resolveCourseDomain(categoryValue);
+    const key = (domainId || "unclassified") + ":" + categoryValue.toLowerCase();
+    if (seenCategoriesByDomain.has(key)) continue;
+    seenCategoriesByDomain.add(key);
+    (domainId ? categoriesByDomain[domainId] : categoriesByDomain.unclassified).push(categoryValue);
+  }
+  for (const key of Object.keys(categoriesByDomain)) {
+    categoriesByDomain[key].sort((a, b) => a.localeCompare(b));
+  }
+  const taxonomy = { ...getCourseTaxonomy(), categories, categoriesByDomain };
+  await setCachedCourseTaxonomy(taxonomy);
+  return taxonomy;
+}
+
 export async function createCourse(input) {
   const slug = input.slug ? normalizeSlug(input.slug) : normalizeSlug(input.title);
   const generated = ["normal", "ai", "module", "discovery"].includes(input.generation?.mode);
@@ -804,6 +974,9 @@ export async function updateCourse(courseId, input, context = {}) {
   };
   await course.save();
   await cacheDelete(`course:${courseId}`);
+  // Content edits may trigger the model's publication-readiness hook even when
+  // category/domain were not directly edited, so always refresh the public facets.
+  await invalidatePublicCourseTaxonomyCache();
   return course;
 }
 
@@ -821,6 +994,7 @@ export async function deleteCourse(courseId, context = {}) {
   };
   await course.save();
   await cacheDelete(`course:${courseId}`);
+  await invalidatePublicCourseTaxonomyCache();
   return course;
 }
 

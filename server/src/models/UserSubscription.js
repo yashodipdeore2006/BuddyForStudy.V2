@@ -9,6 +9,8 @@ const userSubscriptionSchema = new mongoose.Schema({
   providerEventAt: { type: Date, default: null, select: false },
   providerEventId: { type: String, default: "", select: false },
   providerEventName: { type: String, default: "", select: false },
+  trialGrant: { type: mongoose.Schema.Types.ObjectId, ref: "TrialGrant", default: null },
+  trialCampaign: { type: mongoose.Schema.Types.ObjectId, ref: "TrialCampaign", default: null },
   currentPeriodStart: { type: Date, default: Date.now },
   currentPeriodEnd: { type: Date, default: null },
   cancelAtPeriodEnd: { type: Boolean, default: false },
@@ -16,4 +18,5 @@ const userSubscriptionSchema = new mongoose.Schema({
 }, { timestamps: true, collection: "user_subscriptions" });
 
 userSubscriptionSchema.index({ status: 1, currentPeriodEnd: 1 });
+userSubscriptionSchema.index({ trialCampaign: 1, status: 1 });
 export const UserSubscription = mongoose.model("UserSubscription", userSubscriptionSchema);

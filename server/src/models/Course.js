@@ -5,6 +5,7 @@ import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { PricingRule } from "./PricingRule.js";
 import { calculateNextPricing, getCoursePricingValidationError } from "../utils/coursePricing.js";
 import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
+import { COURSE_DOMAIN_IDS } from "../utils/courseTaxonomy.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -100,12 +101,14 @@ const journeyStageSchema = new mongoose.Schema({
   id: { type: String, required: true }, order: { type: Number, required: true }, title: { type: String, required: true, trim: true, maxlength: 100 },
   hours: { type: Number, default: 0, min: 0 }, lessonIds: { type: [String], default: [] }, skills: { type: [String], default: [] }, outcome: { type: String, default: "", maxlength: 1000 }, emoji: { type: String, default: "" }
 }, { _id: false });
-const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
+const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, source: { type: String, enum: ["generated", "admin", "legacy"], default: "legacy" }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
 
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   description: { type: String, required: true, trim: true }, category: { type: String, required: true, trim: true },
+  domain: { type: String, enum: COURSE_DOMAIN_IDS, default: null },
+  tags: { type: [{ type: String, trim: true, lowercase: true, maxlength: 40 }], default: [] },
   level: { type: String, enum: ["Beginner", "Intermediate", "Advanced"], required: true },
   duration: { type: String, required: true, trim: true }, thumbnail: { type: String, default: "" },
   learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] }, roadmap: { type: courseRoadmapSchema, default: () => ({ theme: "trail", stages: [] }) },
@@ -302,6 +305,7 @@ courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
   this.aiReviewNote = "";
 });
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
+courseSchema.index({ isPublished: 1, domain: 1, category: 1, level: 1 });
 courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   if (this.isNew || !this.isModified()) return;
   const previous = await this.constructor.findById(this._id).lean();
@@ -317,7 +321,7 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
     summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
   });
   const modifiedPaths = this.modifiedPaths();
-  const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation", "roadmap"];
+  const contentPaths = ["title", "slug", "description", "category", "domain", "tags", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation", "roadmap"];
   const systemMetadataRefresh = ["Video duration metadata refresh", "Video resource normalization", "On-demand quiz generation", "Learning resource recovery"].includes(context.summary);
   const contentChanged = !systemMetadataRefresh && modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
   if (contentChanged && isGeneratedCourse(this)) {

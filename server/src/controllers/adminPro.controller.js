@@ -25,6 +25,9 @@ import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
+import { SiteSettings } from "../models/SiteSettings.js";
+import { SITE_SETTINGS_KEY } from "../utils/siteSettings.js";
+import { PUBLIC_SOCIAL_PLATFORMS, toPublicSocialLinks } from "../utils/publicSocialLinks.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
 import { isAIPromptActiveSettingKey } from "../services/aiPrompt.service.js";
@@ -37,12 +40,16 @@ import * as razorpay from "../services/razorpay.service.js";
 import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
+import { getDefaultFreePlan } from "../services/defaultFreePlan.service.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { recoverCourseMissingResources } from "../services/courseResourceRecovery.service.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
+import { invalidatePublicCourseTaxonomyCache } from "../services/course.service.js";
+import { getCourseTaxonomy, normalizeCourseTags } from "../utils/courseTaxonomy.js";
+import { invalidateCourseTaxonomyCache } from "../services/courseTaxonomyCache.service.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { parseSafeHttpUrl } from "../utils/safeHttpUrl.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
@@ -470,13 +477,19 @@ export async function courses(req, res, next) {
       ...(includeDeleted ? {} : { deletedAt: null }),
       ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
     };
-    const [courses, total] = await Promise.all([
+    const [courses, total, categoryValues] = await Promise.all([
       Course.find(filter)
-        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+        .select("title slug category domain tags level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
         .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      Course.countDocuments(filter)
+      Course.countDocuments(filter),
+      Course.distinct("category", includeDeleted ? {} : { deletedAt: null })
     ]);
-    return success(res, { courses, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+    const taxonomy = {
+      ...getCourseTaxonomy(),
+      categories: [...new Set(categoryValues.map((value) => String(value || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b))
+    };
+    return success(res, { courses, taxonomy, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
@@ -527,6 +540,7 @@ export async function rollbackCourseRevision(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "rollback", reason, summary: "Rolled back to revision " + revision.revisionNumber };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.revision.rolled_back", "Course", course._id, { revisionNumber: "current" }, { restoredRevisionId: String(revision._id), restoredRevisionNumber: revision.revisionNumber, isPublished: false }, reason);
     return success(res, { course, restoredRevision: revision.revisionNumber }, "Course restored as a draft. Re-check readiness before publishing.");
   } catch (e) { next(e); }
@@ -598,6 +612,7 @@ export async function reviewAiCourse(req, res, next) {
     };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
 
     if (publishedByApproval) {
       await audit(req, "course.published", "Course", course._id,
@@ -690,6 +705,8 @@ export async function setCourseLifecycle(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course status changed to " + status };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.status.updated", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled }, reason);
     return success(res, { course }, "Course status updated");
   } catch (e) { next(e); }
@@ -710,6 +727,8 @@ export async function softDeleteCourse(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course soft-deleted" };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.soft_deleted", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt }, reason);
     return success(res, { course }, "Course moved to trash");
   } catch (e) { next(e); }
@@ -729,6 +748,7 @@ export async function restoreCourse(req, res, next) {
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course restored from trash as draft" };
     await course.save();
     await cacheDelete("course:" + course._id);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.restored", "Course", course._id, before, { deletedAt: null, status: course.status, isPublished: false }, reason);
     return success(res, { course }, "Course restored as a draft");
   } catch (e) { next(e); }
@@ -1171,6 +1191,8 @@ export async function publishCourse(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
+    await invalidatePublicCourseTaxonomyCache();
     await audit(req, "course.published", "Course", course._id, before, { isPublished: true, visibility: course.visibility, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
     return success(res, { course, readiness }, "Course published");
   } catch (error) { next(error); }
@@ -1259,6 +1281,7 @@ export async function addCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.created", "Course", course._id, null, {
       moduleId: String(module._id), title: module.title, order: module.order
     });
@@ -1290,6 +1313,7 @@ export async function updateCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.updated", "Course", course._id, before, summarizeModuleForAudit(module), req.body.reason || "");
     return success(res, { course, module }, "Module updated");
   } catch (e) { next(e); }
@@ -1312,6 +1336,7 @@ export async function deleteCourseModule(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.deleted", "Course", course._id, {
       moduleId: String(removed._id), title: removed.title
     }, null, reason);
@@ -1366,6 +1391,7 @@ export async function addCourseVideo(req, res, next) {
       course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
       await cacheDelete(`course:${course._id}`);
+      await invalidateCourseTaxonomyCache();
       await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
         moduleId: String(module._id), playlistId, count: imported.length
       }, req.body.reason || "");
@@ -1404,6 +1430,7 @@ export async function addCourseVideo(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.video.added", "Course", course._id, null, {
       moduleId: String(module._id), lessonId: String(lesson._id), videoId
     }, req.body.reason || "");
@@ -1461,6 +1488,7 @@ export async function addCourseLesson(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.lesson.created", "Course", course._id, null, {
       moduleId: String(module._id), lessonId: String(lesson._id), title, type
     });
@@ -1487,6 +1515,7 @@ export async function deleteCourseLesson(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.lesson.deleted", "Course", course._id, {
       moduleId: String(module._id), lessonId: String(removed._id), title: removed.title, type: removed.type
     }, null, reason);
@@ -1514,6 +1543,7 @@ export async function addModuleResource(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     let resourceHost = "";
     try { resourceHost = new URL(resourceUrl).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* URL validation is handled by the resource endpoint. */ }
     await audit(req, "course.module.resource.added", "Course", course._id, null, {
@@ -1547,6 +1577,7 @@ export async function deleteModuleResource(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
       moduleId: String(module._id),
       resourceId: String(removed._id),
@@ -1676,6 +1707,7 @@ export async function updateCourseTutorial(req, res, next) {
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
 
     const playlistMode = Boolean(playlistId);
     await audit(
@@ -1718,6 +1750,8 @@ export async function updateCourse(req, res, next) {
       title: item.title,
       descriptionLength: String(item.description || "").length,
       category: item.category,
+      domain: item.domain || null,
+      tagCount: Array.isArray(item.tags) ? item.tags.length : 0,
       level: item.level,
       duration: item.duration,
       hasThumbnail: Boolean(item.thumbnail),
@@ -1756,6 +1790,8 @@ export async function updateCourse(req, res, next) {
       course.description = value;
     }
     if (req.body.category !== undefined) course.category = String(req.body.category).trim();
+    if (req.body.domain !== undefined) course.domain = req.body.domain || null;
+    if (Array.isArray(req.body.tags)) course.tags = normalizeCourseTags(req.body.tags);
     if (req.body.level !== undefined && ["Beginner", "Intermediate", "Advanced"].includes(req.body.level)) course.level = req.body.level;
     if (req.body.duration !== undefined) course.duration = String(req.body.duration).trim();
     if (req.body.thumbnail !== undefined) course.thumbnail = String(req.body.thumbnail).trim();
@@ -1776,6 +1812,10 @@ export async function updateCourse(req, res, next) {
     await course.save();
     // Course catalogue caches must not retain stale publish state or metadata.
     await cacheDelete(`course:${course._id}`);
+    await invalidateCourseTaxonomyCache();
+    if (req.body.category !== undefined || req.body.domain !== undefined || req.body.isPublished !== undefined) {
+      await invalidatePublicCourseTaxonomyCache();
+    }
     const after = summarizeCourseForAudit(course);
     const publishTransition = before.isPublished !== after.isPublished;
     const action = publishTransition
@@ -1888,7 +1928,7 @@ function normalizePlanLimits(value) {
   for (const [key, raw] of Object.entries(input)) {
     const parsed = Number(raw);
     if (!Number.isFinite(parsed)) continue;
-    output[key] = Math.trunc(parsed);
+    output[key] = parsed;
   }
   return output;
 }
@@ -1896,6 +1936,7 @@ function normalizePlanLimits(value) {
 export async function plans(req, res, next) {
   try {
     await ensureDefaultPlans();
+    await getDefaultFreePlan();
     const plans = await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
     const normalizedPlans = plans.map((plan) => ({
       ...plan,
@@ -1941,13 +1982,24 @@ export async function updatePlan(req, res, next) {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan changes.", 400);
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
+    await getDefaultFreePlan();
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const validation = validateSubscriptionPlanAdminInput(req.body, {
       name: plan.name, slug: plan.slug, price: plan.price, currency: plan.currency,
       billingInterval: plan.billingInterval, trialDays: plan.trialDays, sortOrder: plan.sortOrder,
-      isActive: plan.isActive, isPopular: plan.isPopular
+      isActive: plan.isActive, isPopular: plan.isPopular, isDefaultFree: plan.isDefaultFree
     });
     if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
+
+    const nextActive = req.body.isActive === undefined ? plan.isActive : req.body.isActive;
+    const nextPrice = req.body.price === undefined ? Number(plan.price) : Number(req.body.price);
+    const selectsDefaultFree = req.body.isDefaultFree === true;
+    if (plan.isDefaultFree && (!nextActive || nextPrice !== 0 || req.body.isDefaultFree === false)) {
+      return failure(res, "Select another active zero-priced default Free plan before disabling, repricing or unsetting this one.", 409);
+    }
+    if (selectsDefaultFree && (!nextActive || nextPrice !== 0)) {
+      return failure(res, "Only an active zero-priced plan can become the default Free assignment.", 400);
+    }
 
     if (hasProviderBillingTermsChanged(plan, req.body)) {
       // Razorpay plans are immutable. In-place edits would make the UI show a
@@ -1979,26 +2031,46 @@ export async function updatePlan(req, res, next) {
       currency: plan.currency,
       billingInterval: plan.billingInterval,
       isActive: plan.isActive,
+      isDefaultFree: Boolean(plan.isDefaultFree),
       isPopular: plan.isPopular,
       trialDays: plan.trialDays,
       sortOrder: plan.sortOrder,
       featuresCount: plan.features.length,
       limitKeys: [...plan.limits.keys()]
     };
-    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
+    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isDefaultFree", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
       if (key === "features") plan[key] = normalizeSubscriptionFeatures(req.body[key]);
       else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
       else plan[key] = req.body[key];
     }
-    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
+    if (selectsDefaultFree) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await SubscriptionPlan.updateMany(
+            { _id: { $ne: plan._id }, isDefaultFree: true },
+            { $set: { isDefaultFree: false } },
+            { session }
+          );
+          plan.isDefaultFree = true;
+          await plan.save({ session });
+        });
+      } finally {
+        await session.endSession?.();
+      }
+    } else {
+      await plan.save();
+    }
+    await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
       name: plan.name,
       slug: plan.slug,
       price: plan.price,
       currency: plan.currency,
       billingInterval: plan.billingInterval,
       isActive: plan.isActive,
+      isDefaultFree: Boolean(plan.isDefaultFree),
       isPopular: plan.isPopular,
       trialDays: plan.trialDays,
       sortOrder: plan.sortOrder,
@@ -3037,6 +3109,35 @@ export async function upsertSetting(req, res, next) {
       { $set: { value, description: req.body.description || "", isPublic, updatedBy: req.user.user._id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+    if (socialValidation.isSocialSetting) {
+      const platform = PUBLIC_SOCIAL_PLATFORMS.find((item) => item.settingKey === settingKey);
+      if (platform) {
+        const exists = await SiteSettings.exists({ key: SITE_SETTINGS_KEY });
+        if (!exists) {
+          const legacyRows = await PlatformSetting.find({
+            key: { $in: PUBLIC_SOCIAL_PLATFORMS.map((item) => item.settingKey) },
+            isPublic: true,
+          }).select("key value isPublic").lean();
+          const migratedLinks = toPublicSocialLinks(legacyRows);
+          migratedLinks[platform.id] = value;
+          try {
+            await SiteSettings.create({
+              key: SITE_SETTINGS_KEY,
+              socialLinks: migratedLinks,
+              updatedBy: req.user.user._id,
+            });
+          } catch (migrationError) {
+            // Another concurrent social-link save may have created the singleton.
+            if (migrationError?.code !== 11000) throw migrationError;
+          }
+        }
+        await SiteSettings.findOneAndUpdate(
+          { key: SITE_SETTINGS_KEY },
+          { $set: { ["socialLinks." + platform.id]: value, updatedBy: req.user.user._id } },
+          { new: true, runValidators: true },
+        );
+      }
+    }
     await audit(req, "setting.updated", "PlatformSetting", setting._id, {
       valueChanged: true,
       valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
@@ -32,7 +32,11 @@ import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
+import EnrollmentAuthDialog from "@/components/EnrollmentAuthDialog";
+import { readAuthNavigationState, type EnrollmentResumeIntent } from "@/lib/authNavigation";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
 import {
@@ -53,9 +57,14 @@ type RelatedCourseCard = {
   id: string;
   title: string;
   category: string;
+  domain?: string | null;
+  tags?: unknown;
+  learning_outcomes?: unknown;
+  modules?: unknown;
+  thumbnail?: string | null;
+  cardMetadata?: Course['cardMetadata'];
   description: string;
   duration: string;
-  thumbnail: string | null;
   pricing?: Course['pricing'];
   level: string;
 };
@@ -160,10 +169,18 @@ type RawCompletedLesson = { lessonId?: string; type?: string; completedAt?: stri
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
+  const [authPromptIntent, setAuthPromptIntent] = useState<EnrollmentResumeIntent | null>(null);
+  const openEnrollmentAuthPrompt = (type: EnrollmentResumeIntent["type"], accessPreference?: EnrollmentResumeIntent["accessPreference"]) => {
+    if (!courseId) return;
+    setAuthPromptIntent({ type, courseId: String(courseId), ...(accessPreference ? { accessPreference } : {}) });
+  };
   const [loading, setLoading] = useState(true);
+  const [courseAccessReady, setCourseAccessReady] = useState(false);
+  const courseAccessReadyRef = useRef(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [learningStats, setLearningStats] = useState<{ currentStreak?: number; longestStreak?: number } | null>(null);
@@ -199,6 +216,7 @@ export default function CourseDetails() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showStickyMiniHeader, setShowStickyMiniHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const handledResumeIntentRef = useRef<string | null>(null);
   const notesStorageKey = courseId ? 'bfs-course-notes:' + String(session?.user?.id || 'anonymous') + ':' + courseId : '';
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || 'anonymous'), courseId) : '';
 
@@ -236,9 +254,16 @@ export default function CourseDetails() {
           id: String(raw?._id ?? raw?.id ?? ''),
           title: String(raw?.title ?? ''),
           category: String(raw?.category ?? ''),
+          domain: typeof raw?.domain === "string" ? raw.domain : null,
+          tags: Array.isArray(raw?.tags) ? raw.tags : [],
+          learning_outcomes: raw?.learningOutcomes ?? raw?.learning_outcomes,
+          modules: raw?.modules,
           description: String(raw?.description ?? ''),
           duration: String(raw?.duration ?? ''),
-          thumbnail: raw?.thumbnail || null,
+          thumbnail: typeof raw?.thumbnail === "string" ? raw.thumbnail : null,
+          cardMetadata: raw?.cardMetadata && typeof raw.cardMetadata === "object"
+            ? raw.cardMetadata as Course['cardMetadata']
+            : undefined,
           pricing: raw?.pricing,
           level: String(raw?.level ?? 'Beginner'),
         })).filter((item: RelatedCourseCard) => item.id && item.id !== String(course.id) && item.title);
@@ -300,12 +325,19 @@ export default function CourseDetails() {
 
   useEffect(() => {
     async function fetchCourse() {
+      // Resume an auth intent only after existing entitlement/enrollment state
+      // has loaded. The ref closes the passive-effect ordering gap on login.
+      courseAccessReadyRef.current = false;
+      setCourseAccessReady(false);
+      setLoading(true);
       setPlanCourseAccess(false);
       setPurchaseChoice("individual");
       setEnrollment(null);
       if (!courseId) {
         setError('Invalid course');
         setLoading(false);
+        courseAccessReadyRef.current = true;
+        setCourseAccessReady(true);
         return;
       }
 
@@ -415,14 +447,17 @@ export default function CourseDetails() {
         setError(err instanceof Error ? err.message : 'Unable to load course');
       } finally {
         setLoading(false);
+        courseAccessReadyRef.current = true;
+        setCourseAccessReady(true);
       }
     }
+    if (authLoading) return;
     fetchCourse();
-  }, [courseId, session]);
+  }, [courseId, session, authLoading]);
 
   const handleCheckout = async () => {
     if (!session) {
-      navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } });
+      openEnrollmentAuthPrompt("checkout", "individual");
       return;
     }
     if (!courseId || !course) return;
@@ -498,7 +533,7 @@ export default function CourseDetails() {
   };
 
   const handleEnroll = async (accessPreference?: "subscription" | "individual") => {
-    if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
+    if (!session) { openEnrollmentAuthPrompt("enroll", accessPreference); return; }
     if (!course || !course.is_published) return;
     if (getEffectiveCoursePrice(course.pricing) === null) {
       setError('Course pricing is unavailable or invalid. Enrollment is paused until an administrator fixes it.');
@@ -543,7 +578,7 @@ export default function CourseDetails() {
     // Do not charge until the learner enters the actual billing flow.
     if (purchaseChoice === 'subscription') {
       if (!session) {
-        navigate(routes.login(), { state: { from: { pathname: routes.pricing() } } });
+        openEnrollmentAuthPrompt("enroll", "subscription");
         return;
       }
       navigate(routes.pricing());
@@ -556,6 +591,85 @@ export default function CourseDetails() {
     }
     void handleEnroll('individual');
   };
+
+  // Keep the latest handler available to the one-time auth-resume effect without
+  // making the effect re-run for every render caused by enrollment state changes.
+  const handleEnrollRef = useRef(handleEnroll);
+  useEffect(() => {
+    handleEnrollRef.current = handleEnroll;
+  }, [handleEnroll]);
+
+  useEffect(() => {
+    const intent = readAuthNavigationState(location.state).resumeIntent;
+    if (
+      authLoading ||
+      !session ||
+      loading ||
+      !courseAccessReady ||
+      !courseAccessReadyRef.current ||
+      !course ||
+      !intent ||
+      String(intent.courseId) !== String(courseId)
+    ) return;
+
+    const resumeKey = [location.key, intent.type, intent.courseId, intent.accessPreference || ""].join(":");
+    if (handledResumeIntentRef.current === resumeKey) return;
+    handledResumeIntentRef.current = resumeKey;
+
+    // Remove the history-state intent before performing a side effect. This
+    // prevents refresh, StrictMode effect replay, or Back/Forward from enrolling twice.
+    navigate(location.pathname + location.search + location.hash, {
+      replace: true,
+      state: null,
+    });
+
+    const existingStatus = String(enrollment?.status || "").toLowerCase();
+    if (existingStatus === "active" || existingStatus === "completed") {
+      setCheckoutNotice("You're already enrolled in this course. Your learning access is ready.");
+      return;
+    }
+
+    if (intent.type === "checkout") {
+      setPurchaseChoice("individual");
+      setCheckoutNotice("You're signed in. Review the course price and choose Buy to continue to secure checkout. No payment has been started.");
+      return;
+    }
+
+    const accessPreference = intent.accessPreference || "individual";
+    if (accessPreference === "subscription") {
+      setPurchaseChoice("subscription");
+      if (planCourseAccess) {
+        void handleEnrollRef.current("subscription");
+      } else {
+        setCheckoutNotice("You're signed in. Review the subscription option and choose View plans to continue. No payment has been started.");
+      }
+      return;
+    }
+
+    setPurchaseChoice("individual");
+    if (course.pricing?.mode === "paid") {
+      setCheckoutNotice("You're signed in. Review the course price and choose Buy to continue to secure checkout. No payment has been started.");
+      return;
+    }
+
+    void handleEnrollRef.current("individual");
+  }, [
+    authLoading,
+    session,
+    loading,
+    courseAccessReady,
+    course,
+    courseId,
+    location.key,
+    location.pathname,
+    location.search,
+    location.hash,
+    location.state,
+    enrollment?.status,
+    planCourseAccess,
+    navigate,
+  ]);
+
 
 
   const submitReview = async () => {
@@ -1245,9 +1359,11 @@ export default function CourseDetails() {
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
             <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
-              <button type="button" onClick={() => setPreviewOpen(true)} aria-label={previewVideoId ? 'Play course preview' : 'View course preview information'} className="group relative block aspect-video w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
-                {course.thumbnail ? <img src={course.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950" />}
-                <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
+              <button type="button" onClick={() => setPreviewOpen(true)} className="group relative block h-[168px] w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
+                <div className="absolute inset-0">
+                  <CourseThumbnail {...getCourseThumbnailProps(course)} />
+                </div>
+                <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
                 <span className="absolute inset-0 flex items-center justify-center"><span className={classNames("flex h-14 w-14 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-950 shadow-lg transition", previewVideoId ? "group-hover:scale-105" : "opacity-70")}><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>
                 <span className="absolute bottom-3 left-3 right-3 text-left text-sm font-semibold text-white">{previewVideoId ? 'Preview this course' : 'Video preview unavailable'}</span>
               </button>
@@ -1395,8 +1511,8 @@ export default function CourseDetails() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {relatedCourses.map((item) => (
               <Link key={item.id} to={routes.course(item.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
-                <div className="aspect-video overflow-hidden bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950">
-                  {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />}
+                <div className="overflow-hidden">
+                  <CourseThumbnail {...getCourseThumbnailProps(item)} />
                 </div>
                 <div className="p-4">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -1416,6 +1532,13 @@ export default function CourseDetails() {
         </section>
       )}
 
+      <EnrollmentAuthDialog
+        open={Boolean(authPromptIntent)}
+        courseTitle={course?.title || "Selected course"}
+        intent={authPromptIntent}
+        onClose={() => setAuthPromptIntent(null)}
+      />
+
       {previewOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="course-preview-title" className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -1429,7 +1552,7 @@ export default function CourseDetails() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-                {course.thumbnail && <img src={course.thumbnail} alt="" className="max-h-56 rounded-xl object-cover" />}
+                <div className="w-full max-w-xl overflow-hidden rounded-xl"><CourseThumbnail {...getCourseThumbnailProps(course)} /></div>
                 <p className="font-semibold text-slate-900">A video preview is not available for this course yet.</p>
                 <p className="text-sm text-slate-500">The course information and curriculum remain available below.</p>
               </div>

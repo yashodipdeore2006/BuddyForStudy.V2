@@ -24,7 +24,7 @@ test("every admin endpoint is protected by a named permission or explicit self-a
   const uncovered = [];
 
   for (const routeFile of routeFiles) {
-    const source = await readFile(routeFile.path, "utf8");
+    const source = (await readFile(routeFile.path, "utf8")).replace(/\r\n/g, "\n");
     assert.match(source, /router\.use\(authMiddleware, adminMiddleware\)/, "admin router must require authentication and admin access");
 
     for (const line of source.split("\n")) {

@@ -8,7 +8,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import {
-  buildCoursePricingFilter, calculateNextPricing, parsePricingFilters,
+  buildCoursePricingFilter, calculateNextPricing, parsePricingFilters, parsePricingSelection,
   recommendBandPrice, validatePricingOperation
 } from "../utils/coursePricing.js";
 import { DEFAULT_GENERATED_PRICING_POLICY, resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
@@ -108,7 +108,11 @@ export async function preview(req, res, next) {
     const actor = actorId(req);
     if (!actor) return failure(res, "Administrator identity is missing.", 401);
     const filters = parsePricingFilters(req.body?.filters || {});
-    const filter = buildCoursePricingFilter(filters);
+    const selection = parsePricingSelection(req.body?.selection || { mode: "all_matching" });
+    const baseFilter = buildCoursePricingFilter(filters);
+    const filter = selection.mode === "selected"
+      ? { $and: [baseFilter, { _id: { $in: selection.courseIds.map((id) => new mongoose.Types.ObjectId(id)) } }] }
+      : baseFilter;
     const courses = await Course.find(filter).select("title category level status isPublished pricing modules updatedAt").sort({ category: 1, title: 1 }).limit(MAX_PREVIEW_COURSES + 1).lean();
     if (courses.length > MAX_PREVIEW_COURSES) return failure(res, "This operation matches more than 500 courses. Narrow the filters and preview again.", 400);
     const kind = req.body?.kind === "recommend" ? "recommend" : "bulk";
@@ -142,7 +146,7 @@ export async function preview(req, res, next) {
     const batch = await PricingBatch.create({
       kind: "preview", status: "preview", actor,
       operation: kind === "recommend" ? { type: "recommend" } : operation,
-      filters: { ...filters, page: undefined, limit: undefined }, profile,
+      filters: { ...Object.fromEntries(Object.entries(filters).filter(([key]) => !["page", "limit"].includes(key))), selection }, profile,
       items, matchedCount: courses.length, skippedCount,
       expiresAt: new Date(Date.now() + PREVIEW_TTL_MS)
     });
@@ -222,6 +226,18 @@ export async function history(req, res, next) {
       PricingBatch.countDocuments({ kind: "batch" })
     ]);
     return success(res, { batches, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (error) { next(error); }
+}
+
+export async function historyDetail(req, res, next) {
+  try {
+    const batchId = String(req.params.batchId || "");
+    if (!isValidObjectId(batchId)) return failure(res, "Invalid pricing batch ID.", 400);
+    const batch = await PricingBatch.findOne({ _id: batchId, kind: "batch" })
+      .populate("actor", "name email")
+      .lean();
+    if (!batch) return failure(res, "Pricing batch not found.", 404);
+    return success(res, { batch });
   } catch (error) { next(error); }
 }
 

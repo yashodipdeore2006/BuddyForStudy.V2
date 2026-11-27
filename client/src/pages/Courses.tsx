@@ -1,24 +1,31 @@
 import { useEffect, useState, useMemo, useRef, useCallback, type FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } from '@/types';
 import CourseCard from '@/components/CourseCard';
+import BuildProgressPanel from '@/components/BuildProgressPanel';
+import type { BuildProgressNode } from '@/lib/buildProgress.js';
 import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
+import { requestAuthPrompt } from "@/lib/authPrompt";
+import { readAuthNavigationState } from "@/lib/authNavigation";
 import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
+import { getRoadmapDurationSummary } from "@/lib/roadmapDuration.js";
+import { appendUniqueCourses, hasMoreCoursePages } from "@/lib/courseCatalogPagination.js";
 
-// Build with AI now uses a compact, self-paced course intake.
-const INTENT_V2 = false;
+// The progressive intake is opt-in for local/staged testing and must match server INTENT_V2.
+const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null; outcome?: string; preferences?: Record<string, string> };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; assumptions?: { field: string; value: unknown }[]; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
+const CATALOG_PAGE_SIZE = 24;
 
 const BUILD_WITH_AI_LANGUAGES = [
   { code: "en", label: "English" }, { code: "hi", label: "Hindi" }, { code: "mr", label: "Marathi" },
@@ -44,6 +51,8 @@ type RawCourse = {
   slug?: string;
   description?: string;
   category?: string;
+  domain?: string | null;
+  tags?: string[];
   level?: CourseLevel;
   duration?: string | number;
   thumbnail?: string | null;
@@ -60,6 +69,7 @@ type RawCourse = {
   reviewStats?: { average?: number; count?: number };
   stats?: { average?: number; count?: number };
   cardMetadata?: Course["cardMetadata"];
+  ranking?: Course["ranking"];
   generation?: { mode?: string; sourceResourceType?: string | null; query?: string };
   moduleCount?: number;
   lessonCount?: number;
@@ -97,7 +107,14 @@ type AiModule = {
   lessons?: AiLesson[];
 };
 
+type AiSkillGraphNode = {
+  id: string;
+  name: string;
+  prerequisites?: string[];
+};
+
 type AiRoadmap = {
+  skillGraph?: AiSkillGraphNode[];
   query?: string;
   status?: string;
   draftId?: string;
@@ -114,6 +131,8 @@ type AiRoadmap = {
   };
   schedule?: {
     scheduleWarning?: string | null;
+    minutesPerDay?: number;
+    studyDaysPerWeek?: number;
     requiredDailyMinutes?: number;
     availableDays?: number | null;
     deadline?: string | null;
@@ -150,6 +169,98 @@ type SearchDiscovery = {
   youtubeError?: string;
 };
 
+function parseStudyMinutes(value: string | number | undefined, fallback = 60): number {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(15, Math.min(720, Math.round(value)));
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return Math.max(15, Math.min(720, Number(fallback) || 60));
+  if (/3\s*\+/.test(text)) return 180;
+  const minuteMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:min|minute)/);
+  if (minuteMatch) return Math.max(15, Math.min(720, Math.round(Number(minuteMatch[1]))));
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:h|hour)/);
+  if (hourMatch) return Math.max(15, Math.min(720, Math.round(Number(hourMatch[1]) * 60)));
+  const numeric = Number(text);
+  return Number.isFinite(numeric) ? Math.max(15, Math.min(720, Math.round(numeric))) : Math.max(15, Math.min(720, Number(fallback) || 60));
+}
+
+function parseAnswerList(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
+  return [...new Set(String(value || "").split(/[,|]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+type CourseDomainOption = { id: string; label: string };
+type CatalogSort = "best_match" | "quality" | "popular" | "highest_rated" | "newest" | "title";
+type CatalogUrlState = { query: string; level: CourseLevel | "all"; domain: string; category: string; sort: CatalogSort };
+
+function readCatalogUrlState(search: string): CatalogUrlState {
+  const params = new URLSearchParams(search);
+  const level = params.get("level");
+  const sort = params.get("sort");
+  return {
+    query: (params.get("q") || "").trim(),
+    level: levels.includes(level as CourseLevel) ? level as CourseLevel : "all",
+    domain: (params.get("domain") || "").trim() || "all",
+    category: (params.get("category") || "").trim() || "all",
+    sort: sort === "quality" || sort === "popular" || sort === "highest_rated" || sort === "newest" || sort === "title"
+      ? sort
+      : sort === "recent" ? "newest" : "best_match",
+  };
+}
+
+
+type ExploreSnapshot = {
+  version: 2;
+  savedAt: number;
+  pathname: string;
+  search: string;
+  scrollY: number;
+  courses: Course[];
+  nextPage: number;
+  hasMoreCourses: boolean;
+  totalCourseCount: number;
+  youtubeDiscovery: SearchDiscovery | null;
+};
+type CourseCatalogResponse = {
+  courses?: RawCourse[];
+  items?: RawCourse[];
+  discovery?: SearchDiscovery;
+  pagination?: { page?: number; limit?: number; total?: number; pages?: number };
+  taxonomy?: {
+    domains?: CourseDomainOption[];
+    categories?: string[];
+    categoriesByDomain?: Record<string, string[]>;
+  };
+};
+const EXPLORE_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
+const EXPLORE_SNAPSHOT_PREFIX = "bfs-explore-snapshot:v2:";
+function exploreSnapshotKey(entryKey: string, search: string): string {
+  return EXPLORE_SNAPSHOT_PREFIX + encodeURIComponent(entryKey || "default") + ":" + encodeURIComponent(search || "");
+}
+function readExploreSnapshot(entryKey: string, pathname: string, search: string): ExploreSnapshot | null {
+  try {
+    const raw = window.sessionStorage.getItem(exploreSnapshotKey(entryKey, search));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as ExploreSnapshot;
+    if (value.version !== 2 || value.pathname !== pathname || value.search !== search || !Array.isArray(value.courses) || !Number.isFinite(value.savedAt) || Date.now() - value.savedAt > EXPLORE_SNAPSHOT_TTL_MS || !Number.isInteger(value.nextPage) || value.nextPage < 1 || typeof value.hasMoreCourses !== "boolean") return null;
+    return value;
+  } catch { return null; }
+}
+function writeExploreSnapshot(entryKey: string, snapshot: ExploreSnapshot): void {
+  try {
+    const key = exploreSnapshotKey(entryKey, snapshot.search);
+    window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+    const keys: string[] = [];
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const candidate = window.sessionStorage.key(index);
+      if (candidate?.startsWith(EXPLORE_SNAPSHOT_PREFIX)) keys.push(candidate);
+    }
+    keys.sort((a, b) => {
+      try { return (JSON.parse(window.sessionStorage.getItem(b) || "{}").savedAt || 0) - (JSON.parse(window.sessionStorage.getItem(a) || "{}").savedAt || 0); }
+      catch { return 0; }
+    });
+    keys.slice(12).forEach((candidate) => window.sessionStorage.removeItem(candidate));
+  } catch { /* Storage may be unavailable or full; Explore remains functional. */ }
+}
+
 function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
@@ -157,6 +268,8 @@ function mapCourse(raw: RawCourse): Course {
     slug: raw.slug || "",
     description: raw.description || "",
     category: raw.category || "Uncategorized",
+    domain: raw.domain || null,
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
     level: raw.level || "Beginner",
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,
@@ -167,6 +280,7 @@ function mapCourse(raw: RawCourse): Course {
     enrollmentCount: raw.enrollmentCount ?? raw.enrollment_count,
     ratingAverage: Number(raw.ratingAverage ?? raw.rating_average ?? raw.reviewStats?.average ?? raw.stats?.average ?? 0),
     ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? raw.reviewStats?.count ?? raw.stats?.count ?? 0),
+    ranking: raw.ranking,
     cardMetadata: raw.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
     generation: raw.generation && typeof raw.generation === "object" ? {
       mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode || "") ? raw.generation.mode as NonNullable<Course["generation"]>["mode"] : undefined,
@@ -185,24 +299,178 @@ function mapCourse(raw: RawCourse): Course {
 export default function Courses() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const navigationType = useNavigationType();
+  const initialSnapshot = readExploreSnapshot(location.key, location.pathname, location.search);
+  const hasRestorableSnapshot = Boolean(initialSnapshot && navigationType === "POP");
+  const hasInitialSnapshot = useRef(Boolean(initialSnapshot));
+  const [courses, setCourses] = useState<Course[]>(initialSnapshot?.courses || []);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [catalogError, setCatalogError] = useState("");
-  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(null);
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(initialSnapshot?.youtubeDiscovery || null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
-  const [searchQuery, setSearchQuery] = useState('');
-  const [catalogQuery, setCatalogQuery] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">("recent");
-  const [catalogPage, setCatalogPage] = useState(1);
+  const [nextCatalogPage, setNextCatalogPage] = useState(initialSnapshot?.nextPage ?? 1);
+  const [hasMoreCourses, setHasMoreCourses] = useState(initialSnapshot?.hasMoreCourses ?? true);
+  const [totalCourseCount, setTotalCourseCount] = useState(initialSnapshot?.totalCourseCount ?? initialSnapshot?.courses.length ?? 0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const [catalogRevalidating, setCatalogRevalidating] = useState(Boolean(initialSnapshot));
+  const catalogSentinelRef = useRef<HTMLDivElement>(null);
+  const catalogGenerationRef = useRef(0);
+  const preserveInitialSnapshotRef = useRef(Boolean(initialSnapshot));
+  const preserveCurrentResultsRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const initialCatalogState = readCatalogUrlState(location.search);
+  const [searchQuery, setSearchQuery] = useState(initialCatalogState.query);
+  const [catalogQuery, setCatalogQuery] = useState(initialCatalogState.query);
+  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>(initialCatalogState.level);
+  const [selectedDomain, setSelectedDomain] = useState<string>(initialCatalogState.domain);
+  const [courseDomains, setCourseDomains] = useState<CourseDomainOption[]>([]);
+  const [courseCategories, setCourseCategories] = useState<string[]>([]);
+  const [categoriesByDomain, setCategoriesByDomain] = useState<Record<string, string[]>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCatalogState.category);
+  const [catalogSort, setCatalogSort] = useState<CatalogSort>(initialCatalogState.sort);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
-  const catalogPageSize = 12;
+
+  useEffect(() => {
+    if (!initialSnapshot || navigationType !== "POP") return;
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: Math.max(0, initialSnapshot.scrollY || 0), behavior: "auto" }));
+    return () => window.cancelAnimationFrame(frame);
+    // Restore once for this history entry; later URL changes must not replay an old scroll position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const revalidateOnHistoryReturn = () => {
+      if (window.location.pathname !== "/explore") return;
+      // The Explore component may be retained while another route is shown. A
+      // popstate event still signals a history return even when it is not remounted.
+      hasInitialSnapshot.current = true;
+      preserveCurrentResultsRef.current = true;
+      setCatalogRetryKey((current) => current + 1);
+    };
+    const revalidateOnPageRestore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // A document restored from the back/forward cache resumes its previous React
+      // tree, so explicitly refresh the public catalogue after the browser restores it.
+      hasInitialSnapshot.current = true;
+      preserveCurrentResultsRef.current = true;
+      setCatalogRetryKey((current) => current + 1);
+    };
+    window.addEventListener("popstate", revalidateOnHistoryReturn);
+    window.addEventListener("pageshow", revalidateOnPageRestore);
+    return () => {
+      window.removeEventListener("popstate", revalidateOnHistoryReturn);
+      window.removeEventListener("pageshow", revalidateOnPageRestore);
+    };
+  }, []);
+
+  useEffect(() => {
+    const entryKey = location.key;
+    const pathname = location.pathname;
+    const search = location.search;
+    return () => {
+      if (loading || loadingMore) return;
+      writeExploreSnapshot(entryKey, {
+        version: 2,
+        savedAt: Date.now(),
+        pathname,
+        search,
+        scrollY: Math.max(0, window.scrollY || 0),
+        courses,
+        nextPage: nextCatalogPage,
+        hasMoreCourses,
+        totalCourseCount,
+        youtubeDiscovery,
+      });
+    };
+  }, [courses, loading, loadingMore, nextCatalogPage, hasMoreCourses, totalCourseCount, location.key, location.pathname, location.search, youtubeDiscovery]);
+
+  // React effect cleanup is not guaranteed during a full document reload. Persist
+  // the latest complete Explore view on pagehide and when the tab becomes hidden.
+  // This keeps the session snapshot available before the next document initializes.
+  useEffect(() => {
+    if (loading || location.pathname !== "/explore") return;
+
+    const persistSnapshot = () => {
+      if (loadingMore) return;
+      writeExploreSnapshot(location.key, {
+        version: 2,
+        savedAt: Date.now(),
+        pathname: location.pathname,
+        search: location.search,
+        scrollY: Math.max(0, window.scrollY || 0),
+        courses,
+        nextPage: nextCatalogPage,
+        hasMoreCourses,
+        totalCourseCount,
+        youtubeDiscovery,
+      });
+    };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === "hidden") persistSnapshot();
+    };
+
+    window.addEventListener("pagehide", persistSnapshot);
+    document.addEventListener("visibilitychange", persistWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", persistSnapshot);
+      document.removeEventListener("visibilitychange", persistWhenHidden);
+    };
+  }, [courses, loading, loadingMore, nextCatalogPage, hasMoreCourses, totalCourseCount, location.key, location.pathname, location.search, youtubeDiscovery]);
+
+  const updateCatalogUrl = useCallback((updates: Partial<CatalogUrlState>, options: { replace?: boolean } = {}) => {
+    const params = new URLSearchParams(location.search);
+    const current = readCatalogUrlState(location.search);
+    const next = { ...current, ...updates };
+    const setOrDelete = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) params.delete(key);
+      else params.set(key, value);
+    };
+    setOrDelete("q", next.query.trim(), "");
+    setOrDelete("level", next.level, "all");
+    setOrDelete("domain", next.domain, "all");
+    setOrDelete("category", next.category, "all");
+    setOrDelete("sort", next.sort, "best_match");
+    params.delete("page");
+    const search = params.toString();
+    const nextSearch = search ? `?${search}` : "";
+    if (nextSearch !== location.search) {
+      navigate({ pathname: location.pathname, search: nextSearch }, { replace: options.replace ?? false, state: location.state });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
+  useEffect(() => {
+    const next = readCatalogUrlState(location.search);
+    setCatalogQuery(next.query);
+    setSearchQuery(next.query);
+    setSelectedLevel(next.level);
+    setSelectedDomain(next.domain);
+    setSelectedCategory(next.category);
+    setCatalogSort(next.sort);
+
+    const params = new URLSearchParams(location.search);
+    const canonical = new URLSearchParams(params);
+    const canonicalSet = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) canonical.delete(key);
+      else canonical.set(key, value);
+    };
+    canonicalSet("q", next.query, "");
+    canonicalSet("level", next.level, "all");
+    canonicalSet("domain", next.domain, "all");
+    canonicalSet("category", next.category, "all");
+    canonicalSet("sort", next.sort, "best_match");
+    canonical.delete("page");
+    if (canonical.toString() !== params.toString()) {
+      const search = canonical.toString();
+      navigate({ pathname: location.pathname, search: search ? `?${search}` : "" }, { replace: true, state: location.state });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiBuildProgress, setAiBuildProgress] = useState<{ status: string; nodes: BuildProgressNode[] } | null>(null);
   const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -212,9 +480,13 @@ export default function Courses() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+  const [intentConfirmedFields, setIntentConfirmedFields] = useState<string[]>([]);
+  const markIntentAnswer = (key: string, value: string) => {
+    setIntentAnswers((previous) => ({ ...previous, [key]: value }));
+    setIntentConfirmedFields((previous) => previous.includes(key) ? previous : [...previous, key]);
+  };
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
-  const [coreQuestionStep, setCoreQuestionStep] = useState(0);
 
   const [aiGoal, setAiGoal] = useState<string>('Explore a personal interest');
   const [aiGoalTouched, setAiGoalTouched] = useState(false);
@@ -228,6 +500,16 @@ export default function Courses() {
   const [aiKnownSkills, setAiKnownSkills] = useState('');
   const [aiCourseDepth, setAiCourseDepth] = useState<"short" | "medium" | "complete">("complete");
   const [aiResourceLanguages, setAiResourceLanguages] = useState<string[]>(["en", "hi"]);
+
+  useEffect(() => {
+    const resumeContext = readAuthNavigationState(location.state).resumeContext;
+    if (resumeContext?.type !== "ai-roadmap") return;
+    setAiTopic(resumeContext.topic);
+    setAiOpen(true);
+    if (resumeContext.resourceLanguages.length) {
+      setAiResourceLanguages(resumeContext.resourceLanguages);
+    }
+  }, [location.state]);
 
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
@@ -262,20 +544,37 @@ export default function Courses() {
     let cancelled = false;
     let timer: number | undefined;
     const resumeBuild = async () => {
+      setAiOpen(true);
+      setAiLoading(true);
+      aiLoadingRef.current = true;
+      setAiBuildProgress({ status: 'queued', nodes: [] });
       try {
         while (!cancelled) {
-          const status = await apiFetch<{ status: string; result?: AiRoadmap; errorMessage?: string }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
+          const status = await apiFetch<{ status: string; result?: AiRoadmap; errorMessage?: string; nodes?: BuildProgressNode[] }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
           if (cancelled) return;
-          if (status.result) setAiRoadmap(status.result);
+          setAiBuildProgress({ status: status.status, nodes: status.nodes || [] });
+          if (status.result) {
+            setAiRoadmap(status.result);
+            if (status.result.query) setAiTopic(status.result.query);
+          }
           if (status.status === 'ready' || status.status === 'failed') {
             window.localStorage.removeItem('bfs_async_roadmap_draft');
             if (status.status === 'failed') setAiError(status.errorMessage || 'The roadmap build failed. Please try again.');
+            else setAiOpen(false);
+            aiLoadingRef.current = false;
+            setAiLoading(false);
+            setAiBuildProgress(null);
             return;
           }
           await new Promise<void>((resolve) => { timer = window.setTimeout(resolve, 1200); });
         }
       } catch {
-        if (!cancelled) setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+        if (!cancelled) {
+          setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+          aiLoadingRef.current = false;
+          setAiLoading(false);
+          setAiBuildProgress(null);
+        }
       }
     };
     void resumeBuild();
@@ -283,78 +582,194 @@ export default function Courses() {
   }, [session]);
 
   useEffect(() => {
-    async function fetchCourses() {
-      setLoading(true);
+    // A valid session snapshot renders immediately, while page one is refreshed
+    // in the background. Keep cached results visible until the request settles.
+    const preserveCachedResults =
+      preserveInitialSnapshotRef.current || preserveCurrentResultsRef.current;
+    preserveInitialSnapshotRef.current = false;
+    preserveCurrentResultsRef.current = false;
+
+    let active = true;
+    const generation = ++catalogGenerationRef.current;
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+    setLoadMoreError("");
+    setCatalogRevalidating(preserveCachedResults);
+    setLoading(!preserveCachedResults);
+
+    if (!preserveCachedResults) {
+      setCourses([]);
+      setTotalCourseCount(0);
+      setNextCatalogPage(1);
+      setHasMoreCourses(true);
+      setYoutubeDiscovery(null);
+      setYoutubePlaylistsLoading(false);
+      setYoutubePlaylistError("");
+    }
+
+    async function fetchFirstCoursePage() {
       try {
         setCatalogError("");
-        setYoutubeDiscovery(null);
+        const params = new URLSearchParams({
+          page: "1",
+          limit: String(CATALOG_PAGE_SIZE),
+          sort: catalogSort
+        });
+        if (selectedLevel !== "all") params.set("level", selectedLevel);
+        if (selectedDomain !== "all") params.set("domain", selectedDomain);
+        if (selectedCategory !== "all") params.set("category", selectedCategory);
+        if (catalogQuery.trim()) params.set("q", catalogQuery.trim());
+
+        const response = await apiFetch<CourseCatalogResponse>("/api/courses?" + params.toString(), {
+          showFeatureUpgrade: Boolean(catalogQuery.trim()),
+          ...(hasInitialSnapshot.current || navigationType === "POP" ? { cache: "no-store" as const } : {})
+        });
+        if (!active || generation !== catalogGenerationRef.current) return;
+
+        if (Array.isArray(response.taxonomy?.domains)) setCourseDomains(response.taxonomy.domains);
+        if (Array.isArray(response.taxonomy?.categories)) setCourseCategories(response.taxonomy.categories);
+        if (response.taxonomy?.categoriesByDomain && typeof response.taxonomy.categoriesByDomain === "object") {
+          setCategoriesByDomain(response.taxonomy.categoriesByDomain);
+        }
+
+        const batch = response.courses || response.items || [];
+        setCourses(batch.map(mapCourse));
+        setNextCatalogPage(2);
+        setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(1, response.pagination?.pages, batch.length, CATALOG_PAGE_SIZE));
+        const total = Number(response.pagination?.total);
+        setTotalCourseCount(Number.isFinite(total) ? Math.max(0, total) : batch.length);
+
+        setYoutubeDiscovery(response.discovery || null);
+        setYoutubePlaylistError(String(response.discovery?.youtubeError || ""));
         setYoutubePlaylistsLoading(false);
-        setYoutubePlaylistError("");
-        const allRows: RawCourse[] = [];
-        let page = 1;
-        let batch: RawCourse[] = [];
-        let searchDiscovery: SearchDiscovery | null = null;
-        do {
-          const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort === "popular" ? "popular" : "recent" });
-          if (selectedLevel !== 'all') params.set('level', selectedLevel);
-          if (selectedCategory !== 'all') params.set('category', selectedCategory);
-          if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
-          batch = response.courses || response.items || [];
-          if (response.discovery) searchDiscovery = response.discovery;
-          allRows.push(...batch);
-          page += 1;
-        } while (batch.length === 50 && page <= 200);
-        setCourses(allRows.map(mapCourse));
 
-        if (
-          searchDiscovery?.mode === 'youtube_fallback' ||
-          searchDiscovery?.mode === 'youtube_supplementary'
-        ) {
-          const discovery = searchDiscovery;
-          setYoutubeDiscovery(discovery);
-          setYoutubePlaylistError(String(discovery.youtubeError || ""));
-
+        if (response.discovery) {
+          const discovery = response.discovery;
           if (Array.isArray(discovery.curatedResources)) {
-            // The curation engine returns one ranked video/playlist/series list.
-            // Do not run the legacy playlist fetch and reintroduce duplicate categories.
             setYoutubePlaylistsLoading(false);
           } else {
             setYoutubePlaylistsLoading(true);
             try {
               const playlistData = await apiFetch(
-                `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
+                "/api/discovery/search?q=" + encodeURIComponent(discovery.query),
                 { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
               );
+              if (!active || generation !== catalogGenerationRef.current) return;
               setYoutubeDiscovery({
                 ...discovery,
-                playlists: playlistData.playlists || [],
+                playlists: playlistData.playlists || []
               });
             } catch (playlistError) {
+              if (!active || generation !== catalogGenerationRef.current) return;
               setYoutubePlaylistError(
                 playlistError instanceof Error
                   ? playlistError.message
                   : "Unable to load YouTube playlists"
               );
             } finally {
-              setYoutubePlaylistsLoading(false);
+              if (active && generation === catalogGenerationRef.current) setYoutubePlaylistsLoading(false);
             }
           }
-        } else {
-          setYoutubeDiscovery(null);
-          setYoutubePlaylistsLoading(false);
-          setYoutubePlaylistError("");
         }
       } catch (error) {
-        setCourses([]);
+        if (!active || generation !== catalogGenerationRef.current) return;
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
+        if (!preserveCachedResults) setHasMoreCourses(false);
       } finally {
-        setLoading(false);
+        if (active && generation === catalogGenerationRef.current) {
+          hasInitialSnapshot.current = false;
+          setLoading(false);
+          setCatalogRevalidating(false);
+        }
       }
     }
 
-    fetchCourses();
-  }, [selectedLevel, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
+    void fetchFirstCoursePage();
+    return () => {
+      active = false;
+      if (catalogGenerationRef.current === generation) catalogGenerationRef.current += 1;
+    };
+  }, [selectedLevel, selectedDomain, selectedCategory, catalogQuery, catalogSort, catalogRetryKey, navigationType, hasRestorableSnapshot]);
+
+  const loadMoreCourses = useCallback(async () => {
+    if (loadingMoreRef.current || loading || catalogRevalidating || !hasMoreCourses || catalogError) return;
+    const generation = catalogGenerationRef.current;
+    const page = nextCatalogPage;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(CATALOG_PAGE_SIZE),
+        sort: catalogSort,
+        includeDiscovery: "false"
+      });
+      if (selectedLevel !== "all") params.set("level", selectedLevel);
+      if (selectedDomain !== "all") params.set("domain", selectedDomain);
+      if (selectedCategory !== "all") params.set("category", selectedCategory);
+      if (catalogQuery.trim()) params.set("q", catalogQuery.trim());
+
+      const response = await apiFetch<CourseCatalogResponse>("/api/courses?" + params.toString(), {
+        showFeatureUpgrade: Boolean(catalogQuery.trim()),
+        cache: "no-store"
+      });
+      if (generation !== catalogGenerationRef.current) return;
+
+      const batch = response.courses || response.items || [];
+      const mapped = batch.map(mapCourse);
+      setCourses((current) => appendUniqueCourses(current, mapped));
+      setNextCatalogPage(page + 1);
+      setHasMoreCourses(batch.length > 0 && hasMoreCoursePages(page, response.pagination?.pages, batch.length, CATALOG_PAGE_SIZE));
+    } catch (error) {
+      if (generation !== catalogGenerationRef.current) return;
+      setLoadMoreError(error instanceof Error ? error.message : "Unable to load more courses.");
+    } finally {
+      if (generation === catalogGenerationRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [
+    loading,
+    catalogRevalidating,
+    hasMoreCourses,
+    catalogError,
+    nextCatalogPage,
+    catalogSort,
+    selectedLevel,
+    selectedDomain,
+    selectedCategory,
+    catalogQuery
+  ]);
+
+  useEffect(() => {
+    const sentinel = catalogSentinelRef.current;
+    if (!sentinel || loading || loadingMore || catalogRevalidating || !hasMoreCourses || catalogError || loadMoreError) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const checkSentinel = () => {
+        if (sentinel.getBoundingClientRect().top <= window.innerHeight + 700) void loadMoreCourses();
+      };
+      window.addEventListener("scroll", checkSentinel, { passive: true });
+      window.addEventListener("resize", checkSentinel);
+      checkSentinel();
+      return () => {
+        window.removeEventListener("scroll", checkSentinel);
+        window.removeEventListener("resize", checkSentinel);
+      };
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMoreCourses();
+    }, {
+      root: null,
+      rootMargin: "700px 0px",
+      threshold: 0
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, loadingMore, catalogRevalidating, hasMoreCourses, catalogError, loadMoreError, loadMoreCourses]);
 
   useEffect(() => {
     let active = true;
@@ -388,75 +803,54 @@ export default function Courses() {
   }, [session]);
 
   const categories = useMemo(() => {
-    const cats = new Set(courses.map((c) => c.category).filter(Boolean));
+    if (selectedDomain === "all" && courseCategories.length) {
+      return [...courseCategories].sort((a, b) => a.localeCompare(b));
+    }
+    if (selectedDomain !== "all" && Array.isArray(categoriesByDomain[selectedDomain])) {
+      return [...(categoriesByDomain[selectedDomain] || [])].sort((a, b) => a.localeCompare(b));
+    }
+    const cats = new Set(courses.map((course) => course.category).filter(Boolean));
     return Array.from(cats).sort();
-  }, [courses]);
+  }, [categoriesByDomain, courseCategories, courses, selectedDomain]);
 
   const filteredCourses = useMemo(() => courses, [courses]);
   const sortedCourses = useMemo(() => {
     const rows = [...filteredCourses];
-    if (catalogSort === "title") {
-      return rows.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
-    }
     const timestamp = (value: string | undefined) => {
       const parsed = new Date(value || "").getTime();
       return Number.isFinite(parsed) ? parsed : 0;
     };
-    if (catalogSort === "popular") {
-      return rows.sort((a, b) =>
-        Number(b.enrollment_count || 0) - Number(a.enrollment_count || 0)
-        || Number(b.ratingAverage || 0) - Number(a.ratingAverage || 0)
-        || timestamp(b.created_at) - timestamp(a.created_at)
-      );
-    }
-    return rows.sort((a, b) => timestamp(b.created_at) - timestamp(a.created_at));
+    const byBestMatch = (a: Course, b: Course) =>
+      Number(b.ranking?.score || 0) - Number(a.ranking?.score || 0);
+    const byTitle = (a: Course, b: Course) =>
+      a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+    const byQuality = (a: Course, b: Course) =>
+      Number(b.ranking?.qualityScore || 0) - Number(a.ranking?.qualityScore || 0)
+      || byBestMatch(a, b);
+    const byPopularity = (a: Course, b: Course) =>
+      Number(b.enrollment_count ?? b.ranking?.enrollmentCount ?? 0) - Number(a.enrollment_count ?? a.ranking?.enrollmentCount ?? 0)
+      || byQuality(a, b);
+    const byHighestRated = (a: Course, b: Course) =>
+      Number(b.ranking?.components.confidenceAdjustedRating || 0) - Number(a.ranking?.components.confidenceAdjustedRating || 0)
+      || Number(b.ranking?.rating.count || 0) - Number(a.ranking?.rating.count || 0)
+      || byQuality(a, b);
+    const byNewest = (a: Course, b: Course) => timestamp(b.created_at) - timestamp(a.created_at) || byBestMatch(a, b);
+    const comparator = catalogSort === "title" ? byTitle
+      : catalogSort === "quality" ? byQuality
+      : catalogSort === "popular" ? byPopularity
+        : catalogSort === "highest_rated" ? byHighestRated
+          : catalogSort === "newest" ? byNewest
+            : byBestMatch;
+    return rows.sort((a, b) => comparator(a, b) || byNewest(a, b) || a.id.localeCompare(b.id));
   }, [filteredCourses, catalogSort]);
-  const catalogPageCount = Math.max(1, Math.ceil(sortedCourses.length / catalogPageSize));
-  const currentCatalogPage = Math.min(catalogPage, catalogPageCount);
-  const visibleCourses = sortedCourses.slice(
-    (currentCatalogPage - 1) * catalogPageSize,
-    currentCatalogPage * catalogPageSize
-  );
-  const catalogPagination = sortedCourses.length > catalogPageSize ? (
-    <nav aria-label="Course pagination" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-      <p className="text-sm text-slate-500">
-        Showing {(currentCatalogPage - 1) * catalogPageSize + 1}–{Math.min(currentCatalogPage * catalogPageSize, sortedCourses.length)} of {sortedCourses.length} courses
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Previous course page"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
-          disabled={currentCatalogPage <= 1}
-        >Previous</button>
-        <span aria-live="polite" className="min-w-24 text-center text-sm font-semibold text-slate-700">Page {currentCatalogPage} of {catalogPageCount}</span>
-        <button
-          type="button"
-          aria-label="Next course page"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => setCatalogPage((page) => Math.min(catalogPageCount, page + 1))}
-          disabled={currentCatalogPage >= catalogPageCount}
-        >Next</button>
-      </div>
-    </nav>
-  ) : null;
 
-  useEffect(() => {
-    setCatalogPage(1);
-  }, [catalogQuery, selectedLevel, selectedCategory, catalogSort]);
 
-  const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
+  const hasFilters = selectedLevel !== 'all' || selectedDomain !== "all" || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 
   const clearFilters = () => {
-    setSearchQuery('');
-    setCatalogQuery('');
-    setSelectedLevel('all');
-    setSelectedCategory('all');
-    setCatalogSort("recent");
-    setCatalogPage(1);
     setAiRoadmap(null);
     setAiError(null);
+    updateCatalogUrl({ query: "", level: "all", domain: "all", category: "all", sort: "best_match" });
   };
 
   useEffect(() => {
@@ -470,7 +864,6 @@ export default function Courses() {
     setIntentResult(null);
     setIntentAnswers({});
     setIntentWizardStep(1);
-    setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
     setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
     setAiLevel("Beginner");
@@ -533,7 +926,16 @@ export default function Courses() {
       return;
     }
     if (!session) {
-      setAiError('Sign in to generate a personalized AI roadmap.');
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to build your AI roadmap",
+        description: "Create a free account or sign in to personalize and generate a roadmap. Your topic and language preferences will be preserved.",
+        resumeContext: {
+          type: "ai-roadmap",
+          topic: query,
+          resourceLanguages: aiResourceLanguages,
+        },
+      });
       return;
     }
     setIntentLoading(true);
@@ -599,12 +1001,14 @@ export default function Courses() {
       setIntentResult({ ...result, questionPlan: merged });
         if (!result.valid) {
         setIntentAnswers({});
+        setIntentConfirmedFields([]);
         setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
         return;
       }
+      setIntentConfirmedFields(["topic"]);
       const profile = result.profile || {};
       const timeLabels: Record<number, string> = {
-        15: "15 min", 30: "30 min", 60: "1 hour", 120: "2 hours",
+        15: "15 min", 30: "30 min", 60: "1 hour", 90: "1.5 hours", 120: "2 hours",
         180: "3+ hours", 210: "3-4 hours", 300: "5+ hours"
       };
       const goalChoices: Record<string, { goal: string; purpose: string }> = {
@@ -747,7 +1151,16 @@ export default function Courses() {
       return;
     }
     if (!session) {
-      setAiError("Sign in to generate a personalized AI roadmap.");
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to generate your AI roadmap",
+        description: "Your topic and language preferences will be preserved. After signing in, you can review and start generation yourself.",
+        resumeContext: {
+          type: "ai-roadmap",
+          topic,
+          resourceLanguages: aiResourceLanguages,
+        },
+      });
       return;
     }
     const selectedLanguages = [...new Set(aiResourceLanguages.filter((code) =>
@@ -759,49 +1172,104 @@ export default function Courses() {
     }
 
     const normalizedTopic = topic.toLowerCase();
-    const inferredGoal = /\b(exam|certification|certificate|entrance test|competitive exam)\b/.test(normalizedTopic)
+    const inferredTopicGoal = /\b(exam|certification|certificate|entrance test|competitive exam)\b/.test(normalizedTopic)
       ? "exam"
       : /\b(job|career|interview|placement|developer role)\b/.test(normalizedTopic)
         ? "job_ready"
         : /\b(project|portfolio|build an app|build a website|build a system)\b/.test(normalizedTopic)
           ? "project"
           : "learn";
+    const parsedProfile = intentResult?.profile || {};
+    const readAnswer = (key: string) => String(intentAnswers[key] || "").trim();
+    const goalAliases: Record<string, string> = {
+      "career or professional growth": "job_ready",
+      "career or work growth": "job_ready",
+      "job-ready": "job_ready",
+      "exam or certification": "exam",
+      "prepare for an exam or certification": "exam",
+      "create something": "project",
+      "create a project or deliverable": "project",
+      "build practical skills": "learn",
+      "master the fundamentals": "learn",
+      "explore a personal interest": "learn"
+    };
+    const rawGoal = readAnswer("goal") || String(parsedProfile.goal || intentResult?.inferredGoal || inferredTopicGoal);
+    const inferredGoal = ["job_ready", "exam", "project", "learn"].includes(rawGoal)
+      ? rawGoal
+      : goalAliases[rawGoal.toLowerCase()] || inferredTopicGoal;
+    const goalLabels: Record<string, string> = {
+      job_ready: "Career or work growth",
+      exam: "Exam or certification",
+      project: "Create something",
+      learn: "Build practical skills"
+    };
     const courseDepthLabel = COURSE_DEPTH_OPTIONS.find((option) => option.value === aiCourseDepth)?.label || "Complete course";
+    const studyMinutes = parseStudyMinutes(readAnswer("time") || parsedProfile.minutesPerDay, aiStudyTime);
+    const studyDaysValue = readAnswer("studyDays") || String(parsedProfile.preferences?.studyDays || aiStudyDays);
+    const studyDaysPerWeek = Math.max(2, Math.min(7, Number(studyDaysValue.match(/\d+/)?.[0]) || 5));
+    const knownSkills = parseAnswerList(readAnswer("knownSkills") || parsedProfile.knownSkills);
+    const selectedLevel = (readAnswer("level") || aiLevel || parsedProfile.level || "Beginner") as CourseLevel;
+    const depthAnswer = readAnswer("depth").toLowerCase();
+    const learningScope = /quick|short|narrow|overview/.test(depthAnswer)
+      ? "narrow"
+      : /complete|broad|full/.test(depthAnswer)
+        ? "broad"
+        : aiCourseDepth === "short"
+          ? "narrow"
+          : aiCourseDepth === "complete"
+            ? "broad"
+            : parsedProfile.scope || "narrow";
+    // The order selected in the review UI is authoritative; parser defaults must not silently
+    // re-introduce a language that the learner removed from their selected language list.
+    const effectiveLanguages = selectedLanguages;
+    const preferredLanguage = effectiveLanguages[0] || "en";
+    const selectedRole = readAnswer("role") || readAnswer("targetRole") || parsedProfile.targetRole || null;
+    const selectedCompany = readAnswer("company") || readAnswer("targetCompany") || parsedProfile.targetCompany || null;
+    const selectedExam = readAnswer("examType") || parsedProfile.examName || null;
+    const selectedExamDate = readAnswer("examDate") || parsedProfile.examDate || null;
+    const selectedSyllabus = readAnswer("syllabus") || parsedProfile.syllabusText || null;
+    const selectedProject = readAnswer("projectIdea") || parsedProfile.projectIdea || null;
+    const selectedDeadline = readAnswer("deadline") || parsedProfile.deadline || null;
+    const selectedLessonStyle = readAnswer("lessonStyle") || aiLessonStyle;
     const profile = {
       topic,
-      level: aiLevel,
-      goals: [({ job_ready: "Career or work growth", exam: "Exam or certification", project: "Create something", learn: "Build practical skills" } as Record<string, string>)[inferredGoal]],
-      // The schedule stays self-paced. This internal default is not shown as a learner requirement.
-      studyTimeMinutesPerDay: 60,
-      language: selectedLanguages[0] || "en",
-      knownSkills: [],
+      level: selectedLevel,
+      goals: [goalLabels[inferredGoal]],
+      studyTimeMinutesPerDay: studyMinutes,
+      language: preferredLanguage,
+      knownSkills,
       intentProfile: {
+        ...parsedProfile,
         topic,
-        domain: "general",
-        scope: aiCourseDepth === "complete" ? "broad" : "narrow",
+        domain: intentResult?.domain || parsedProfile.domain || "general",
+        scope: learningScope,
         goal: inferredGoal,
-        level: aiLevel,
-        knownSkills: [],
-        minutesPerDay: 60,
-        deadline: null,
-        language: selectedLanguages[0] || "en",
-        targetRole: null,
-        targetCompany: null,
-        examName: null,
-        examDate: null,
-        syllabusText: null,
-        projectIdea: null,
-        outcome: "",
+        level: selectedLevel,
+        knownSkills,
+        minutesPerDay: studyMinutes,
+        deadline: selectedDeadline,
+        language: preferredLanguage,
+        targetRole: selectedRole,
+        targetCompany: selectedCompany,
+        examName: selectedExam,
+        examDate: selectedExamDate,
+        syllabusText: selectedSyllabus,
+        projectIdea: selectedProject,
+        outcome: readAnswer("outcome") || parsedProfile.outcome || "",
         preferences: {
+          ...(parsedProfile.preferences || {}),
           courseDepth: aiCourseDepth,
           courseDepthLabel,
-          resourceLanguages: selectedLanguages.join(","),
-          selfPaced: "true"
+          studyDays: String(studyDaysPerWeek),
+          lessonStyle: selectedLessonStyle,
+          resourceLanguages: effectiveLanguages.join(","),
+          selfPaced: selectedDeadline ? "false" : "true"
         }
       }
     };
 
     setAiLoading(true);
+    setAiBuildProgress({ status: ASYNC_ROADMAP ? 'queued' : 'building', nodes: [] });
     aiLoadingRef.current = true;
     setAiError(null);
     try {
@@ -811,21 +1279,23 @@ export default function Courses() {
           method: "POST", body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
         window.localStorage.setItem("bfs_async_roadmap_draft", draft.draftId);
-        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>("/api/ai/roadmap", {
+        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown; nodes?: BuildProgressNode[] }>("/api/ai/roadmap", {
           method: "POST", body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
+        setAiBuildProgress({ status: started.status || 'building', nodes: started.nodes || [] });
         setAiRoadmap({
           status: started.status || "building",
           query: topic,
           course: { title: topic + " learning roadmap", modules: started.modules || [] },
           draftId: draft.draftId
         });
-        let current = started;
+        let current: { draftId: string; status: string; errorMessage?: string; result?: AiRoadmap; nodes?: BuildProgressNode[] } = started;
         while (current.status !== "ready") {
           if (current.status === "failed") throw new Error(current.errorMessage || "Roadmap build failed. Please retry.");
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_${Date.now()}`);
+          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap; nodes?: BuildProgressNode[] }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_${Date.now()}`);
           current = polled;
+          setAiBuildProgress({ status: polled.status, nodes: polled.nodes || [] });
           if (polled.status === "failed") throw new Error(polled.errorMessage || "Roadmap build failed. Please retry.");
           if (polled.result) setAiRoadmap(polled.result);
           if (polled.status === "ready" && polled.result) data = polled.result;
@@ -846,6 +1316,7 @@ export default function Courses() {
     } finally {
       aiLoadingRef.current = false;
       setAiLoading(false);
+      setAiBuildProgress(null);
     }
   };
 
@@ -903,10 +1374,17 @@ export default function Courses() {
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    setCatalogQuery(query);
     setAiRoadmap(null);
     setAiError(null);
+    updateCatalogUrl({ query });
   };
+
+  const roadmapDuration = aiRoadmap ? getRoadmapDurationSummary({
+    estimatedStudyMinutes: Number(aiRoadmap.schedule?.estimatedMinutes ?? aiRoadmap.personalization?.estimatedStudyMinutes ?? 0),
+    minutesPerDay: Number(aiRoadmap.schedule?.minutesPerDay ?? aiRoadmap.personalization?.studyTimeMinutesPerDay ?? 0),
+    studyDaysPerWeek: Number(aiRoadmap.schedule?.studyDaysPerWeek ?? 0),
+    videoRuntimeMinutes: Number(aiRoadmap.personalization?.resourceVideoMinutes ?? 0)
+  }) : null;
 
   return (
     <div className="bfs-shell bfs-catalog-shell py-6 sm:py-8">
@@ -945,8 +1423,8 @@ export default function Courses() {
                   setAiRoadmap(null);
                   setIntentResult(null);
                   setIntentAnswers({});
+                  setIntentConfirmedFields(requestedTopic.trim().length >= 2 ? ["topic"] : []);
                   setIntentWizardStep(1);
-                  setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
                   setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");
@@ -990,7 +1468,7 @@ export default function Courses() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.value as CourseLevel | 'all')}
+              onChange={(e) => updateCatalogUrl({ level: e.target.value as CourseLevel | 'all' })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by level"
             >
@@ -1003,8 +1481,20 @@ export default function Courses() {
             </select>
 
             <select
+              value={selectedDomain}
+              onChange={(e) => updateCatalogUrl({ domain: e.target.value, category: "all" })}
+              className="input-field h-10 w-full py-1 text-sm sm:w-auto"
+              aria-label="Filter by domain"
+            >
+              <option value="all">All Domains</option>
+              {courseDomains.map((domain) => (
+                <option key={domain.id} value={domain.id}>{domain.label}</option>
+              ))}
+            </select>
+
+            <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => updateCatalogUrl({ category: e.target.value })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
               aria-label="Filter by category"
             >
@@ -1018,12 +1508,16 @@ export default function Courses() {
 
             <select
               aria-label="Sort courses"
+              title="Quality ranking uses catalogue completeness, curriculum structure and confidence-adjusted approved reviews."
               value={catalogSort}
-              onChange={(e) => { setCatalogSort(e.target.value as "recent" | "popular" | "title"); setCatalogPage(1); }}
+              onChange={(e) => updateCatalogUrl({ sort: e.target.value as CatalogSort })}
               className="input-field h-10 w-full py-1 text-sm sm:w-auto"
             >
-              <option value="recent">Recently added</option>
+              <option value="best_match">Best match</option>
+              <option value="quality">Highest quality</option>
               <option value="popular">Most popular</option>
+              <option value="highest_rated">Highest rated</option>
+              <option value="newest">Newest</option>
               <option value="title">Title A–Z</option>
             </select>
 
@@ -1079,7 +1573,7 @@ export default function Courses() {
                     
                   </p>
                   <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-900 sm:text-lg">Create your learning course</h2>
-                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">Choose a course depth, experience level and resource languages</p>
+                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">{INTENT_V2 ? "Start with a topic. AI will ask only what it needs to personalize your roadmap." : "Choose a course depth, experience level and resource languages"}</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -1101,6 +1595,11 @@ export default function Courses() {
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
             </div>
 
+            {aiLoading ? (
+              <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-8 sm:px-5">
+                <BuildProgressPanel topic={aiTopic.trim()} status={aiBuildProgress?.status || (ASYNC_ROADMAP ? 'queued' : 'building')} nodes={aiBuildProgress?.nodes || []} />
+              </div>
+            ) : (
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3 sm:px-5">
               <div className="mx-auto w-full max-w-2xl space-y-5">
   <div>
@@ -1114,7 +1613,8 @@ export default function Courses() {
       onKeyDown={(event) => {
         if (event.key === "Enter" && aiTopic.trim().length >= 2) {
           event.preventDefault();
-          void generateAiRoadmap();
+          if (INTENT_V2) void startIntentFlow();
+          else void generateAiRoadmap();
         }
       }}
       placeholder="e.g. Data Science, MERN Stack, Java Full Stack, Python…"
@@ -1123,6 +1623,8 @@ export default function Courses() {
     <p className="mt-1.5 text-xs text-slate-500">Enter a subject, skill, technology stack or exam. We’ll handle the course structure.</p>
   </div>
 
+  {(!INTENT_V2 || !intentResult?.valid) && (
+  <>
   <fieldset className="space-y-2.5">
     <legend className="text-sm font-semibold text-slate-900">How much of the subject should the course cover?</legend>
     <div className="grid gap-2">
@@ -1175,7 +1677,7 @@ export default function Courses() {
 
   <fieldset className="space-y-2.5">
     <legend className="text-sm font-semibold text-slate-900">Languages for learning resources</legend>
-    <p className="text-xs text-slate-500">Select up to four. English and Hindi are selected by default; we’ll try your chosen languages in order and use the first suitable verified resource.</p>
+    <p className="text-xs text-slate-500">Select up to four. English and Hindi are selected by default; we prioritise the languages in the order selected.</p>
     <div className="flex flex-wrap gap-2">
       {BUILD_WITH_AI_LANGUAGES.map((language) => {
         const selected = aiResourceLanguages.includes(language.code);
@@ -1196,20 +1698,210 @@ export default function Courses() {
     </div>
     <p className="text-xs text-slate-500">{aiResourceLanguages.length} of 4 languages selected.</p>
   </fieldset>
+  </>
+  )}
+
+  {INTENT_V2 && intentResult?.valid && (intentWizardStep === 2 || intentWizardStep === 3) && (
+    <section aria-label="Adaptive learning questions" className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">{intentWizardStep === 2 ? "Step 1 · Learning goal" : "Step 2 · Personalization"}</p>
+        <h3 className="mt-1 text-base font-bold text-slate-900">{intentWizardStep === 2 ? "A few questions to tailor your path" : "Refine your learning experience"}</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Skip optional questions when you are unsure. Your answers can be reviewed before the roadmap is generated.</p>
+      </div>
+      {visibleWizardQuestions.length === 0 ? (
+        <p className="rounded-xl bg-white p-3 text-sm text-slate-700">No additional questions are needed for this step. Continue to the next step.</p>
+      ) : visibleWizardQuestions.map((question) => {
+        const currentAnswer = String(intentAnswers[question.id] || "");
+        const selectedValues = parseAnswerList(currentAnswer);
+        const isMulti = question.type === "multi" || question.type === "checklist";
+        const hasOptions = Array.isArray(question.options) && question.options.length > 0;
+        return (
+          <fieldset key={question.id} className="space-y-2 rounded-xl border border-white bg-white p-3">
+            <legend className="px-1 text-sm font-semibold text-slate-900">
+              {question.text}
+              {question.optional && <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-slate-500">Optional</span>}
+            </legend>
+            {question.why && <p className="text-xs leading-5 text-slate-500">{question.why}</p>}
+            {hasOptions && isMulti && (
+              <div className="flex flex-wrap gap-2">
+                {question.options!.map((option) => {
+                  const selected = selectedValues.includes(option);
+                  return (
+                    <button key={option} type="button" aria-pressed={selected}
+                      onClick={() => {
+                        const current = parseAnswerList(intentAnswers[question.id]);
+                        const next = current.includes(option) ? current.filter((item) => item !== option) : [...current, option];
+                        markIntentAnswer(question.id, next.join(", "));
+                      }}
+                      className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
+                      {selected ? "✓ " : ""}{option}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {hasOptions && !isMulti && (
+              <div className="flex flex-wrap gap-2">
+                {question.options!.map((option) => {
+                  const selected = currentAnswer === option;
+                  return (
+                    <button key={option} type="button" aria-pressed={selected}
+                      onClick={() => markIntentAnswer(question.id, option)}
+                      className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
+                      {selected ? "✓ " : ""}{option}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {(!hasOptions || question.type === "text" || question.type === "paste") && (
+              question.type === "paste" ? (
+                <textarea rows={4} value={currentAnswer}
+                  onChange={(event) => markIntentAnswer(question.id, event.target.value)}
+                  placeholder="Add details here (optional)"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500"/>
+              ) : (
+                <input type="text" value={currentAnswer}
+                  onChange={(event) => markIntentAnswer(question.id, event.target.value)}
+                  placeholder="Type your answer (optional)"
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500"/>
+              )
+            )}
+          </fieldset>
+        );
+      })}
+    </section>
+  )}
+
+  {INTENT_V2 && intentResult?.valid && intentWizardStep === 4 && (
+    <section aria-label="Review your learning profile" className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Final step · Review</p>
+        <h3 className="mt-1 text-base font-bold text-slate-900">Review your learning profile</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-600">AI-inferred values are provisional. Correct anything that does not describe you before generating the roadmap.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-emerald-200 bg-white p-3">
+          <p className="text-xs font-bold text-emerald-800">Confirmed by you</p>
+          <ul className="mt-2 space-y-1 text-xs text-slate-700">
+            {["topic", ...intentConfirmedFields.filter((field) => field !== "topic")].map((field) => {
+              const labels: Record<string, string> = { topic: "Learning topic", goal: "Learning goal", level: "Experience level", depth: "Course depth", knownSkills: "Existing skills", time: "Daily study time", studyDays: "Study days", language: "Resource languages", role: "Target role", company: "Target company", examType: "Exam", examDate: "Exam date", syllabus: "Syllabus", projectIdea: "Project idea", deadline: "Target date", lessonStyle: "Learning style" };
+              const value = field === "topic" ? aiTopic
+                : field === "level" ? aiLevel
+                : field === "depth" ? aiCourseDepth
+                : field === "language" ? aiResourceLanguages.map((code) => BUILD_WITH_AI_LANGUAGES.find((item) => item.code === code)?.label || code).join(", ")
+                : intentAnswers[field] || "Confirmed";
+              return <li key={field}><span className="font-semibold">{labels[field] || field}:</span> {value}</li>;
+            })}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-bold text-amber-900">AI-inferred assumptions</p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-900">
+            {(intentResult.assumptions || []).map((assumption) => (
+              <li key={assumption.field}><span className="font-semibold">{assumption.field.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}:</span> {Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value ?? "Not specified")}</li>
+            ))}
+            {!intentResult.assumptions?.length && !intentConfirmedFields.includes("goal") && (
+              <li>Learning goal: {String(intentResult.inferredGoal || "General learning")} (provisional until you confirm it below)</li>
+            )}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-bold text-slate-700">Not provided yet</p>
+          <ul className="mt-2 space-y-1 text-xs text-slate-600">
+            {[
+              { label: "Learning goal", value: intentResult.profile?.goal || intentResult.inferredGoal },
+              { label: "Known skills", value: (intentResult.profile?.knownSkills || []).join(", ") || intentAnswers.knownSkills },
+              { label: "Target role", value: intentResult.profile?.targetRole || intentAnswers.role },
+              { label: "Target company", value: intentResult.profile?.targetCompany || intentAnswers.company },
+              { label: "Exam or certification", value: intentResult.profile?.examName || intentAnswers.examType },
+              { label: "Project idea", value: intentResult.profile?.projectIdea || intentAnswers.projectIdea },
+              { label: "Target date", value: intentResult.profile?.deadline || intentAnswers.deadline }
+            ].filter((item) => !String(item.value || "").trim()).map((item) => <li key={item.label}>{item.label}</li>)}
+          </ul>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Learning goal
+          <select value={String(intentAnswers.goal || intentResult.profile?.goal || intentResult.inferredGoal || "learn")}
+            onChange={(event) => markIntentAnswer("goal", event.target.value)}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
+            <option value="learn">Learn a skill</option><option value="job_ready">Become job-ready</option><option value="exam">Prepare for an exam</option><option value="project">Build a project</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Current experience
+          <select value={String(intentAnswers.level || aiLevel)}
+            onChange={(event) => { setAiLevel(event.target.value as CourseLevel); setAiLevelTouched(true); markIntentAnswer("level", event.target.value); }}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
+            <option value="Beginner">Beginner</option><option value="Intermediate">Intermediate</option><option value="Advanced">Advanced</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Course depth
+          <select value={aiCourseDepth} onChange={(event) => { const value = event.target.value as "short" | "medium" | "complete"; setAiCourseDepth(value); markIntentAnswer("depth", value === "short" ? "Quick overview" : value === "complete" ? "Complete learning path" : "Medium course"); }}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
+            <option value="short">Short</option><option value="medium">Medium</option><option value="complete">Complete</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Study minutes per day
+          <select value={String(aiStudyTime)}
+            onChange={(event) => { const value = Number(event.target.value); setAiStudyTime(value); markIntentAnswer("time", value >= 180 ? "3+ hours" : value >= 120 ? "2 hours" : value >= 90 ? "1.5 hours" : value >= 60 ? "1 hour" : value >= 30 ? "30 min" : "15 min"); }}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
+            <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          Study days per week
+          <select value={String(Number(String(intentAnswers.studyDays || aiStudyDays).match(/\d+/)?.[0]) || 5)}
+            onChange={(event) => { setAiStudyDays(event.target.value); markIntentAnswer("studyDays", event.target.value + " days"); }}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
+            <option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-slate-700 sm:col-span-2">
+          Skills you already know
+          <input value={String(intentAnswers.knownSkills || (Array.isArray(intentResult.profile?.knownSkills) ? intentResult.profile.knownSkills.join(", ") : ""))}
+            onChange={(event) => markIntentAnswer("knownSkills", event.target.value)}
+            placeholder="e.g. HTML, CSS, JavaScript"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"/>
+        </label>
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-700">Resource languages (selected alternatives are explicit learner choices)</p>
+        <div className="flex flex-wrap gap-2">
+          {BUILD_WITH_AI_LANGUAGES.map((language) => {
+            const selected = aiResourceLanguages.includes(language.code);
+            return <button key={language.code} type="button" aria-pressed={selected}
+              onClick={() => { setAiResourceLanguages((current) => selected ? current.filter((code) => code !== language.code) : [...current, language.code].slice(0, 4)); setIntentConfirmedFields((fields) => fields.includes("language") ? fields : [...fields, "language"]); }}
+              className={`rounded-full border px-3 py-2 text-xs font-semibold ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700"}`}>
+              {selected ? "✓ " : ""}{language.label}
+            </button>;
+          })}
+        </div>
+      </div>
+    </section>
+  )}
 
   {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
 </div>
             </div>
+            )}
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <button
                 type="button"
                 onClick={() => {
-                  if (INTENT_V2 && !intentResult?.valid && coreQuestionStep > 0) {
-                    setCoreQuestionStep((step) => Math.max(0, step - 1));
+                  if (INTENT_V2 && intentResult?.valid && intentWizardStep > 2) {
+                    setIntentWizardStep((step) => Math.max(2, step - 1));
                     return;
                   }
-                  if (INTENT_V2 && intentResult?.valid && intentWizardStep > 1) {
-                    setIntentWizardStep((step) => Math.max(1, step - 1));
+                  if (INTENT_V2 && intentResult?.valid && intentWizardStep === 2) {
+                    setIntentResult(null);
+                    setIntentAnswers({});
+                    setIntentConfirmedFields(["topic"]);
+                    setIntentWizardStep(1);
                     return;
                   }
                   setAiOpen(false);
@@ -1217,7 +1909,7 @@ export default function Courses() {
                 disabled={aiLoading}
                 className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-50"
               >
-                {INTENT_V2 && ((!intentResult?.valid && coreQuestionStep > 0) || (intentResult?.valid && intentWizardStep > 1)) ? "Back" : "Cancel"}
+                {INTENT_V2 && intentResult?.valid && intentWizardStep > 2 ? "Back" : INTENT_V2 && intentResult?.valid && intentWizardStep === 2 ? "Edit topic" : "Cancel"}
               </button>
               <button
                 type="button"
@@ -1226,13 +1918,8 @@ export default function Courses() {
                     void generateAiRoadmap();
                     return;
                   }
-                  if (!intentResult || !intentResult.valid) {
-                    if (coreQuestionStep < 7) {
-                      if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
-                      setAiError(null);
-                      setCoreQuestionStep((step) => Math.min(7, step + 1));
-                      return;
-                    }
+                  if (!intentResult?.valid) {
+                    if (aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
                     void startIntentFlow();
                     return;
                   }
@@ -1258,7 +1945,7 @@ export default function Courses() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    {!INTENT_V2 ? "Generate course" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate course" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
+                    {!INTENT_V2 ? "Generate course" : !intentResult?.valid ? "Analyze topic" : intentWizardStep === 4 ? "Generate course" : intentWizardStep === 3 ? "Review profile" : "Continue"}
                   </>
                 )}
               </button>
@@ -1287,22 +1974,24 @@ export default function Courses() {
                 <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI-generated complete course</p>
                 <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.course.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {(aiRoadmap.course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0)} lessons and assessments
-                  </span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {aiRoadmap.personalization?.estimatedStudyMinutes
-                      ? `~${Math.round(Number(aiRoadmap.personalization.estimatedStudyMinutes ?? 0) / 60 * 10) / 10}h estimated study`
-                      : 'Self-paced'}
-                  </span>
-                  {typeof aiRoadmap.personalization?.resourceVideoMinutes === 'number' && (
-                    <span className="rounded-full bg-white/10 px-3 py-1.5">
-                      {aiRoadmap.personalization.resourceVideoMinutes} min video watch time
-                    </span>
-                  )}
+                <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl bg-white/10 px-3 py-2">
+                    <p className="text-slate-300">Estimated learning effort</p>
+                    <p className="mt-1 text-sm font-bold text-white">{roadmapDuration?.studyHoursLabel || "Not estimated"}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-3 py-2">
+                    <p className="text-slate-300">Estimated completion timeline</p>
+                    <p className="mt-1 text-sm font-bold text-white">{roadmapDuration?.weeksLabel || "Study schedule needed"}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-3 py-2">
+                    <p className="text-slate-300">Study schedule</p>
+                    <p className="mt-1 text-sm font-bold text-white">{roadmapDuration?.scheduleLabel || "Not specified"}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 px-3 py-2">
+                    <p className="text-slate-300">Selected video runtime</p>
+                    <p className="mt-1 text-sm font-bold text-white">{roadmapDuration?.videoRuntimeLabel || "Not available"}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-slate-300">Based on returned resource metadata; not a verification of video content.</p>
+                  </div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1354,7 +2043,7 @@ export default function Courses() {
                   <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {Math.round(Number(aiRoadmap.personalization.estimatedStudyMinutes ?? 0) / 60 * 10) / 10} hours</span>
                 )}
                 {Number.isFinite(Number(aiRoadmap.personalization.resourceVideoMinutes)) && (
-                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {Math.round(Number(aiRoadmap.personalization.resourceVideoMinutes ?? 0) / 60 * 10) / 10} hours</span>
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Selected video runtime (metadata): {Math.round(Number(aiRoadmap.personalization.resourceVideoMinutes ?? 0) / 60 * 10) / 10} hours</span>
                 )}
                 {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>
@@ -1384,8 +2073,16 @@ export default function Courses() {
             </div>
 
             <div className="space-y-3">
-              {(aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
+              {(() => {
+                const skillGraphById = new Map((aiRoadmap.skillGraph || []).map((skill) => [skill.id, skill] as const));
+                return (aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
                 const expanded = expandedAiModules.has(moduleIndex);
+                const prerequisiteIds = module.title === "Final Capstone Projects"
+                  ? []
+                  : Array.from(new Set((module.skillIds || []).flatMap((skillId) => skillGraphById.get(skillId)?.prerequisites || [])));
+                const prerequisiteNames = prerequisiteIds.map((skillId) =>
+                  skillGraphById.get(skillId)?.name || skillId.replace(/[-_]+/g, " ")
+                );
                 const lessons = module.lessons || [];
                 const tutorialCount = lessons.filter((lesson) => lesson.type === 'tutorial').length;
                 const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
@@ -1403,6 +2100,7 @@ export default function Courses() {
                         <span className="block font-bold text-slate-900">{module.title}</span>
                         <span className="mt-1 block text-xs text-slate-500">{lessons.length} activities · {tutorialCount} tutorials · {quizCount} quizzes · {projectCount} projects</span>
                         {module.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{module.description}</span>}
+                        {prerequisiteNames.length > 0 && <span className="mt-1 block text-xs font-semibold text-indigo-700">Prerequisites: {prerequisiteNames.join(", ")}</span>}
                       </span>
                       {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-500" />}
                     </button>
@@ -1431,6 +2129,7 @@ export default function Courses() {
                                     {videos.slice(0, 3).map((video) => (
                                       <div key={video.videoId || video.url || video.title} className="rounded-xl bg-slate-50 p-2.5">
                                         <a href={video.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>
+                                        {video.defaultAudioLanguage && <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">YouTube audio metadata: {BUILD_WITH_AI_LANGUAGES.find((language) => language.code === String(video.defaultAudioLanguage).split("-")[0].toLowerCase())?.label || video.defaultAudioLanguage}</span>}
                                         {video.videoId && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                                           {(["helpful", "outdated", "wrong_level"] as const).map((event) => (
                                             <button key={event} type="button" disabled={Boolean(curationFeedbackSent[video.videoId!])} onClick={() => void sendCurationFeedback(event, module, video)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 disabled:opacity-60">
@@ -1450,7 +2149,8 @@ export default function Courses() {
                     )}
                   </div>
                 );
-              })}
+                });
+              })()}
             </div>
 
             {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}
@@ -1486,7 +2186,7 @@ export default function Courses() {
                 Courses for “{catalogQuery}”
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                {filteredCourses.length} course{filteredCourses.length === 1 ? '' : 's'} match your current filters.
+                {totalCourseCount} course{totalCourseCount === 1 ? "" : "s"} match your current filters.
               </p>
             </div>
           </div>
@@ -1495,17 +2195,25 @@ export default function Courses() {
             <div className="mt-5 rounded-2xl">
               <CourseGridSkeleton count={6} />
             </div>
-          ) : catalogError ? null : (
+          ) : (
             <div className="mt-5 rounded-2xl">
-              {visibleCourses.length > 0 && (
+              {sortedCourses.length > 0 && (
                 <div className="bfs-course-results-grid grid gap-4">
-                  {visibleCourses.map((course) => (
+                  {sortedCourses.map((course) => (
                     <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />
                   ))}
                 </div>
               )}
-
-              {catalogPagination}
+              <div ref={catalogSentinelRef} className="mt-6 flex min-h-14 items-center justify-center" aria-live="polite">
+                {loadingMore && <p role="status" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading more courses…</p>}
+                {loadMoreError && (
+                  <div role="alert" className="flex flex-wrap items-center justify-center gap-3 text-sm text-red-700">
+                    <span>{loadMoreError}</span>
+                    <button type="button" onClick={() => void loadMoreCourses()} className="font-bold underline underline-offset-2">Retry</button>
+                  </div>
+                )}
+                {!hasMoreCourses && sortedCourses.length > 0 && <p className="text-xs font-medium text-slate-400">You’ve reached the end of the course catalogue.</p>}
+              </div>
 
               {youtubeDiscovery && (
                 <YouTubeSearchFallback
@@ -1520,7 +2228,7 @@ export default function Courses() {
                 />
               )}
 
-              {filteredCourses.length === 0 && !youtubeDiscovery && (
+              {filteredCourses.length === 0 && !youtubeDiscovery && !catalogError && (
                 <div className="py-8">
                   <EmptyState
                     icon={<BookOpen className="h-8 w-8" />}
@@ -1538,21 +2246,30 @@ export default function Courses() {
             <div>
               <p className="bfs-eyebrow">Explore the catalog</p>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">All available courses</h2>
-              <p className="mt-1 text-sm text-slate-500">{filteredCourses.length} published course{filteredCourses.length === 1 ? '' : 's'} available. Browse the full catalog, not only popular courses.</p>
+              <p className="mt-1 text-sm text-slate-500">{totalCourseCount} published course{totalCourseCount === 1 ? "" : "s"} available. Browse the full catalog, not only popular courses.</p>
             </div>
           </div>
           {loading ? (
             <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
             </div>
-          ) : catalogError ? null : filteredCourses.length === 0 ? (
+          ) : filteredCourses.length === 0 ? (catalogError ? null : (
             <div className="mt-5"><EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available" description="Published courses will appear here. Try changing your filters or search." /></div>
-          ) : (
+          )) : (
             <>
               <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {visibleCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
+                {sortedCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
               </div>
-              {catalogPagination}
+              <div ref={catalogSentinelRef} className="mt-6 flex min-h-14 items-center justify-center" aria-live="polite">
+                {loadingMore && <p role="status" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading more courses…</p>}
+                {loadMoreError && (
+                  <div role="alert" className="flex flex-wrap items-center justify-center gap-3 text-sm text-red-700">
+                    <span>{loadMoreError}</span>
+                    <button type="button" onClick={() => void loadMoreCourses()} className="font-bold underline underline-offset-2">Retry</button>
+                  </div>
+                )}
+                {!hasMoreCourses && sortedCourses.length > 0 && <p className="text-xs font-medium text-slate-400">You’ve reached the end of the course catalogue.</p>}
+              </div>
             </>
           )}
         </section>

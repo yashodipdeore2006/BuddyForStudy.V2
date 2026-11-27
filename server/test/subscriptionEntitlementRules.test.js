@@ -56,6 +56,9 @@ test("plan limits handle maps, plain objects, missing values, and invalid values
   assert.equal(readPlanLimit({ limits: { monthly: 3 } }, "monthly"), 3);
   assert.equal(readPlanLimit({ limits: {} }, "monthly"), -1);
   assert.equal(readPlanLimit({ limits: { monthly: "invalid" } }, "monthly", 0), 0);
+  assert.equal(readPlanLimit({ limits: { blocked: 0 } }, "blocked"), 0);
+  assert.equal(readPlanLimit({ limits: { unlimited: -1 } }, "unlimited", 0), -1);
+  assert.equal(readPlanLimit({ limits: new Map([["unlimited", -1]]) }, "unlimited", 0), -1);
 });
 
 test("unknown entitlement keys fail closed and known feature aliases resolve", () => {

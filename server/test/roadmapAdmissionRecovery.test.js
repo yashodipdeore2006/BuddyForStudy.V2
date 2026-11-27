@@ -118,3 +118,70 @@ test("disabling ASYNC_ROADMAP restores the synchronous route without deleting pe
   assert.doesNotMatch(routes, /deleteMany|findOneAndDelete|deleteOne/);
   assert.doesNotMatch(admission, /CourseModel\.deleteMany|CourseModel\.findOneAndDelete|DraftModel\.deleteMany|DraftModel\.findOneAndDelete/);
 });
+
+
+test("inline roadmap recovery caps the number of expired admissions per pass", async () => {
+  const now = new Date("2026-10-31T10:00:00.000Z");
+  let leaseSequence = 0;
+  let deleted = 0;
+  let draftUpdates = 0;
+  const LeaseModel = {
+    findOne: () => ({
+      sort: async () => {
+        leaseSequence += 1;
+        return leaseSequence <= 5
+          ? { _id: "lease-" + leaseSequence, draftId: "draft-" + leaseSequence, userId: "user-1", leaseToken: "token-" + leaseSequence }
+          : null;
+      }
+    }),
+    deleteOne: async () => { deleted += 1; return { deletedCount: 1 }; }
+  };
+  const DraftModel = {
+    findOne: () => ({ lean: async () => null }),
+    updateOne: async () => { draftUpdates += 1; return { modifiedCount: 0 }; }
+  };
+  const CourseModel = { updateOne: async () => ({ modifiedCount: 0 }) };
+
+  const recovered = await recoverExpiredRoadmapAdmissions({
+    now,
+    maxItems: 2,
+    LeaseModel,
+    DraftModel,
+    CourseModel
+  });
+
+  assert.equal(recovered, 2);
+  assert.equal(deleted, 2);
+  assert.equal(draftUpdates, 2);
+  assert.equal(leaseSequence, 2);
+});
+
+test("roadmap recovery stops claiming expired leases when scheduler ownership is lost", async () => {
+  const now = new Date("2026-10-31T10:00:00.000Z");
+  let checks = 0;
+  let deleted = 0;
+  const LeaseModel = {
+    findOne: () => ({
+      sort: async () => ({ _id: "lease-1", draftId: "draft-1", userId: "user-1", leaseToken: "token-1" })
+    }),
+    deleteOne: async () => { deleted += 1; return { deletedCount: 1 }; }
+  };
+  const DraftModel = {
+    findOne: () => ({ lean: async () => null }),
+    updateOne: async () => ({ modifiedCount: 0 })
+  };
+  const CourseModel = { updateOne: async () => ({ modifiedCount: 0 }) };
+
+  const recovered = await recoverExpiredRoadmapAdmissions({
+    now,
+    maxItems: 10,
+    shouldContinue: async () => { checks += 1; return checks === 1; },
+    LeaseModel,
+    DraftModel,
+    CourseModel
+  });
+
+  assert.equal(recovered, 1);
+  assert.equal(deleted, 1);
+  assert.equal(checks, 2);
+});

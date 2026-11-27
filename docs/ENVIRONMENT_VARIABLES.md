@@ -1,13 +1,13 @@
 # BuddyForStudy.V2 — Environment Variable Inventory
 
-**Scope:** current `main` configuration, `.env.example`, server `env.js`, production validator, admin bootstrap scripts, and deployment smoke verifier.
+**Scope:** V2.2 release configuration, `.env.example`, server `env.js`, production validator, admin bootstrap scripts, and deployment smoke verifier.
 
 ## Rules for all environments
 
 - Never commit `.env` or real credentials. The committed `.env.example` files contain local/test placeholders only.
 - Every `VITE_*` value is public at build time and can be read by browser users. Never place database, JWT, payment, SMTP, LLM, or Web Push private keys in a `VITE_*` variable.
 - Store production secrets in the deployment provider's secret manager. Use different credentials for development, staging, and production.
-- `server/src/config/env.js` requires `MONGO_URI` and `JWT_SECRET` at startup in every environment. The production validator additionally requires a non-placeholder JWT secret of at least 32 characters, an HTTPS `CLIENT_URL`, and all three Razorpay production values.
+- `server/src/config/env.js` requires `MONGO_URI` and `JWT_SECRET` at startup in every environment. The production validator additionally requires a non-placeholder JWT secret of at least 32 characters, HTTPS `CLIENT_URL` and `API_URL`, explicit proxy/worker settings, TLS-authenticated MongoDB, and valid SMTP settings. Razorpay credentials are required only when `PAYMENTS_ENABLED=true`; deployments with payments disabled do not need gateway credentials.
 - The validator does **not** prove external provider connectivity or that all provider settings are correct; staging smoke tests are still required.
 
 ## Frontend variables
@@ -15,7 +15,7 @@
 | Variable | Requirement | Public? | Purpose / validation |
 |---|---|---|---|
 | `VITE_API_URL` | Required for every production/preview build | Yes | Public API origin. Local example uses `http://localhost:5000` only for development; never copy that value into Vercel. Set the deployed backend's public HTTPS origin. The production Vite build now fails immediately if this value is missing. |
-| `VITE_PUBLIC_SITE_URL` | Required to emit canonical tags on public routes | Yes | Verified HTTPS production site origin; code ignores invalid, localhost, or non-HTTPS values. Set this in the frontend build environment. Authenticated/admin/player routes deliberately do not emit canonical tags. |
+| `VITE_PUBLIC_SITE_URL` | Required for public SEO assets | Yes | Verified HTTPS site origin (for example, `https://buddyforstudy.in`). The production build fails when it is missing, non-HTTPS, loopback, or contains a path/query/fragment. It generates route-specific HTML metadata, canonical URLs, `robots.txt`, and `sitemap.xml`; private/admin/account/player routes are excluded. |
 | `VITE_GOOGLE_CLIENT_ID` | Optional for deployments without Google Sign-In; needed when using it | Yes | Google Identity Services web client ID. Must match server `GOOGLE_CLIENT_ID` and the authorised JavaScript origins. |
 | `VITE_INTENT_V2` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for the intent-driven Build with AI question flow. Must be coordinated with server `INTENT_V2`; changing it requires a frontend rebuild. |
 | `VITE_ASYNC_ROADMAP` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for async roadmap draft/poll/events. Keep off until the server `ASYNC_ROADMAP` routes and auth flow are deployed and smoke-tested. |
@@ -34,6 +34,7 @@
 | `NODE_ENV` | Set to `production` in production | No | Enables fail-closed production configuration validation. |
 | `PORT` | Platform-dependent; defaults to `5000` | No | HTTP listener port. Let the hosting platform supply it where required. |
 | `TRUST_PROXY_HOPS` | **Explicitly required in production** | No | Integer from `0` to `10` that matches the exact trusted reverse-proxy hop count in the deployment. `0` means no trusted proxy. Set based on verified provider/network topology; do not guess or use blanket trust. Used by Express so per-IP rate limiting sees the correct client address. |
+| `BACKGROUND_WORKER_MODE` | **Explicitly required in production** | No | Set exactly one mode per environment: `inline` runs bounded best-effort jobs in the API process; `standalone` reserves execution for the separate `npm run worker` process; `disabled` intentionally pauses scheduled background work. Do not run inline and standalone schedulers concurrently against the same database. The default outside production is `standalone` for backward compatibility. |
 | `MONGO_URI` | Required | **Yes** | Production validator requires a non-loopback MongoDB URI, an explicit database name, username/password credentials, and TLS (`mongodb+srv` defaults to TLS; `mongodb://` must specify `tls=true` or `ssl=true`). Use least-privilege credentials. |
 | `JWT_SECRET` | Required | **Yes** | Signs application JWTs. Production must use a unique, high-entropy, non-placeholder value with at least 32 characters. Rotate deliberately and account for session invalidation. |
 | `JWT_EXPIRES_IN` | Optional; defaults to `7d` | No | JWT lifetime accepted by the token library. Review against session policy. |
@@ -65,16 +66,17 @@
 
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
-| `RAZORPAY_KEY_ID` | **Required in production** | Treat as sensitive | Must have the `rzp_live_` prefix and must not be a placeholder. Use production credentials only in the production environment. |
-| `RAZORPAY_KEY_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 16 characters. Razorpay API secret; server-side only. |
-| `RAZORPAY_WEBHOOK_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 32 characters; must match the configured Razorpay webhook endpoint. |
+| `PAYMENTS_ENABLED` | Defaults to `false`; set explicitly for production | No | Enables payment and webhook routes. Keep `false` until live Razorpay credentials and checkout/webhook flows are ready. |
+| `RAZORPAY_KEY_ID` | Required only when `PAYMENTS_ENABLED=true` | Treat as sensitive | Must have the `rzp_live_` prefix and must not be a placeholder. Use production credentials only in the production environment. |
+| `RAZORPAY_KEY_SECRET` | Required only when `PAYMENTS_ENABLED=true` | **Yes** | Must be non-placeholder and at least 16 characters. Razorpay API secret; server-side only. |
+| `RAZORPAY_WEBHOOK_SECRET` | Required only when `PAYMENTS_ENABLED=true` | **Yes** | Must be non-placeholder and at least 32 characters; must match the configured Razorpay webhook endpoint. |
 
 ## Email, Web Push, cache, and observability
 
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
 | `SMTP_HOST` | **Required in production** | No | Remote SMTP hostname. Production validator rejects blank/loopback hostnames; SMTP transport requires TLS. |
-| `SMTP_PORT` | **Required/validated in production; defaults to `587`** | No | Integer port 1–65535. Typically 587 with STARTTLS or 465 with implicit TLS; verify provider settings. |
+| `SMTP_PORT` | **Explicitly required in production** | No | Integer port 1–65535; no production fallback is accepted. Render Free blocks outbound SMTP ports 25, 465 and 587. Use an alternative TLS/STARTTLS port only when the chosen provider documents it and a deployed OTP test confirms delivery; otherwise use paid API compute or implement an HTTPS email-provider adapter. |
 | `SMTP_SECURE` | Optional; defaults to false | No | Must be the string `true` or `false`. Production transports require TLS, including STARTTLS when `false`. |
 | `SMTP_USER` | **Required in production** | Treat as sensitive | SMTP login; must be set. Used as sender fallback if `MAIL_FROM` is omitted, and therefore must be a valid address in that case. |
 | `SMTP_PASS` | **Required in production** | **Yes** | Non-placeholder provider password/token of at least 8 characters. |
@@ -94,14 +96,27 @@
 | `ADMIN_PASSWORD` | `create-admin` | Required only for initial/approved admin bootstrap. Script can overwrite an existing admin password, so restrict operator access and unset after use. Never commit a real value. |
 | `ADMIN_NAME` | `create-admin` | Optional display name; defaults to `BuddyForStudy Admin`. |
 | `ADMIN_ROLE` | `create-admin`, `set-admin-role` | Optional for creation; required for role assignment. Accepts supported admin profiles only. Reserve `super_admin` for the explicitly designated platform owner. |
-| `DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the smoke verifier; use the deployed backend origin. |
-| `FRONTEND_DEPLOYMENT_URL` | `npm run verify:deployment` | Optional for API-only smoke tests, but provide it for a full deployment check. |
+| `DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the smoke verifier; use the deployed backend HTTPS origin. |
+| `FRONTEND_DEPLOYMENT_URL` | `npm run verify:deployment` | Required for the full API + frontend deep-link check; use the deployed frontend HTTPS origin. |
+| `OPERATIONS_ADMIN_TOKEN` | `npm run verify:deployment` | Optional for a basic smoke run; required when `REQUIRE_OPERATIONS_HEALTH=true`. Short-lived admin JWT, supplied only through a secure environment secret. Never log or commit it. |
+| `EXPECTED_GOOGLE_CLIENT_ID` | `npm run verify:deployment` | Optional. When set, Google Sign-In must be enabled and the API config endpoint must return this exact client ID. |
+| `EXPECTED_BACKGROUND_WORKER_MODE` | `npm run verify:deployment` | Required when an authenticated operations check is enabled. Must match `inline`, `standalone`, or `disabled` on the deployed API/worker topology. |
+| `EXPECTED_RELEASE_SHA` | `npm run verify:deployment` | Optional for a basic smoke run; required for strict release verification. Must be the full 40-character candidate commit SHA. Both API `/health.releaseSha` and frontend `/release.json.commit` must match exactly. The two GitHub release workflows derive this automatically from the selected V2.2 commit. |
+| `REQUIRE_OPERATIONS_HEALTH` | `npm run verify:deployment` | Set to the string `true` to require authenticated worker/lease verification; fails closed when `OPERATIONS_ADMIN_TOKEN` is missing. |
+| `STAGING_API_URL` | GitHub `staging` environment → Actions workflow | Required environment variable used as `DEPLOYMENT_URL` by the manual staging verification workflow. |
+| `STAGING_FRONTEND_URL` | GitHub `staging` environment → Actions workflow | Required environment variable used as `FRONTEND_DEPLOYMENT_URL` by the manual staging verification workflow. |
+| `STAGING_GOOGLE_CLIENT_ID` | GitHub `staging` environment → Actions workflow | Optional expected OAuth Web Client ID for staging when Google Sign-In is enabled. |
+| `STAGING_BACKGROUND_WORKER_MODE` | GitHub `staging` environment → Actions workflow | Required environment variable; expected staging mode: `inline`, `standalone`, or `disabled`. |
+| `STAGING_OPERATIONS_ADMIN_TOKEN` | GitHub `staging` environment → Actions secret | Required short-lived JWT for an active staging administrator. The workflow passes it as `OPERATIONS_ADMIN_TOKEN`; never commit or print it. |
 
 ## Follow-up validation gaps
 
 - Confirm the selected deployment providers actually use Node.js `24.x`; package engines and `.nvmrc` declare the contract but do not override every host's dashboard/runtime setting.
 - Verify secret presence/rotation and HTTPS/TLS in staging without printing values into logs or checklist evidence.
 - Exercise OAuth, Razorpay webhooks, email, Web Push, Redis, Sentry and YouTube quota behavior with isolated staging credentials.
-- Confirm production config validation and `npm run verify:deployment` pass against the actual deployed staging URLs.
+- Configure the GitHub `staging` environment and run the manually dispatched read-only `Staging operations verification` workflow on `buddy-for-study-v2.2`. The workflow requires the variables/secrets listed above and checks the exact OAuth ID (when supplied), CORS, database readiness, worker mode/heartbeat/leases and frontend deep links.
+- The verifier retries bounded transient network and HTTP 408/425/5xx errors. Retry settings are code defaults (2 retries, 750 ms initial delay, 10 s request timeout); direct callers may override the retry options in tests or embedding code.
+- The Render and Vercel frontend build commands run `npm run write:release-manifest`. It reads the hosting Git SHA (`RENDER_GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `GIT_COMMIT_SHA`) and writes only `dist/release.json`. The API health response exposes the matching validated SHA. Strict staging/release verification fails when the two services do not report the exact candidate. Do not manually set a production commit SHA to bypass the build-generated value.
+- Complete live provider checks, backup/restore, privacy-retention, monitoring, ownership and rollback rehearsal in [`docs/OPERATIONS_READINESS_RUNBOOK.md`](OPERATIONS_READINESS_RUNBOOK.md). Repository CI and the smoke verifier do not replace that evidence.
 
 Source files checked: `server/src/config/env.js`, `server/src/config/productionConfigValidation.js`, `server/src/scripts/createAdmin.js`, `server/src/scripts/setAdminRole.js`, `server/src/scripts/verifyDeployment.js`, `server/src/config/cache.js`, and both committed `.env.example` files.

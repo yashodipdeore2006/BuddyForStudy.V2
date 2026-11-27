@@ -1,64 +1,126 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 const PUBLIC_STATIC_PATHS = new Map<string, string>([
-  ["/", "/"],
-  ["/home", "/"],
-  ["/about", "/about"],
-  ["/about-us", "/about"],
-  ["/contact", "/contact"],
-  ["/contact-us", "/contact"],
-  ["/faq", "/faq"],
-  ["/help", "/faq"],
-  ["/explore", "/explore"],
-  ["/courses", "/explore"],
-  ["/pricing", "/pricing"],
-  ["/legal", "/legal"],
+  ["/", "/"], ["/about", "/about"], ["/about-us", "/about"],
+  ["/contact", "/contact"], ["/contact-us", "/contact"],
+  ["/faq", "/faq"], ["/help", "/faq"], ["/explore", "/explore"],
+  ["/courses", "/explore"], ["/pricing", "/pricing"], ["/legal", "/legal"],
 ]);
+const PRIVATE_PATHS = [
+  /^\/admin(?:\/|$)/,
+  /^\/(?:home|dashboard|login|register|verify-email|verify-login|forgot-password|accept-admin-invitation|billing|my-learning|my-courses|saved|saved-courses|profile|settings|notifications)\/?$/,
+  /^\/(?:learn|playlists|roadmaps)(?:\/|$)/,
+];
+type PageMetadata = { title: string; description: string };
 
+function normalizePath(pathname: string): string {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
+}
 function getPublicCanonicalPath(pathname: string): string | null {
-  const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
+  const normalized = normalizePath(pathname);
   const direct = PUBLIC_STATIC_PATHS.get(normalized);
-  if (direct) return direct;
-  // Legal document slugs are public, stable, and do not carry private user data.
+  if (direct !== undefined) return direct;
   if (/^\/legal\/[a-z0-9-]+$/i.test(normalized)) return normalized;
   return null;
 }
-
 function getPublicSiteOrigin(value: string): string | null {
   try {
     const parsed = new URL(value);
     const hostname = parsed.hostname.toLowerCase();
-    if (parsed.protocol !== "https:" || ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) return null;
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash ||
+      (parsed.pathname !== "/" && parsed.pathname !== "") || hostname === "localhost" ||
+      hostname.endsWith(".localhost") || hostname === "127.0.0.1" || hostname === "[::1]") return null;
     return parsed.origin;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
+}
+function upsertMeta(attribute: "name" | "property", key: string, content: string | null): void {
+  const selector = 'meta[' + attribute + '="' + key + '"]';
+  const existing = document.head.querySelector<HTMLMetaElement>(selector);
+  if (!content) { existing?.remove(); return; }
+  const element = existing || document.createElement("meta");
+  element.setAttribute(attribute, key);
+  element.setAttribute("content", content);
+  if (!existing) document.head.appendChild(element);
+}
+function upsertCanonical(href: string | null): void {
+  const existing = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!href) { existing?.remove(); return; }
+  const link = existing || document.createElement("link");
+  link.rel = "canonical";
+  link.href = href;
+  if (!existing) document.head.appendChild(link);
+}
+function resolveMetadata(pathname: string, siteName: string, configuredDescription: string): PageMetadata | null {
+  const canonicalPath = getPublicCanonicalPath(pathname);
+  const normalized = normalizePath(pathname);
+  const legalDetail = /^\/legal\/[a-z0-9-]+$/i.test(normalized);
+  const courseDetail = /^\/courses\/[^/]+$/i.test(normalized);
+  if (!canonicalPath && !legalDetail && !courseDetail) return null;
+  const homeDescription = configuredDescription && !/^\[ADD:/i.test(configuredDescription)
+    ? configuredDescription
+    : "BuddyForStudy is an AI-powered career learning platform. Explore career paths, follow structured skill roadmaps, discover curated courses and learning resources, and track your learning progress with " + siteName + ".";
+  const pages: Record<string, PageMetadata> = {
+    "/": { title: "AI-Powered Career Learning Platform | " + siteName, description: homeDescription },
+    "/about": {
+      title: "About " + siteName + " | AI-Powered Career Learning",
+      description: "Learn how " + siteName + " connects career exploration, structured skill roadmaps, curated courses, and learning progress in one AI-assisted career learning platform.",
+    },
+    "/contact": {
+      title: "Contact " + siteName + " | Support & Help",
+      description: "Contact " + siteName + " for help with your account, course access, or learning experience. Find the official support information published on our website.",
+    },
+    "/faq": {
+      title: siteName + " Help Centre | FAQs",
+      description: "Get answers about " + siteName + " accounts, career roadmaps, curated courses, learning progress, plans, payments, and platform support.",
+    },
+    "/explore": {
+      title: "Courses & Learning Resources | " + siteName,
+      description: "Discover curated courses and learning resources for technology and other career skills. Compare course details and choose a practical next step with " + siteName + ".",
+    },
+    "/pricing": {
+      title: "Plans & Pricing | " + siteName,
+      description: "Explore " + siteName + " plans and learning access options. Compare available features and pricing before choosing how to continue your learning journey.",
+    },
+    "/legal": {
+      title: "Legal & Policies | " + siteName,
+      description: "Review the privacy, terms, cookie, and other policy documents that govern your use of " + siteName + ".",
+    },
+  };
+  if (legalDetail) return { title: siteName + " | Policy details", description: "Read the current policy details published by " + siteName + "." };
+  if (courseDetail) return { title: "Course details | " + siteName, description: "Review course information, learning outcomes, and available access options on " + siteName + "." };
+  return pages[canonicalPath || "/"] || null;
 }
 
-/**
- * Adds canonical URLs only to known public routes and only when the deployer
- * configures the verified public site URL. Authenticated/admin/player routes
- * intentionally receive no canonical tag.
- */
+/** Keeps public-page SEO in sync with prerendered route HTML; private routes are noindex and canonical-free. */
 export default function PublicCanonicalUrl() {
   const { pathname } = useLocation();
+  const { settings } = useSiteSettings();
+  const siteName = settings.brand.siteName.trim() || "BuddyForStudy";
+  const configuredDescription = settings.brand.description.trim();
 
   useEffect(() => {
-    const existing = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    const siteOrigin = getPublicSiteOrigin(import.meta.env.VITE_PUBLIC_SITE_URL || "");
+    const normalized = normalizePath(pathname);
     const canonicalPath = getPublicCanonicalPath(pathname);
-    if (!siteOrigin || !canonicalPath) {
-      existing?.remove();
-      return;
-    }
+    const metadata = resolveMetadata(pathname, siteName, configuredDescription);
+    const isPrivate = PRIVATE_PATHS.some((pattern) => pattern.test(normalized));
+    const isIndexable = Boolean(metadata) && !isPrivate;
+    const siteOrigin = getPublicSiteOrigin(import.meta.env.VITE_PUBLIC_SITE_URL || "");
+    const canonicalUrl = siteOrigin && canonicalPath ? new URL(canonicalPath, siteOrigin).toString() : null;
 
-    const href = new URL(canonicalPath, siteOrigin).toString();
-    const link = existing || document.createElement("link");
-    link.rel = "canonical";
-    link.href = href;
-    if (!existing) document.head.appendChild(link);
-  }, [pathname]);
-
+    document.title = metadata?.title || (isPrivate ? siteName + " | Learning space" : siteName);
+    upsertMeta("name", "description", isIndexable ? metadata?.description || null : null);
+    upsertMeta("name", "robots", isIndexable ? "index,follow,max-image-preview:large" : "noindex,nofollow");
+    upsertMeta("property", "og:title", isIndexable ? metadata?.title || null : null);
+    upsertMeta("property", "og:description", isIndexable ? metadata?.description || null : null);
+    upsertMeta("property", "og:type", isIndexable ? "website" : null);
+    upsertMeta("property", "og:site_name", isIndexable ? siteName : null);
+    upsertMeta("property", "og:url", isIndexable ? canonicalUrl : null);
+    upsertMeta("name", "twitter:card", isIndexable ? "summary" : null);
+    upsertMeta("name", "twitter:title", isIndexable ? metadata?.title || null : null);
+    upsertMeta("name", "twitter:description", isIndexable ? metadata?.description || null : null);
+    upsertCanonical(isIndexable ? canonicalUrl : null);
+  }, [pathname, siteName, configuredDescription]);
   return null;
 }

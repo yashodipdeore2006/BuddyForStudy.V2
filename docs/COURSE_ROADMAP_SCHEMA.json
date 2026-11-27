@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://buddyforstudy.in/schemas/course-roadmap-document.schema.json",
+  "title": "BuddyForStudy Course Roadmap Document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["brandThemeTokens", "courseMeta", "progress", "phases", "nodes"],
+  "properties": {
+    "brandThemeTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "secondary", "background", "surface", "surfaceMuted", "border", "text", "mutedText"],
+      "properties": {
+        "primary": { "type": "string" },
+        "secondary": { "type": "string" },
+        "background": { "type": "string" },
+        "surface": { "type": "string" },
+        "surfaceMuted": { "type": "string" },
+        "border": { "type": "string" },
+        "text": { "type": "string" },
+        "mutedText": { "type": "string" }
+      }
+    },
+    "courseMeta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "outcome", "level", "totalHours", "moduleCount", "lessonCount", "phaseCount"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "outcome": { "type": "string" },
+        "level": { "type": "string" },
+        "totalHours": { "type": "number", "minimum": 0 },
+        "moduleCount": { "type": "integer", "minimum": 0 },
+        "lessonCount": { "type": "integer", "minimum": 0 },
+        "phaseCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completedCount", "totalCount", "percent", "hoursRemaining", "currentPhaseId"],
+      "properties": {
+        "completedCount": { "type": "integer", "minimum": 0 },
+        "totalCount": { "type": "integer", "minimum": 0 },
+        "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "hoursRemaining": { "type": "number", "minimum": 0 },
+        "currentPhaseId": { "type": ["string", "null"] }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "order", "title", "estimatedHours", "outcome", "skills", "nodeIds", "completedCount", "nodeCount", "completionPercent", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "order": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" },
+          "estimatedHours": { "type": "number", "minimum": 0 },
+          "outcome": { "type": "string" },
+          "skills": { "type": "array", "items": { "type": "string" } },
+          "nodeIds": { "type": "array", "items": { "type": "string" } },
+          "completedCount": { "type": "integer", "minimum": 0 },
+          "nodeCount": { "type": "integer", "minimum": 0 },
+          "completionPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "status": { "enum": ["completed", "in_progress", "remaining"] }
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "type", "lessonType", "estimatedHours", "prerequisites", "subtopics", "projectTask", "status", "phaseId", "phaseTitle", "moduleId", "moduleTitle", "durationSeconds", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "type": { "enum": ["core", "checkpoint", "project", "capstone"] },
+          "lessonType": { "enum": ["tutorial", "project", "quiz"] },
+          "estimatedHours": { "type": "number", "minimum": 0 },
+          "prerequisites": { "type": "array", "items": { "type": "string" } },
+          "subtopics": { "type": "array", "items": { "type": "string" } },
+          "projectTask": { "type": "string" },
+          "status": { "enum": ["completed", "in_progress", "remaining"] },
+          "phaseId": { "type": "string" },
+          "phaseTitle": { "type": "string" },
+          "moduleId": { "type": "string" },
+          "moduleTitle": { "type": "string" },
+          "durationSeconds": { "type": "number", "minimum": 0 },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

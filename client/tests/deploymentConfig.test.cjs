@@ -16,9 +16,17 @@ test("production frontend requires an explicit deployed API origin", () => {
     "production must never silently fall back to localhost");
 });
 
+test("Vercel does not automatically deploy the active implementation branch", () => {
+  assert.equal(
+    vercel.git?.deploymentEnabled?.["buddy-for-study-v2.2"],
+    false,
+    "the working branch must remain non-deploying; releases are manual"
+  );
+});
+
 test("Vercel config builds the Vite app and serves client-side routes directly", () => {
   assert.equal(vercel.framework, "vite");
-  assert.equal(vercel.buildCommand, "npm run build");
+  assert.equal(vercel.buildCommand, "npm run build && npm run write:release-manifest");
   assert.equal(vercel.outputDirectory, "dist");
   assert.ok(vercel.rewrites.some((rule) => (
     rule.source === "/(.*)" && rule.destination === "/index.html"
@@ -29,18 +37,54 @@ test("Vercel config builds the Vite app and serves client-side routes directly",
   )), "hashed build assets should use immutable caching");
 });
 
-test("Render defines a separately supervised API and continuously running worker", () => {
+test("Render Blueprint includes a static frontend and one bounded inline API service", () => {
   assert.match(render, /name: buddyforstudy-api/);
-  assert.match(render, /name: buddyforstudy-worker/);
+  assert.match(render, /branch: buddy-for-study-v2\.2/, "Render must deploy the approved V2.2 release branch");
+  assert.doesNotMatch(render, /name: buddyforstudy-worker/);
+  assert.equal((render.match(/^  - type: web$/gm) || []).length, 2,
+    "the cost-conscious blueprint must contain one API and one static frontend, with no worker");
+  assert.match(render, /name: buddyforstudy-api[\s\S]*plan: free/,
+    "the constrained API plan must be explicit rather than silently selecting a paid default");
+  assert.match(render, /source: \/\*\s+destination: \/index\.html/,
+    "the Render static site must support SPA deep links");
+  assert.ok(render.includes("runtime: static") && render.includes("name: buddyforstudy-web"),
+    "the frontend must be configured as a Render static site");
+  assert.match(render, /rootDir: client/);
+  assert.match(render, /staticPublishPath: dist/);
+  assert.match(render, /key: VITE_API_URL[\s\S]{0,40}sync: false/);
+  assert.match(render, /key: VITE_PUBLIC_SITE_URL[\s\S]{0,50}sync: false/);
+  assert.equal((render.match(/branch: buddy-for-study-v2\.2/g) || []).length, 2,
+    "both frontend and API must deploy the V2.2 branch");
+
+  const modeStart = render.indexOf("key: BACKGROUND_WORKER_MODE");
+  const paymentStart = render.indexOf("key: PAYMENTS_ENABLED");
+  const nextEnvironmentKey = render.indexOf("key: JWT_EXPIRES_IN", paymentStart);
+  assert.ok(modeStart >= 0 && render.slice(modeStart, paymentStart).includes("value: inline"));
+  assert.ok(paymentStart >= 0 && render.slice(paymentStart, nextEnvironmentKey).includes('value: "false"'));
+
   assert.match(render, /rootDir: server/);
-  assert.match(render, /buildCommand: npm ci/);
+  assert.match(render, /buildCommand: npm ci && npm run build && npm run write:release-manifest/);
   assert.match(render, /startCommand: npm run start/);
-  assert.match(render, /startCommand: npm run worker/);
-  assert.match(render, /healthCheckPath: \/api\/health\/ready/);
-  assert.equal((render.match(/autoDeployTrigger: checksPass/g) || []).length, 2,
-    "both services must deploy only after linked CI checks pass");
-  assert.match(render, /maxShutdownDelaySeconds: 300/,
-    "worker should have time to drain its in-flight maintenance before termination");
+  assert.doesNotMatch(render, /startCommand: npm run worker/);
+  assert.ok(render.includes("/api/health/ready"));
+  assert.equal((render.match(/autoDeployTrigger: ['"]off['"]/g) || []).length, 2,
+    "the API and static frontend must not auto-deploy when V2.2 changes; release deployment is manual");
+  assert.ok(render.includes("maxShutdownDelaySeconds: 120"),
+    "the API should have a bounded shutdown window for inline maintenance");
+});
+
+test("the deployment runbook documents the standalone worker as an explicit future upgrade", () => {
+  const runbook = fs.readFileSync(path.join(root, "..", "docs", "DEPLOYMENT.md"), "utf8");
+  assert.match(render, /key: BACKGROUND_WORKER_MODE[\s\S]{0,60}value: inline/);
+  assert.match(runbook, /npm run worker/);
+  assert.match(runbook, /Do not run API-inline and standalone scheduling against the same environment/);
+});
+
+test("Render Free API requires an explicitly configured SMTP port", () => {
+  assert.ok(render.includes("      - key: SMTP_PORT\n        sync: false"),
+    "SMTP_PORT must be entered explicitly; Render Free blocks standard SMTP ports");
+  assert.ok(!render.includes("      - key: SMTP_PORT\n        value: \"587\""),
+    "the Blueprint must not silently configure port 587 on Render Free");
 });
 
 test("Render production secrets are referenced or collected through secure fields", () => {
@@ -71,5 +115,96 @@ test("new Build with AI rollout flags remain opt-in in the production blueprint"
   ]) {
     assert.match(render, new RegExp(`key: ${key}\\s+value: ["']?false["']?`),
       `${key} must remain disabled for initial production rollout`);
+  }
+});
+
+
+test("Render and Vercel static frontends apply compatible security headers", () => {
+  const globalHeaders = vercel.headers.find((rule) => rule.source === "/(.*)")?.headers || [];
+  const readHeader = (headers, key) => headers.find((header) => header.key === key)?.value;
+  const policy = readHeader(globalHeaders, "Content-Security-Policy") || "";
+
+  for (const key of [
+    "Content-Security-Policy",
+    "Strict-Transport-Security",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+  ]) {
+    assert.ok(readHeader(globalHeaders, key), "Vercel must set " + key);
+  }
+  for (const origin of [
+    "https://accounts.google.com",
+    "https://www.youtube.com",
+    "https://www.youtube-nocookie.com",
+    "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+  ]) {
+    assert.ok(policy.includes(origin), "CSP must preserve integration origin " + origin);
+  }
+  assert.match(policy, /frame-ancestors 'none'/);
+  assert.match(policy, /object-src 'none'/);
+  assert.match(policy, /script-src 'self'/);
+  assert.match(policy, /connect-src 'self' https: wss:/);
+
+  const renderFrontend = render.slice(render.indexOf("name: buddyforstudy-web"));
+  for (const key of [
+    "Content-Security-Policy",
+    "Strict-Transport-Security",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+  ]) {
+    assert.ok(renderFrontend.includes("name: " + key), "Render must set " + key);
+  }
+  for (const origin of [
+    "https://accounts.google.com",
+    "https://www.youtube.com",
+    "https://www.youtube-nocookie.com",
+    "https://checkout.razorpay.com",
+  ]) {
+    assert.ok(renderFrontend.includes(origin), "Render CSP must preserve " + origin);
+  }
+});
+
+test("About, Contact and Help Centre remain route-split and built assets stay immutable", () => {
+  const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
+  for (const statement of [
+    "const About = lazy(() => import('@/pages/About'));",
+    "const Contact = lazy(() => import('@/pages/Contact'));",
+    "const FAQ = lazy(() => import('@/pages/FAQ'));",
+  ]) {
+    assert.ok(app.includes(statement), "Public page route must remain lazy-loaded: " + statement);
+  }
+  const renderFrontend = render.slice(render.indexOf("name: buddyforstudy-web"));
+  const cacheSegment = renderFrontend.slice(renderFrontend.indexOf("path: /assets/*"), renderFrontend.indexOf("name: Content-Security-Policy"));
+  assert.match(cacheSegment, /immutable/);
+  const assetHeaders = vercel.headers.find((rule) => rule.source === "/assets/(.*)")?.headers || [];
+  assert.ok(assetHeaders.some((header) => header.key === "Cache-Control" && /immutable/.test(header.value)));
+});
+
+
+test("public SEO route files are explicitly mapped before the SPA fallback", () => {
+  const expected = ["/about", "/contact", "/faq", "/explore", "/pricing", "/legal"];
+  const fallbackIndex = vercel.rewrites.findIndex((rule) => rule.source === "/(.*)" && rule.destination === "/index.html");
+  assert.ok(fallbackIndex >= 0, "Vercel must retain the SPA fallback");
+  for (const path of expected) {
+    const index = vercel.rewrites.findIndex((rule) => rule.source === path && rule.destination === path + "/index.html");
+    assert.ok(index >= 0 && index < fallbackIndex, "Vercel must route " + path + " to its generated HTML before the SPA fallback");
+  }
+  const renderRoutes = render.slice(render.indexOf("    routes:"), render.indexOf("    headers:"));
+  const renderFallbackIndex = renderRoutes.indexOf("source: /*");
+  assert.ok(renderFallbackIndex >= 0, "Render must retain its SPA fallback");
+  for (const path of expected) {
+    const sourceIndex = renderRoutes.indexOf("source: " + path);
+    const destinationIndex = renderRoutes.indexOf("destination: " + path + "/index.html", sourceIndex);
+    assert.ok(sourceIndex >= 0 && sourceIndex < renderFallbackIndex, "Render must declare " + path + " before the SPA fallback");
+    assert.ok(destinationIndex > sourceIndex && destinationIndex < renderFallbackIndex, "Render must route " + path + " to its generated HTML before the SPA fallback");
   }
 });

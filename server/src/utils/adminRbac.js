@@ -12,7 +12,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
       "courses.read", "courses.manage", "courses.publish", "pricing.manage", "operations.manage",
       "analytics.read", "plans.read", "billing.read", "payment_issues.manage", "trials.manage",
       "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
-      "settings.read", "legal.manage", "audit.read", "operations.read",
+      "settings.read", "site_settings.manage", "legal.manage", "faqs.read", "faqs.manage", "audit.read", "operations.read",
     ],
   },
   ai_content_manager: {
@@ -61,7 +61,7 @@ export const ADMIN_PERMISSION_CATALOG = Object.freeze([
   "payment_issues.manage",
   "communications.send", "communications.manage", "notifications.read", "notifications.retry",
   "coupons.read", "coupons.manage",
-  "settings.read", "settings.manage", "legal.manage",
+  "settings.read", "settings.manage", "site_settings.manage", "legal.manage", "faqs.read", "faqs.manage",
   "audit.read",
   "operations.read", "operations.manage",
   "admin_roles.manage",

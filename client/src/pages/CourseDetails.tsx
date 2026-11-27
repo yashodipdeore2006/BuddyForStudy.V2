@@ -59,7 +59,6 @@ type RelatedCourseCard = {
   category: string;
   description: string;
   duration: string;
-  thumbnail: string | null;
   pricing?: Course['pricing'];
   level: string;
 };
@@ -1540,7 +1539,7 @@ export default function CourseDetails() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-                {course.thumbnail && <img src={course.thumbnail} alt="" className="max-h-56 rounded-xl object-cover" />}
+                <div className="w-full max-w-xl overflow-hidden rounded-xl"><CourseThumbnail {...getCourseThumbnailProps(course)} /></div>
                 <p className="font-semibold text-slate-900">A video preview is not available for this course yet.</p>
                 <p className="text-sm text-slate-500">The course information and curriculum remain available below.</p>
               </div>

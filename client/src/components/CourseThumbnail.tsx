@@ -40,8 +40,6 @@ export default function CourseThumbnail({
 
   return (
     <div
-      role="img"
-      aria-label={title + " course thumbnail"}
       style={{
         backgroundColor: surfaceHex,
         backgroundImage: "radial-gradient(120% 100% at 100% 0%, " + accentHex + "29 0%, transparent 65%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.28) 100%)",
@@ -121,9 +119,9 @@ export default function CourseThumbnail({
             </span>
           ))}
         </div>
-        <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.28] tracking-tight text-slate-50">
+        <div className="line-clamp-2 text-[15px] font-bold leading-[1.28] tracking-tight text-slate-50">
           {title}
-        </h3>
+        </div>
       </div>
 
       <div className="absolute bottom-2.5 left-3.5 z-10">

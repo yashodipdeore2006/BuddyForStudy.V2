@@ -34,8 +34,8 @@ export interface SiteSettings {
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   brand: {
     siteName: "BuddyForStudy",
-    tagline: "[ADD: approved platform tagline]",
-    description: "[ADD: approved platform description]",
+    tagline: "Find Your Path. Learn with Purpose. Build Your Future.",
+    description: "BuddyForStudy is an AI-powered career learning platform that helps learners explore career paths, follow structured roadmaps, discover curated courses, and track their skill-building progress.",
     logoUrl: "/buddyforstudy-mascot.webp",
   },
   contact: {

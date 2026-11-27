@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import type { CourseLevel } from "@/types";
+import type { Course, CourseLevel } from "@/types";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import PageHeader from "@/components/PageHeader";
@@ -18,6 +18,10 @@ type Saved = {
     slug: string;
     description: string;
     category: string;
+    domain?: string | null;
+    tags?: string[];
+    learningOutcomes?: string[];
+    modules?: Course["modules"];
     level: string;
     duration: string;
     thumbnail?: string;
@@ -88,11 +92,13 @@ export default function SavedCourses() {
                 slug: saved.course.slug,
                 description: saved.course.description,
                 category: saved.course.category,
+                domain: saved.course.domain ?? null,
+                tags: saved.course.tags ?? [],
                 level: saved.course.level as CourseLevel,
                 duration: saved.course.duration,
                 thumbnail: saved.course.thumbnail || null,
-                learning_outcomes: [],
-                modules: [],
+                learning_outcomes: saved.course.learningOutcomes ?? [],
+                modules: saved.course.modules ?? [],
                 is_published: saved.course.isPublished,
                 created_by: null,
                 created_at: "",

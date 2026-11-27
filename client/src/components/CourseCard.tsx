@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Bookmark, CheckCircle2, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
@@ -15,6 +15,7 @@ import { useCourseState } from "@/lib/useCourseState";
 import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
 import CourseThumbnail from "@/components/CourseThumbnail";
 import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -68,6 +69,7 @@ function CourseCardContent({
 }: CourseCardProps) {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const lessonCount = courseLessonCount(course);
   const cardMetadata = course.cardMetadata;
   const videoCount = Number.isFinite(cardMetadata?.videoCount) ? Number(cardMetadata?.videoCount) : 0;
@@ -159,7 +161,12 @@ function CourseCardContent({
     if (saving) return;
     setUndoSavedTo(null);
     if (!session) {
-      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
+      requestAuthPrompt({
+        from: location,
+        title: "Sign in to save this course",
+        description: "Create a free account or sign in to keep courses in your Saved list and access them across devices.",
+        courseTitle: course.title,
+      });
       return;
     }
     const previous = saved;
@@ -183,7 +190,7 @@ function CourseCardContent({
     } finally {
       setSaving(false);
     }
-  }, [course.id, navigate, onSavedChange, saved, saving, session]);
+  }, [course.id, location, onSavedChange, saved, saving, session]);
 
   const handleShare = useCallback(async () => {
     const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });

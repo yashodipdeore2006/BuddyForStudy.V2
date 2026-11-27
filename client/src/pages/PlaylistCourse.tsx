@@ -7,6 +7,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
+import CourseThumbnail from "@/components/CourseThumbnail";
+import { getCourseThumbnailProps } from "@/lib/courseThumbnail";
 
 export default function PlaylistCourse() {
   const { playlistId } = useParams<{ playlistId: string }>();
@@ -154,12 +156,17 @@ export default function PlaylistCourse() {
       <main className="mx-auto max-w-6xl px-5 py-8">
         <div className="grid gap-8 lg:grid-cols-[1.3fr_.7fr]">
           <div>
-            <div className="overflow-hidden rounded-2xl bg-slate-100">
-              <img
-                src={course.thumbnail}
-                alt=""
-                className="aspect-video w-full object-cover"
-              />
+            <div className="overflow-hidden rounded-2xl bg-slate-950">
+              <CourseThumbnail {...getCourseThumbnailProps({
+                  id: String(course._id ?? course.id ?? playlistId ?? ""),
+                  title: String(course.title ?? "Learning playlist"),
+                  domain: String(course.domain ?? course.category ?? "Technology"),
+                  category: String(course.category ?? course.domain ?? "Technology"),
+                  tags: course.tags,
+                  level: String(course.level ?? "Intermediate"),
+                  modules: course.modules,
+                  learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                })} />
             </div>
 
             <h2 className="mt-6 text-3xl font-serif text-slate-900">
@@ -200,11 +207,18 @@ export default function PlaylistCourse() {
       {showAudit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <img
-              src={course.thumbnail}
-              alt=""
-              className="aspect-video w-full object-cover"
-            />
+            <div className="overflow-hidden bg-slate-950">
+              <CourseThumbnail {...getCourseThumbnailProps({
+                  id: String(course._id ?? course.id ?? playlistId ?? ""),
+                  title: String(course.title ?? "Learning playlist"),
+                  domain: String(course.domain ?? course.category ?? "Technology"),
+                  category: String(course.category ?? course.domain ?? "Technology"),
+                  tags: course.tags,
+                  level: String(course.level ?? "Intermediate"),
+                  modules: course.modules,
+                  learning_outcomes: course.learningOutcomes ?? course.learning_outcomes,
+                })} />
+            </div>
 
             <div className="p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">

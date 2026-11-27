@@ -46,6 +46,8 @@ function mapCourse(raw: LearningApiRecord): Course {
     slug: String(raw?.slug ?? ""),
     description: String(raw?.description ?? ""),
     category: String(raw?.category ?? ""),
+    domain: raw?.domain ?? null,
+    tags: Array.isArray(raw?.tags) ? raw.tags : [],
     level: raw?.level ?? "Beginner",
     duration: String(raw?.duration ?? ""),
     thumbnail: raw?.thumbnail ?? null,

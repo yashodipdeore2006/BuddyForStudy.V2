@@ -2,6 +2,12 @@ export interface LongFormCourseCard {
   id: string;
   title: string;
   domainTag: string;
+  domain: string;
+  category: string;
+  tags: string[];
+  level: string;
+  learning_outcomes: unknown[];
+  modules: unknown[];
   durationSeconds: number;
   durationLabel: string;
   moduleCount: number;

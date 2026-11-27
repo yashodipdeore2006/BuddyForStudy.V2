@@ -56,7 +56,7 @@ test("roadmap document is derived from real course lessons and existing phase as
   assert.equal(result.nodes[3].type, "capstone");
   assert.equal(result.nodes[3].projectTask, "Deploy the finished full-stack application.");
   assert.equal(result.progress.percent, 25);
-  assert.equal(result.progress.hoursRemaining, 5.5);
+  assert.equal(result.progress.hoursRemaining, 16.5);
 });
 
 test("un-enrolled visitors see a curriculum preview without learner progress", () => {
@@ -66,15 +66,15 @@ test("un-enrolled visitors see a curriculum preview without learner progress", (
   assert.equal(result.nodes.every((node) => node.status === "remaining"), true);
 });
 
-test("stale roadmap phase mappings do not hide lessons added to the real course", () => {
+test("stale roadmap phase mappings append missing real lessons to the final phase", () => {
   const staleRoadmap = {
     ...roadmap,
     stages: [{ id: "old", title: "Old phase", order: 1, lessonIds: ["lesson-1"] }]
   };
   const result = buildCourseRoadmapDocument({ course, roadmap: staleRoadmap });
   assert.equal(result.nodes.length, 4);
-  assert.deepEqual(result.phases[0].nodeIds, ["lesson-1"]);
-  assert.deepEqual(result.phases[1].nodeIds, ["lesson-2", "lesson-3", "lesson-4"]);
+  assert.equal(result.phases.length, 1);
+  assert.deepEqual(result.phases[0].nodeIds, ["lesson-1", "lesson-2", "lesson-3", "lesson-4"]);
 });
 
 test("topic filters and searches match real node metadata", () => {

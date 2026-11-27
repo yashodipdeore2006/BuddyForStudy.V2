@@ -190,7 +190,7 @@ function CourseCardContent({
     } finally {
       setSaving(false);
     }
-  }, [course.id, location, onSavedChange, saved, saving, session]);
+  }, [course.id, course.title, location, onSavedChange, saved, saving, session]);
 
   const handleShare = useCallback(async () => {
     const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });

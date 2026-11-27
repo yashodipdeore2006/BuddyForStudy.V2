@@ -48,7 +48,7 @@ function LongFormCourseLink({
       onFocus={onFocus}
       onBlur={onBlur}
     >
-      <span className="bfs-long-form-carousel__media" aria-hidden="true">
+      <div className="bfs-long-form-carousel__media" aria-hidden="true">
         <CourseThumbnail {...getCourseThumbnailProps({
           id: course.id,
           title: course.title,
@@ -59,7 +59,7 @@ function LongFormCourseLink({
           modules: course.modules,
           learning_outcomes: course.learning_outcomes,
         })} />
-      </span>
+      </div>
       <span className="bfs-long-form-carousel__body">
         <span className="bfs-long-form-carousel__domain">{course.domainTag}</span>
         <span className="bfs-long-form-carousel__title">{course.title}</span>

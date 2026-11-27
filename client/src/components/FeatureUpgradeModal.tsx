@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
 import { formatCurrencyAmount } from "@/lib/coursePricing";
 import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
+import { requestAuthPrompt } from "@/lib/authPrompt";
 
 type Plan = {
   _id: string;
@@ -221,7 +222,15 @@ export default function FeatureUpgradeModal() {
   async function subscribe(plan: Plan) {
     if (!session) {
       setRequest(null);
-      navigate(routes.login(), { state: { from: window.location.pathname } });
+      requestAuthPrompt({
+        from: {
+          pathname: window.location.pathname,
+          search: window.location.search,
+          hash: window.location.hash,
+        },
+        title: "Sign in to manage your plan",
+        description: "Create a free account or sign in to compare plans and continue. No checkout will start until you choose it again.",
+      });
       return;
     }
     if (Number(plan.price) <= 0 || plan._id === currentPlanId || checkoutPlanId) return;

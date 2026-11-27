@@ -4,7 +4,7 @@ import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch, setAuth } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Pencil, X, Download, FileText, Send, RefreshCw } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Download, FileText, Send, RefreshCw } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 
@@ -127,7 +127,6 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [editingPersonalInfo, setEditingPersonalInfo] = useState(false);
   const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
   const [contactCity, setContactCity] = useState(profile?.city || "");
   const [contactLearningGoal, setContactLearningGoal] = useState(profile?.learning_goal || "");

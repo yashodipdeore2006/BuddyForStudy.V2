@@ -5,7 +5,16 @@ export type EnrollmentResumeIntent = {
   accessPreference?: CourseAccessPreference;
 };
 export type AuthReturnLocation = { pathname: string; search?: string; hash?: string };
-export type AuthNavigationState = { from?: AuthReturnLocation; resumeIntent?: EnrollmentResumeIntent };
+export type AuthResumeContext = {
+  type: "ai-roadmap";
+  topic: string;
+  resourceLanguages: string[];
+};
+export type AuthNavigationState = {
+  from?: AuthReturnLocation;
+  resumeIntent?: EnrollmentResumeIntent;
+  resumeContext?: AuthResumeContext;
+};
 
 function hasControlCharacters(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -44,21 +53,46 @@ function safeResumeIntent(value: unknown): EnrollmentResumeIntent | undefined {
   return { type, courseId, ...(accessPreference === "subscription" || accessPreference === "individual" ? { accessPreference } : {}) };
 }
 
+function safeResumeContext(value: unknown): AuthResumeContext | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.type !== "ai-roadmap") return undefined;
+  const topic = typeof candidate.topic === "string" ? candidate.topic.trim() : "";
+  if (!topic || topic.length > 500 || hasControlCharacters(topic)) return undefined;
+  const resourceLanguages = Array.isArray(candidate.resourceLanguages)
+    ? [...new Set(candidate.resourceLanguages.filter((item): item is string =>
+        typeof item === "string" && /^[a-z]{2,3}$/i.test(item)
+      ))].slice(0, 4)
+    : [];
+  return { type: "ai-roadmap", topic, resourceLanguages };
+}
+
 export function readAuthNavigationState(value: unknown): AuthNavigationState {
   if (!value || typeof value !== "object") return {};
   const candidate = value as Record<string, unknown>;
   const from = safeLocation(candidate.from);
   const resumeIntent = safeResumeIntent(candidate.resumeIntent);
-  return { ...(from ? { from } : {}), ...(resumeIntent ? { resumeIntent } : {}) };
+  const resumeContext = safeResumeContext(candidate.resumeContext);
+  return {
+    ...(from ? { from } : {}),
+    ...(resumeIntent ? { resumeIntent } : {}),
+    ...(resumeContext ? { resumeContext } : {}),
+  };
 }
 
 export function createAuthNavigationState(
   currentLocation: Pick<AuthReturnLocation, "pathname" | "search" | "hash">,
-  resumeIntent: EnrollmentResumeIntent,
+  resumeIntent?: EnrollmentResumeIntent,
+  resumeContext?: AuthResumeContext,
 ): AuthNavigationState {
   const from = safeLocation(currentLocation);
   const safeIntent = safeResumeIntent(resumeIntent);
-  return { ...(from ? { from } : {}), ...(safeIntent ? { resumeIntent: safeIntent } : {}) };
+  const safeContext = safeResumeContext(resumeContext);
+  return {
+    ...(from ? { from } : {}),
+    ...(safeIntent ? { resumeIntent: safeIntent } : {}),
+    ...(safeContext ? { resumeContext: safeContext } : {}),
+  };
 }
 
 export function getAuthDestination(
@@ -67,12 +101,25 @@ export function getAuthDestination(
 ): { to: string; state?: { resumeIntent: EnrollmentResumeIntent } } {
   const location = state.from || safeLocation(fallback);
   const to = location ? location.pathname + (location.search || "") + (location.hash || "") : "/";
-  return { to, ...(state.resumeIntent ? { state: { resumeIntent: state.resumeIntent } } : {}) };
+  return {
+    to,
+    ...(state.resumeIntent || state.resumeContext
+      ? { state: {
+          ...(state.resumeIntent ? { resumeIntent: state.resumeIntent } : {}),
+          ...(state.resumeContext ? { resumeContext: state.resumeContext } : {}),
+        } }
+      : {}),
+  };
 }
 
 export function toAuthNavigationState(
   state: AuthNavigationState,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return { ...extra, ...(state.from ? { from: state.from } : {}), ...(state.resumeIntent ? { resumeIntent: state.resumeIntent } : {}) };
+  return {
+    ...extra,
+    ...(state.from ? { from: state.from } : {}),
+    ...(state.resumeIntent ? { resumeIntent: state.resumeIntent } : {}),
+    ...(state.resumeContext ? { resumeContext: state.resumeContext } : {}),
+  };
 }

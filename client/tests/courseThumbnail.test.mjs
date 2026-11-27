@@ -10,6 +10,7 @@ const learning = read("../src/pages/MyCourses.tsx");
 const details = read("../src/pages/CourseDetails.tsx");
 const playlist = read("../src/pages/PlaylistCourse.tsx");
 const carousel = read("../src/components/LongFormCourseCarousel.tsx");
+const savedCourses = read("../../server/src/controllers/savedCourse.controller.js");
 
 test("course thumbnails enforce the fixed layout, safe zones, and bounded metadata", () => {
   assert.match(thumbnail, /h-\[168px\]/);
@@ -41,6 +42,7 @@ test("all learner course-cover surfaces use the shared course thumbnail resolver
   assert.match(details, /CourseThumbnail \{\.\.\.getCourseThumbnailProps\(item\)\}/);
   assert.match(playlist, /getCourseThumbnailProps\(/);
   assert.match(carousel, /getCourseThumbnailProps\(/);
+  assert.match(savedCourses, /domain tags level duration thumbnail isPublished pricing learningOutcomes modules\.title/);
   for (const [name, source] of [["catalogue", card], ["my learning", learning], ["course details", details], ["playlist details", playlist], ["long-form discovery", carousel]]) {
     assert.doesNotMatch(source, /<img[^>]+src=\{(?:course|item)\.thumbnail/ , name + " must not render an external course cover");
   }
